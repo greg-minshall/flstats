@@ -1,7 +1,7 @@
 #
 # Tcl script as part of flstats
 #
-# $Id: flstats.tcl,v 1.41 1996/03/14 21:22:38 minshall Exp minshall $
+# $Id: flstats.tcl,v 1.42 1996/03/14 22:02:35 minshall Exp minshall $
 #
 #
 
@@ -538,7 +538,7 @@ fl_setup { {filename {}} {binsecs {}} \
 
     set fname [glob $filename]
     # "eval" to get the filename in argv[1] and (optional) type in argv[2]...
-    eval "fl_set_file $fname"
+    eval "fl_set_file $fname $flstats(tracefile.kind)"
 
     file stat $fname filestats
     puts [format "# file %s size %d last written %d" \
@@ -558,25 +558,29 @@ fl_setup { {filename {}} {binsecs {}} \
 proc\
 fl_set_parameters {argc argv}\
 {
+    global argv0
     global flstats
+    set classes 0
+    set flows 0
+    set interactive 0
 
     set arg [lindex $argv 0]
     while {$argc && ([string length $arg] > 1) &&
 				([string range $arg 0 0] == "-")} {
-	if {[string first $arg -tracefile] == 0} { ; # trace file name
+	if {[string first $arg -read] == 0} { ; # trace file name
 	    if {$argc < 2} {
-		error "not enough arguments for -tracefile in $argv\nlooking\
-			for '-tracefile filename'"
+		error "not enough arguments for -read in $argv\nlooking\
+			for '-read tracefilename'"
 	    }
 	    set flstats(tracefile.filename) [lindex $argv 1]
 	    incr argc -2
 	    set argv [lrange $argv 2 end]
-	} elseif {[string first $arg -format] == 0} { ; # trace file format
+	} elseif {[string first $arg -kind] == 0} { ; # trace file kind
 	    if {$argc < 2} {
-		error "not enough arguments for -format in $argv\nlooking for\
-			    '-format [tracefileformat]'"
+		error "not enough arguments for -kind in $argv\nlooking for\
+			    '-kind [tracefilekind]'"
 	    }
-	    set flstats(tracefile.format) [lindex $argv 1]
+	    set flstats(tracefile.kind) [lindex $argv 1]
 	    incr argc -2
 	    set argv [lrange $argv 2 end]
 	} elseif {[string first $arg -binsecs] == 0} { ; # bin time (seconds)
@@ -587,33 +591,47 @@ fl_set_parameters {argc argv}\
 	    set flstats(binsecs) [lindex $argv 1]
 	    incr argc -2
 	    set argv [lrange $argv 2 end]
-	} elseif {[string first $arg -flowtypes] == 0} { ; # flow types
-	    if {$argc < 3} {
-		error "not enough arguments for -flowtypes in $argv\nlooking \
-				for '-flows {file filename|script script}'"
+	} elseif {[string first $arg -types] == 0} { ; # flow types
+	    if {$argc < 2} {
+		error "not enough arguments for -types in $argv\nlooking \
+				for '-flows flowtypes'"
 	    }
-	    switch -exact -- [lindex $argv 1] \
-	    file {
-		set flstats(flowtypes) [source [lindex $argv 2]]
-	    } \
-	    script {
-		set flstats(flowtypes) [lindex $argv 2]
-	    } \
-	    default {
-		error "looking for 'file' or 'script', found [lindex $argv 1]"
-	    }
-	    incr argc -3
-	    set argv [lrange $argv 3 end]
+	    set flstats(flowtypes) [lindex $argv 1]
+	    incr argc -2
+	    set argv [lrange $argv 2 end]
 	} elseif {[string first $arg -script] == 0} { ; # execute tcl script
 	    uplevel #0 [lindex $argv 1]
 	    incr argc -2
 	    set argv [lrange $argv 2 end]
+	} elseif {[string first $arg -interactive] == 0} { ; # interactive
+	    if {$classes || $flows} {
+		error "can only specify *one* of {classes|flows|interactive}"
+	    }
+	    set interactive 1
+	    incr argc -1
+	    set argv [lrange $argv 1 end]
+	} elseif {[string first $arg -flows] == 0} { ; # flow details
+	    if {$classes || $interactive} {
+		error "can only specify *one* of {classes|flows|interactive}"
+	    }
+	    set flows 1
+	    incr argc -1
+	    set argv [lrange $argv 1 end]
+	} elseif {[string first $arg -classes] == 0} { ; # class details
+	    if {$flows || $interactive} {
+		error "can only specify *one* of {classes|flows|interactive}"
+	    }
+	    set classes 1
+	    incr argc -1
+	    set argv [lrange $argv 1 end]
 	} else {
-	    error "unknown argument [lindex $argv 0] in $argv\nusage: \
-		$argv0 [-tracefile file format] [-binsecs num]\
-			[-classifier procedurename]\
-			[-flows { file name | script tclscript}]\
-			[-script tclscript] [tclfile]"
+	    error [format {unknown argument %s in %s\nusage: \
+		%s  [-read tracefilename -kind tracefilekind]\
+			[-binsecs num]\
+			[-flows flowtype[s]]\
+			[-script tclscript]\
+			[-{classes|flows|interactive}]}\
+			[lindex $argv 0] $argv $argv0]
 	}
 	set arg [lindex $argv 0]
     }
@@ -636,6 +654,7 @@ fl_startup { }\
 # set some defaults...
 set flstats(classifier) {}
 set flstats(binsecs) 0
+set flstats(tracefile.kind) {}
 # default flowtypes...
 set flstats(flowtypes) { \
 	ihv/ihl/tos/ttl/prot/src/dst ihv/ihl/tos/ttl/prot/src/dst/sport/dport \
