@@ -1,4 +1,4 @@
-#!/bin/csh
+#!/bin/csh -fx
 # !/bin/csh -fx
 
 # cheap hack to make things portable (but, note this is csh!)
@@ -11,6 +11,7 @@ set nmtclxDOTy=tcl7.4
 set gcc
 set SVR4
 set tclxy
+set tclloc
 
 # determine gcc status
 gcc -v >& /dev/null
@@ -22,29 +23,36 @@ if ( `uname -s` == "SunOS" ) then
 	if ( $gcc == "" ) echo "compile errors?  maybe because you need an ANSI-compatible compiler like gcc..."
 endif
 
-# determine name of TCL library...
+# determine name of TCL library and lib directory...
 set ld_path="/lib:/usr/lib:/usr/local/lib:/usr/X11/lib"
 if ($?LD_LIBRARY_PATH) then
     set ld_path=($ld_path $LD_LIBRARY_PATH)
 endif
-set sawtclxy=0
-set sawtclxDOTy=0
+
 foreach i (`echo $ld_path | sed "s/:/ /g"`)
     ls $i/lib$nmtclxDOTy* >& /dev/null
     if ($status == 0) then
-	set sawtclxDOTy=1
+	set tclxy="-e s/__CONFIGURE__TCLXY__/$nmtclxDOTy/"
     endif
     ls $i/lib$nmtclxy* >& /dev/null
     if ($status == 0) then
-	set sawtclxy=1
+	set tclxy="-e s/__CONFIGURE__TCLXY__/$nmtclxy/"
     endif
 end
 
-if ($sawtclxDOTy) then
-    set tclxy="-e s/__CONFIGURE__TCLXY__/$nmtclxDOTy/"
-else if ($sawtclxy) then
-    set tclxy="-e s/__CONFIGURE__TCLXY__/$nmtclxy/"
-else
+foreach i (`echo $ld_path | sed "s/:/ /g"`)
+    if (-d $i/$nmtclxDOTy) then
+	set tclloc="-e sY__CONFIGURE__TCLLOC__Y${i}/${nmtclxDOTy}Y"
+    endif
+    if (-d $i/$nmtclxy) then
+	set tclloc="-e sY__CONFIGURE__TCLLOC__Y${i}/${nmtclxy}Y"
+    endif
+end
+
+echo $tclxy
+echo $tclloc
+
+if ("$tclxy" == "") then
     echo "Cannot find lib$nmtclxDOTy.a or lib$nmtclxy.a!  Aborting..."
     echo "(to change to a different version of tcl, edit 'configure')"
     exit 1
@@ -55,5 +63,5 @@ echo "# THIS FILE IS CREATED BY ./configure -- DO NOT HAND EDIT!" > Makefile
 echo "# (Edit Makefile.in and then rerun ./configure instead.)" >> Makefile
 
 # now, edit Makefile.in...
-sed -e 's/^#have-none#//' $gcc $SVR4 $tclxy Makefile.in >> Makefile
+sed -e 's/^#have-none#//' $gcc $SVR4 $tclxy $tclloc Makefile.in >> Makefile
 chmod ug+w Makefile
