@@ -1,7 +1,7 @@
 #
 # Tcl script as part of flstats
 #
-# $Id: flstats.tcl,v 1.44 1996/03/15 00:53:49 minshall Exp minshall $
+# $Id: flstats.tcl,v 1.45 1996/03/15 01:49:17 minshall Exp minshall $
 #
 #
 
@@ -536,13 +536,16 @@ fl_setup { {filename {}} {binsecs {}} \
 	set flstats(binsecs) $binsecs
     }
 
-    set fname [glob $filename]
+    if {$filename != "-"} {
+	set fname [glob $filename]
+	file stat $fname filestats
+	puts [format "# file %s size %d last written %d" \
+			$fname $filestats(size) $filestats(mtime)]
+    } else {
+	set fname $filename
+    }
     # "eval" to get the filename in argv[1] and (optional) type in argv[2]...
     eval "fl_set_file $fname $flstats(tracefile.kind)"
-
-    file stat $fname filestats
-    puts [format "# file %s size %d last written %d" \
-			$fname $filestats(size) $filestats(mtime)]
 
     puts "#"
     fl_setft $classifier $flowtypes
