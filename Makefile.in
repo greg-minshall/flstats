@@ -1,5 +1,5 @@
 LIBPCAP = ../libpcap/libpcap-0.0.6/libpcap.a
-LIBTCL = /usr/local/lib/libtcl74.a
+LIBTCL = /usr/local/lib/libtcl7.4.a
 INCLUDES	= -I/usr/local/include
 
 CFLAGS	= -g ${INCLUDES}
