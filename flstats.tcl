@@ -20,9 +20,6 @@ set CL_TO_BE_SWITCHED		4
 set CL_SWITCHED			5
 
 # when these are used, the values are set in [fsim_setft]
-set FT_LL_PORT			0
-set FT_LL_NOPORT		0
-set FT_GUARD			0
 set FT_UL_PORT			0
 set FT_UL_NOPORT		0
 
@@ -338,9 +335,6 @@ proc \
 fsim_flow_details { fixortcpd filename {binsecs 1} {classifier {}} \
 					{classifiertype {}} { ulflows {} }} \
 {
-    global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
-    global FT_LL_PORT FT_LL_NOPORT FT_UL_PORT FT_UL_NOPORT
-
     fsim_setup $fixortcpd $filename $binsecs $classifier \
 					$classifiertype $ulflows
 
@@ -363,7 +357,6 @@ fsim_class_details { fixortcpd filename {binsecs 1} {classifier {}} \
 					{classifiertype {}} { ulflows {} }}\
 {
     global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
-    global FT_LL_PORT FT_LL_NOPORT FT_UL_PORT FT_UL_NOPORT
 
     fsim_setup $fixortcpd $filename $binsecs $classifier \
 					$classifiertype $ulflows
