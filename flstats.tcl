@@ -1,7 +1,7 @@
 #
 # Tcl script as part of flstats
 #
-# $Id: flstats.tcl,v 1.52 1996/10/26 06:03:56 minshall Exp minshall $
+# $Id: flstats.tcl,v 1.53 1996/10/26 06:16:59 minshall Exp minshall $
 #
 #
 
@@ -14,113 +14,11 @@
 ### The following is useful, but is also provided as an
 ### example of how to use flstats.
 
-###############
-### EXAMPLE ###
-###############
-
-# some DEFINES
-
-# (note that because of ordering of upgrading parent classes, the *numbers*
-# here are important!  (sigh))
-set CL_NONSWITCHED		3
-set CL_TO_BE_SWITCHED		4
-set CL_SWITCHED			5
-
-# when these are used, the values are set in [fl_setft]
-set FT_UL_PORT			0
-set FT_UL_NOPORT		0
-
-proc \
-flswitchtime {} \
-{
-    return 0.300000 	; # time to switch
-}
-
 #
-# this routine is called when a low level flow
-# is established.
+# Tcl script portion of flstats
 #
-# classify the incoming flow, and return the class and
-# flow type of the upper level flow corresponding to this
-# lower level flow
+# $Id$
 #
-# additionally, start a timeout on the flow to reap it if unused
-# over some period of time
-#
-
-# $classifier.specifier -- return flow types used by $classifier
-proc\
-flclassifier.specifier {} \
-{
-    return "prot"	; # flow specifier parts used by this classifier
-}
-
-proc\
-flclassifier { class flowtype flowid } \
-{
-    global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
-    global FT_UL_PORT FT_UL_NOPORT
-
-    regexp {/prot/([^/]*)} $flowid match prot
-    switch -exact -- $prot {
-    6 {return "$class $CL_SWITCHED $FT_UL_NOPORT 0.0 2.0"}
-    11 {return "$class $CL_NONSWITCHED $FT_UL_NOPORT 0.0 2.0"}
-    default {return "$class $CL_NONSWITCHED $FT_UL_NOPORT 0.0 2.0"}
-    }
-}
-
-#
-# this is called when a new upper level flow is established.
-# this gives us a chance to start a packet_recv and timeout
-# process
-#
-
-proc\
-flstarttimeout { class flowtype flowid } \
-{
-    global CL_TO_BE_SWITCHED CL_NONSWITCHED
-
-    if {$class == $CL_TO_BE_SWITCHED} {
-	return "$class $class $flowtype [flswitchtime] 2.0"
-    } else {
-	return "$class $class $flowtype 0.0 2.0"
-    }
-}
-
-#
-# this runs for both upper level and lower level flows
-# to time them out.
-#
-
-proc\
-fldeleteflow {class ftype flowid time FLOW args} \
-{
-    # ahh, dr. regsub... 
-    regsub -all {([a-zA-Z_]+) ([0-9.]+)} $args {[set x_\1 \2]} bar
-    subst $bar
-
-    set idle [expr $time - $x_last]
-    set life [expr $x_last - $x_created]
-    if {($idle > $life) || ($idle > 64)} {
-	return "DELETE"		; # gone...
-    }
-
-    set time [expr 2 * $life]
-    if {$time > 64} {
-	set time 64
-    }
-
-    return "- $time.0"
-}
-
-
-proc\
-flgetswitched { class flowtype flowid args} \
-{
-    global CL_SWITCHED
-
-    return "$CL_SWITCHED -"
-}
 
 # this doesn't need $pre, since the subst is performed at the caller...
 
@@ -132,6 +30,8 @@ flget_summary_vec {class} \
 			[fl_class_stats $class] {[set ${pre}_\1 \2]} bar
 	return $bar
 }
+
+
 
 # this doesn't need $pre, since the subst is performed at the caller...
 #
@@ -149,7 +49,7 @@ flget_diff_vec {class} \
 }
 
 proc\
-flll_delete {class ftype flowid time FLOW args} \
+flll_delete {time FLOW args} \
 {
     # ahh, dr. regsub... 
     regsub -all {([a-zA-Z_]+) ([0-9.]+)} $args {[set x_\1 \2]} bar
@@ -215,102 +115,13 @@ fl_class_details { {filename {}} {binsecs {}} \
     }
 }
 
-
-proc \
-old_fl_class_details { {filename {}} {binsecs {}} \
-					{classifier {}} { flowtypes {} }} \
-{
-    global flstats
-    global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
-
-    fl_setup $filename $binsecs $classifier $flowtypes
-
-    puts "# plotvars 1 binno 2 pktsrouted 3 bytesrouted 4 pktsswitched"
-    puts "# plotvars 5 bytesswitched 6 pktsdropped 7 bytesdropped"
-    puts "# plotvars 8 created 9 deleted 10 numflows "
-#    puts "# plotvars 11 bintime 12 vsz 13 rsz 14 cputime"
-
-    # we look at 3 classes: CL_NONSWITCHED, CL_TO_BE_SWITCHED, CL_SWITCHED
-
-    set pid [pid]
-
-
-    # preload the stats counters
-    set pre non
-    subst [flget_summary_vec $CL_NONSWITCHED]
-    set pre waiting
-    subst [flget_summary_vec $CL_TO_BE_SWITCHED]
-    set pre switched
-    subst [flget_summary_vec $CL_SWITCHED]
-    set pre gstats
-    subst [flget_summary_vec 0]
-
-    set binsecs $flstats(binsecs)		; # make sure we have correct value
-
-    while {1} {
-	set bintime [lindex [split [time { \
-			set binno [fl_read_one_bin $binsecs]}]] 0]
-	if {$binno == -1} {
-	    break;	# eof
-	}
-
-	# get differences from previous stats counters
-	set pre non
-	subst [flget_diff_vec $CL_NONSWITCHED]
-	set pre waiting
-	subst [flget_diff_vec $CL_TO_BE_SWITCHED]
-	set pre switched
-	subst [flget_diff_vec $CL_SWITCHED]
-	set pre gstats
-	subst [flget_diff_vec 0]
-
-	# now, update the stats counters
-	set pre non
-	subst [flget_summary_vec $CL_NONSWITCHED]
-	set pre waiting
-	subst [flget_summary_vec $CL_TO_BE_SWITCHED]
-	set pre switched
-	subst [flget_summary_vec $CL_SWITCHED]
-	set pre gstats
-	subst [flget_summary_vec 0]
-	set xx [exec ps lp$pid]
-	set xx [lrange [split [join $xx]] 19 24]
-	puts [format \
-	    "%-7d %7d %7d %7d %7d %7d %7d %7d %7d %7d" \
-		$binno\
-		[expr $diff_non_pkts + $diff_waiting_pkts] \
-		[expr $diff_non_bytes + $diff_waiting_bytes] \
-		$diff_switched_pkts \
-		$diff_switched_bytes \
-		[expr $diff_gstats_fragpkts + $diff_gstats_runtpkts \
-			+ $diff_gstats_noportpkts] \
-		[expr $diff_gstats_fragbytes + $diff_gstats_runtbytes \
-			+ $diff_gstats_noportbytes] \
-		[expr $diff_waiting_created + $diff_switched_created] \
-		[expr $diff_waiting_deleted + $diff_switched_deleted] \
-		[expr ($waiting_created + $switched_created + \
-					$waiting_added + $switched_added) - \
-			($waiting_deleted + $switched_deleted + \
-					$waiting_removed + $switched_removed)]]
-		; # $bintime
-		; # [lindex $xx 0]
-		; # [lindex $xx 1]
-		; # [lindex $xx 5] ]
-	flush stdout
-    }
-}
-
-###################
-### END EXAMPLE ###
-###################
+######################
+### START FLOWSIM ####
+######################
 
 #
 # start of global -- the following is part of the simulator proper
 #
-
-######################
-### START FLOWSIM ####
-######################
 
 #
 # set up the flow types, using the flowtype argument.
