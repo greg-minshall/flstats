@@ -16,15 +16,15 @@ proc switchtime {} { return 0.300000 }	; # time to switch
 proc\
 classifier { class flowtype flowid }\
 {
-    global CL_NONSWITCHED CL_TO_BE_SWITCHED
-    global FT_UL_PORT FT_UL_NOPORT
+    global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
+    global FT_UL_PORT FT_UL_NOPORT FT_LL_NOPORT
 
+#    6 {return "$CL_TO_BE_SWITCHED $FT_UL_PORT getswitched [switchtime]"}
     regexp {/prot/([^/]*)/} $flowid match prot
     switch -exact -- $prot {
-; #    6 {return "$CL_TO_BE_SWITCHED $FT_UL_PORT getswitched [switchtime]"}
-    6 {return "$CL_SWITCHED $FT_UL_PORT"}
-    11 {return "$CL_NONSWITCHED $FT_UL_PORT"}
-    default {return "$CL_NONSWITCHED $FT_UL_NOPORT"}
+    6 {return "$CL_SWITCHED $FT_LL_NOPORT"}
+    11 {return "$CL_NONSWITCHED $FT_LL_NOPORT"}
+    default {return "$CL_NONSWITCHED $FT_LL_NOPORT"}
     }
 }
 
