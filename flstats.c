@@ -11,7 +11,14 @@
  *		[class_details], [fsim_read_one_bin].  Give
  *		examples of use; warn about memory consumption.
  *	7.	Verify the results of callouts (new flow, recv,
- *		timeout) are valid.
+ *		timer) are valid.
+ *  	8.  	Set atoft[] from Tcl code
+ *  	9.  	Protohasports...
+ *     10.  	Separate out MF and DF from foff in atoft; generalize
+ *  	    	flow_id_to_string (requires fixes to set_flow_type()
+ *		*and* to FLOW_ID_FROM_HDR() and (maybe) tbl_lookup()
+ *     11.  	Specify trace file/format on command line;
+ *  	    	add fsim_fileinfo (returns name and format).
  */
 
 
@@ -40,6 +47,11 @@
 		    (r)->tv_usec -= 1000000; \
 		} \
 	    }
+
+#define	TIME_LE(a,b) \
+		(((a)->tv_sec <= (b)->tv_sec) \
+			|| (((a)->tv_sec == (b)->tv_sec) && \
+			    ((a)->tv_usec <= (b)->tv_usec)))
 
 #define	TIME_LT(a,b) \
 		(((a)->tv_sec < (b)->tv_sec) \
@@ -91,12 +103,16 @@ struct flowentry {
 	fe_bytes,		/* number of bytes received */
 	fe_sipg,		/* smoothed interpacket gap (units of 8 usec) */
 	fe_created_bin,
-	fe_last_bin_active;
+	fe_last_bin_active,	/* last bin this saw activity */
+	fe_upcall_when_pkts_ge,	/* num pkts needs to be >= m */
+	fe_upcall_when_sipg_lt;	/* sipg needs to be < p */
+				/* (0xffffffff ==> ignore sipg) */
+				/* (0 ==> never call out) */
     struct timeval
 	fe_created,		/* time created */
 	fe_last_pkt_rcvd,	/* time most recent packet seen */
-	fe_recv_cmd_time,	/* recv_cmd won't run till this time */
-	fe_timeout_time;	/* time to run timeout routine */
+	fe_upcall_when_secs_ge,	/* recv_upcall won't run till this time */
+	fe_timer_time;	    	/* time to run timer routine */
     /* fields for hashing */
     u_short fe_sum;		/* hash of key, speeds up searching */
     u_char  fe_key_len,		/* length of key */
@@ -206,37 +222,37 @@ struct ftinfo {
 	    fti_type_indicies_len,
 	    fti_id_len,		/* length of a flow id for this type */
 	    fti_id_covers;	/* how far into pkt hdr the flow id reaches */
-    char    *fti_new_flow_cmd;
+    char    *fti_new_flow_upcall;
 	    /*
-	     * routine:	fti_new_flow_cmd
-	     * call:	"fti_new_flow_cmd class flowtype flowid"
+	     * routine:	fti_new_flow_upcall
+	     * call:	"fti_new_flow_upcall class flowtype flowid"
 	     * result:	"class upper_class upper_ftype recvsecs.usecs"
-	     *						timeoutsecs.usecs" 
+	     *						timersecs.usecs" 
 	     *
 	     * 'class' is the class of the new flow.  'upper_class'
 	     * is the class for any parent flow that might be created.
 	     * 'upper_ftype' is the flow type for a created parent flow.
 	     * recvsecs.usecs after the current time in the output flow,
 	     * a received packet will cause the flow types receive routine
-	     * to be called.  timeoutsecs.usecs from now, the flow type's
-	     * timeout routine will be called for this flow.
+	     * to be called.  timersecs.usecs from now, the flow type's
+	     * timer routine will be called for this flow.
 	     */
-    char    *fti_recv_cmd;	/* command to call when a pkt received */
+    char    *fti_recv_upcall;	/* command to call when a pkt received */
 	    /*
-	     * routine:	recv_cmd
-	     * call:	"recv_cmd class ftype flowid FLOW flowstats"
+	     * routine:	recv_upcall
+	     * call:	"recv_upcall class ftype flowid FLOW flowstats"
 	     * result:	"class recvsecs.usecs" 
 	     *
 	     * if, on output, recvsecs is null,
-	     * zero will be used (which means that recv_cmd will be
+	     * zero will be used (which means that recv_upcall will be
 	     * called the next time a packet is received on that flow,
 	     * no matter how soon it arrives).
 	     */
-    char    *fti_timeout_cmd;	/* timeout command (if registered) */
+    char    *fti_timer_upcall;	/* timer command (if registered) */
 	    /*
-	     * routine: timeout_cmd
-	     * call:	"timeout_cmd class ftype flowid FLOW flowstats"
-	     * result:  "command timeoutsecs.usecs"
+	     * routine: timer_upcall
+	     * call:	"timer_upcall class ftype flowid FLOW flowstats"
+	     * result:  "command timersecs.usecs"
 	     *
 	     * if "command" is "DELETE", the associated flow will be
 	     * deleted.  if "command" starts with '-', it will be ignored.
@@ -610,13 +626,13 @@ class_statistics(clstats_p clsp)
 
 
 /*
- * arrange for something to run shortly after "timeouttime"
+ * arrange for something to run shortly after "timertime"
  */
 
 static void
-timer_insert(flowentry_p fe, struct timeval *timeouttime)
+timer_insert(flowentry_p fe, struct timeval *timertime)
 {
-    flowentry_p timer = &timers[timeouttime->tv_sec%NUM(timers)];
+    flowentry_p timer = &timers[timertime->tv_sec%NUM(timers)];
 
     timer->fe_prev_in_timer->fe_next_in_timer = fe;
     fe->fe_prev_in_timer = timer->fe_prev_in_timer;
@@ -655,7 +671,7 @@ timer_get_slot()
 }
 
 static void
-do_timeouts(Tcl_Interp *interp)
+do_timers(Tcl_Interp *interp)
 {
     flowentry_p nfe, fe;
     ftinfo_p fti;
@@ -668,41 +684,41 @@ do_timeouts(Tcl_Interp *interp)
     while ((fe = nfe) != 0) {
 	nfe = fe->fe_next_in_timer;
 	fe->fe_next_in_timer = fe->fe_prev_in_timer = 0;
-	if (TIME_LT(&fe->fe_timeout_time, &curtime)) {
+	if (TIME_LT(&fe->fe_timer_time, &curtime)) {
 	    fti = &ftinfo[fe->fe_flow_type];
-	    if ((fti->fti_timeout_cmd == 0) ||
-				TIME_EQ(&fe->fe_timeout_time, &ZERO)) {
+	    if ((fti->fti_timer_upcall == 0) ||
+				TIME_EQ(&fe->fe_timer_time, &ZERO)) {
 		continue;	/* maybe flow type changed? */
 	    }
 	    /*
-	     * call:	"timeout_cmd class ftype flowid FLOW flowstats"
+	     * call:	"timer_upcall class ftype flowid FLOW flowstats"
 	     * result:  "command secs.usecs"
 	     */
 	    sprintf(buf, " %d %d ", fe->fe_class, fe->fe_flow_type);
 	    sprintf(buf2, " %ld.%06ld ", curtime.tv_sec, curtime.tv_usec);
 	    if (Tcl_VarEval(interp,
-		    ftinfo[fe->fe_flow_type].fti_timeout_cmd, buf,
+		    ftinfo[fe->fe_flow_type].fti_timer_upcall, buf,
 		    flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_key),
 		    buf2, " FLOW ", flow_statistics(fe), 0) != TCL_OK) {
 		packet_error = TCL_ERROR;
 		return;
 	    }
 
-	    fe->fe_timeout_time.tv_usec = 0;
+	    fe->fe_timer_time.tv_usec = 0;
 	    n = sscanf(interp->result, "%s %ld.%ld",
-			buf, &fe->fe_timeout_time.tv_sec,
-			&fe->fe_timeout_time.tv_usec);
+			buf, &fe->fe_timer_time.tv_sec,
+			&fe->fe_timer_time.tv_usec);
 	    if ((n >= 1) && !strcmp(buf, "DELETE")) {
 		delete_flow(fe);
 	    } else if (n >= 2) {
-		if (!TIME_EQ(&fe->fe_timeout_time, &ZERO)) {
-		    TIME_ADD(&fe->fe_timeout_time,
-					&fe->fe_timeout_time, &curtime);
-		    timer_insert(fe, &fe->fe_timeout_time);
+		if (!TIME_EQ(&fe->fe_timer_time, &ZERO)) {
+		    TIME_ADD(&fe->fe_timer_time,
+					&fe->fe_timer_time, &curtime);
+		    timer_insert(fe, &fe->fe_timer_time);
 		}
 	    }
 	} else {
-	    timer_insert(fe, &fe->fe_timeout_time);
+	    timer_insert(fe, &fe->fe_timer_time);
 	}
     }
 }
@@ -716,9 +732,9 @@ set_time(Tcl_Interp *interp, u_long secs, u_long usecs)
 	starttime.tv_usec = usecs;
 	curtime = starttime;
     } else {
-	/* call timeouts once per second */
+	/* call timers once per second */
 	while (curtime.tv_sec != secs) {
-	    do_timeouts(interp);
+	    do_timers(interp);
 	    curtime.tv_sec++;		/* advance the time */
 	}
 	curtime.tv_usec = usecs;
@@ -870,29 +886,31 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int level, int class)
      *
      * the callout is allowed to change certain parameters of
      * this flow entry: the class, the parent flow type,
-     * the recv_cmd and parameters, and the timeout_cmd
+     * the recv_upcall and parameters, and the timer_upcall
      * and parameters.
      */
 
-    if (ft->fti_new_flow_cmd) {
+    if (ft->fti_new_flow_upcall) {
 	int n;
 	char buf[100];
 
 	sprintf(buf, " %d %d ", fe->fe_class, ft-ftinfo);
-	if (Tcl_VarEval(interp, ft->fti_new_flow_cmd,
+	if (Tcl_VarEval(interp, ft->fti_new_flow_upcall,
 		buf, flow_id_to_string(ft, fe->fe_key), 0) != TCL_OK) {
 	    packet_error = TCL_ERROR;
 	    return 0;
 	}
-	fe->fe_recv_cmd_time.tv_usec = 0;
-	fe->fe_timeout_time.tv_usec = 0;
+	fe->fe_upcall_when_secs_ge.tv_usec = 0;
+	fe->fe_timer_time.tv_usec = 0;
 
-	n = sscanf(interp->result, "%hd %hd %hd %ld.%ld %ld.%ld",
+	n = sscanf(interp->result, "%hd %hd %hd %ld.%ld %ld %ld %ld.%ld",
 		&fe->fe_class, &fe->fe_parent_class, &fe->fe_parent_ftype,
-			    &fe->fe_recv_cmd_time.tv_sec,
-			    &fe->fe_recv_cmd_time.tv_usec,
-			    &fe->fe_timeout_time.tv_sec,
-			    &fe->fe_timeout_time.tv_usec);
+			    &fe->fe_upcall_when_secs_ge.tv_sec,
+			    &fe->fe_upcall_when_secs_ge.tv_usec,
+			    &fe->fe_upcall_when_pkts_ge,
+			    &fe->fe_upcall_when_sipg_lt,
+			    &fe->fe_timer_time.tv_sec,
+			    &fe->fe_timer_time.tv_usec);
 
 	/*
 	 * (yes, these "if" stmts could be nested, and thus
@@ -900,17 +918,17 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int level, int class)
 	 * so...)
 	 */
 	if (n >= 4) {
-	    if (!TIME_EQ(&fe->fe_recv_cmd_time, &ZERO)) {
+	    if (!TIME_EQ(&fe->fe_upcall_when_secs_ge, &ZERO)) {
 		/* returned value is relative to now, so make absolute */
-		TIME_ADD(&fe->fe_recv_cmd_time,
-				&fe->fe_recv_cmd_time, &curtime);
+		TIME_ADD(&fe->fe_upcall_when_secs_ge,
+				&fe->fe_upcall_when_secs_ge, &curtime);
 	    }
 	}
-	if (n >= 6) {
-	    if (!TIME_EQ(&fe->fe_timeout_time, &ZERO)) {
+	if (n >= 8) {
+	    if (!TIME_EQ(&fe->fe_timer_time, &ZERO)) {
 		/* returned value is relative to now, so make absolute */
-		TIME_ADD(&fe->fe_timeout_time, &fe->fe_timeout_time, &curtime);
-		timer_insert(fe, &fe->fe_timeout_time);
+		TIME_ADD(&fe->fe_timer_time, &fe->fe_timer_time, &curtime);
+		timer_insert(fe, &fe->fe_timer_time);
 	    }
 	}
     }
@@ -984,16 +1002,18 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
 	 *	N seconds.
 	 */
 
-    if (ftinfo[fe->fe_flow_type].fti_recv_cmd &&
-			TIME_LT(&curtime, &fe->fe_recv_cmd_time) &&
-			!TIME_EQ(&fe->fe_recv_cmd_time, &ZERO)) {
+    if (ftinfo[fe->fe_flow_type].fti_recv_upcall &&
+		(fe->fe_upcall_when_pkts_ge >= fe->fe_pkts) &&
+		(fe->fe_upcall_when_sipg_lt < fe->fe_sipg) &&
+		TIME_LE(&curtime, &fe->fe_upcall_when_secs_ge) &&
+		!TIME_EQ(&fe->fe_upcall_when_secs_ge, &ZERO)) {
 	char buf[60];
 	int n, outcls;
 	struct timeval outtime;
 
 	sprintf(buf, " %d %d ", fe->fe_class, fe->fe_flow_type);
 
-	if (Tcl_VarEval(interp, ftinfo[fe->fe_flow_type].fti_recv_cmd, buf,
+	if (Tcl_VarEval(interp, ftinfo[fe->fe_flow_type].fti_recv_upcall, buf,
 		    flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_key),
 				" FLOW ", flow_statistics(fe), 0) != TCL_OK) {
 	    packet_error = TCL_ERROR;
@@ -1001,9 +1021,11 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
 	}
 
 	outcls = fe->fe_class;
-	n = sscanf(interp->result, "%d %ld.%ld", &outcls,
-				    &fe->fe_recv_cmd_time.tv_sec,
-				    &fe->fe_recv_cmd_time.tv_usec);
+	n = sscanf(interp->result, "%d %ld.%ld %ld %ld", &outcls,
+				    &fe->fe_upcall_when_secs_ge.tv_sec,
+				    &fe->fe_upcall_when_secs_ge.tv_usec,
+				    &fe->fe_upcall_when_pkts_ge,
+				    &fe->fe_upcall_when_sipg_lt);
 
 	if (outcls != fe->fe_class) {
 	    /* class is changing --- update statistics */
@@ -1012,8 +1034,8 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
 	    clstats[fe->fe_class].cls_added++;
 	}
 	if (n >= 2) {
-	    if (!TIME_EQ(&fe->fe_recv_cmd_time, &ZERO)) {
-		TIME_ADD(&fe->fe_recv_cmd_time, &curtime, &outtime);
+	    if (!TIME_EQ(&fe->fe_upcall_when_secs_ge, &ZERO)) {
+		TIME_ADD(&fe->fe_upcall_when_secs_ge, &curtime, &outtime);
 	    }
 	}
     }
@@ -1323,8 +1345,8 @@ fsim_read_one_bin(ClientData clientData, Tcl_Interp *interp,
 }
 
 static int
-set_flow_type(Tcl_Interp *interp, int ftype, char *name, char *new_flow_cmd,
-				char *recv_cmd, char *timeout_cmd)
+set_flow_type(Tcl_Interp *interp, int ftype, char *name, char *new_flow_upcall,
+				char *recv_upcall, char *timer_upcall)
 {
     char initial[MAX_FLOW_ID_BYTES*5], after[MAX_FLOW_ID_BYTES*5]; /* 5 rndm */
     char *curdesc;
@@ -1394,18 +1416,18 @@ goodout:
     fti->fti_bytes_and_mask_len = bandm;
     fti->fti_id_len = bandm/2;
     fti->fti_type_indicies_len = indicies;
-    if (fti->fti_new_flow_cmd) {
-	free(fti->fti_new_flow_cmd);
+    if (fti->fti_new_flow_upcall) {
+	free(fti->fti_new_flow_upcall);
     }
-    fti->fti_new_flow_cmd = new_flow_cmd;
-    if (fti->fti_recv_cmd) {
-	free(fti->fti_recv_cmd);
+    fti->fti_new_flow_upcall = new_flow_upcall;
+    if (fti->fti_recv_upcall) {
+	free(fti->fti_recv_upcall);
     }
-    fti->fti_recv_cmd = recv_cmd;
-    if (fti->fti_timeout_cmd) {
-	free(fti->fti_timeout_cmd);
+    fti->fti_recv_upcall = recv_upcall;
+    if (fti->fti_timer_upcall) {
+	free(fti->fti_timer_upcall);
     }
-    fti->fti_timeout_cmd = timeout_cmd;
+    fti->fti_timer_upcall = timer_upcall;
     return TCL_OK;
 }
 
@@ -1425,20 +1447,20 @@ fsim_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 {
     int error;
     int ftype;
-    char *new_flow_cmd, *recv_cmd, *timeout_cmd;
+    char *new_flow_upcall, *recv_upcall, *timer_upcall;
     static char result[20];
     static char *usage =
 		"Usage: fsim_set_flow_type "
 		"?-n new_flow_command? ?-r recv_command? "
-		"?-t timeout_command? ?-f flow_type? flowstring";
+		"?-t timer_command? ?-f flow_type? flowstring";
     int op;
     extern char *optarg;
     extern int optind, opterr, optreset;
 
     ftype = 0;
-    new_flow_cmd = 0;
-    recv_cmd = 0;
-    timeout_cmd = 0;
+    new_flow_upcall = 0;
+    recv_upcall = 0;
+    timer_upcall = 0;
     opterr = 0;
     optreset = 1;
     optind = 1;
@@ -1451,8 +1473,8 @@ fsim_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 		    if (optarg[0] == '-') {
 			break;
 		    }
-		    new_flow_cmd = strsave(optarg);
-		    if (new_flow_cmd == 0) {
+		    new_flow_upcall = strsave(optarg);
+		    if (new_flow_upcall == 0) {
 			interp->result = "malloc failed";
 			return TCL_ERROR;
 		    }
@@ -1461,8 +1483,8 @@ fsim_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 		    if (optarg[0] == '-') {
 			break;
 		    }
-		    recv_cmd = strsave(optarg);
-		    if (recv_cmd == 0) {
+		    recv_upcall = strsave(optarg);
+		    if (recv_upcall == 0) {
 			interp->result = "malloc failed";
 			return TCL_ERROR;
 		    }
@@ -1471,8 +1493,8 @@ fsim_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 		    if (optarg[0] == '-') {
 			break;
 		    }
-		    timeout_cmd = strsave(optarg);
-		    if (timeout_cmd == 0) {
+		    timer_upcall = strsave(optarg);
+		    if (timer_upcall == 0) {
 			interp->result = "malloc failed";
 			return TCL_ERROR;
 		    }
@@ -1498,7 +1520,7 @@ fsim_set_flow_type(ClientData clientData, Tcl_Interp *interp,
     }
 
     error = set_flow_type(interp, ftype, argv[0],
-				new_flow_cmd, recv_cmd, timeout_cmd);
+				new_flow_upcall, recv_upcall, timer_upcall);
     if (error != TCL_OK) {
 	return error;
     }
