@@ -7,26 +7,52 @@ LIBTCL = -ltcl7.4
 
 INCLUDES	= -I/usr/local/include -I../include
 
-WARNINGS	= -Wall
+#have-gcc#CC = gcc
+#have-gcc#WARNINGS	= -Wall
+#have-SVR4#SVR4 = -DSVR4
 
 CFLAGS	= -g ${INCLUDES} ${WARNINGS}
 
-CC = gcc
+SOURCES = Makefile.in flstats.1 flstats.c flstats.tcl flstats.html \
+							configure INSTALL
 
-all:	tcpd2det fix2det flstats
+DISTRIBUTION = ${SOURCES} flstats.0 flstats.0.txt
 
-tcpd2det:	tcpd2det.o
-	${CC} ${CFLAGS} -o tcpd2det ${LDFLAGS} tcpd2det.o ${LIBPATH} ${LIBPCAP}
+all:	flstats
 
-fix2det:	fix2det.o
-	${CC} ${CFLAGS} -o fix2det ${LDFLAGS} fix2det.o
+distribution:	flstats.tar.Z flstats.shar
+
+web:	flstats.web.tar
 
 flstats:		flstats.o
 	${CC} ${CFLAGS} -o flstats ${LDFLAGS} flstats.o \
-						${LIBPATH} ${LIBTCL} ${LIBPCAP} -lm
+					    ${LIBPATH} ${LIBTCL} ${LIBPCAP} -lm
 
 flstats.o:	flstats.char flstats.c
 
+# turn a .tcl file into a string for a .c file to process...
 flstats.char:	flstats.tcl
 	sed 's/\\/\\\\/g' < flstats.tcl | sed 's/"/\\"/g' | \
 				sed 's/^/"/' | sed 's/$$/\\n"/' > flstats.char
+
+clean:
+	-rm -f flstats flstats.char flstats.o flstats.0 flstats.0.txt \
+		flstats.tar flstats.tar.Z flstats.web.tar flstats.shar
+
+flstats.0:	flstats.1
+	nroff -man flstats.1 > flstats.0
+
+flstats.0.txt:	flstats.0
+	colcrt < flstats.0 > flstats.0.txt
+
+flstats.tar.Z:	${DISTRIBUTION}
+	tar cf flstats.tar ${DISTRIBUTION}
+	rm -f flstats.tar.Z
+	compress flstats.tar
+
+flstats.shar:	${DISTRIBUTION}
+	rm -f flstats.shar
+	shar ${DISTRIBUTION} > flstats.shar
+
+flstats.web.tar:	flstats.tar.Z flstats.html flstats.0.txt
+	tar cf flstats.web.tar flstats.tar.Z flstats.html flstats.0.txt
