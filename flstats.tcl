@@ -8,11 +8,12 @@ set CL_NONSWITCHED		3
 set CL_TO_BE_SWITCHED		4
 set CL_SWITCHED			5
 
+# when these are used, the values are set in [teho_setft]
 set FT_LL_PORT			0
-set FT_LL_NOPORT		1
-set FT_GUARD			2
-set FT_UL_PORT			3
-set FT_UL_NOPORT		4
+set FT_LL_NOPORT		0
+set FT_GUARD			0
+set FT_UL_PORT			0
+set FT_UL_NOPORT		0
 
 proc switchtime {} { return 0.300000 }	; # time to switch
 
@@ -207,6 +208,7 @@ teho_setft { classifier classifiertype ulflows } \
 
     # now, make sure we get all the stuff the classifier needs
     # (the point being to produce the union of everything)
+    set classifiertype [split $classifiertype /]
     foreach type $classifiertype {
 	if {[lsearch -exact $alltags $type] == -1} {
 	    error "unknown flow type tag $type in classifiertype"
@@ -231,9 +233,11 @@ teho_setft { classifier classifiertype ulflows } \
     }
     set type1 [join $type1 /]
     set type2 [join $type2 /]
+    puts "# flowtype $ftindex $type1 $classifier"
     teho_set_flow_type -f $ftindex -c $classifier $type1
     incr ftindex
     if {$portsseen != 0} {
+	puts "# flowtype $ftindex $type2 $classifier"
 	teho_set_flow_type -f $ftindex -c $classifier $type2
 	incr ftindex
     }
@@ -244,11 +248,11 @@ teho_setft { classifier classifiertype ulflows } \
     for {set whichflow 0} {$whichflow < [llength $ulflows]} \
 					{ incr whichflow; incr ftindex } {
 	set flow [lindex $ulflows $whichflow]
-	puts "# flow $ftindex $flow"
+	puts "# flowtype $ftindex $flow"
 	set len [llength $flow]
 	if {$len >= 3} {
 	    global [lindex $flow 2]
-	    set $[lindex $flow 2] $ftindex
+	    set [lindex $flow 2] $ftindex
 	}
 	if {$len >= 2} {
 	    teho_set_flow_type -f $ftindex -c [lindex $flow 1] \
@@ -330,10 +334,7 @@ teho_class_details { fixortcpd filename {binsecs 1} {classifier {}} \
     puts "# plotvars 8 created 9 deleted 10 numflows 11 totalflows"
     puts "# plotvars 12 bintime 13 timeouttime 14 vsz 15 rsz 16 cputime"
 
-    # we are looking at 3 classes: 3, 4, 5
-    #	3	non-switched flows
-    #	4	to-be-switched flows
-    #	5	switched flows
+    # we look at 3 classes: CL_NONSWITCHED, CL_TO_BE_SWITCHED, CL_SWITCHED
 
     set pid [pid]
 
@@ -412,5 +413,5 @@ proc \
 simul { fixortcpd filename {binsecs 1} {classifier {}} \
 				{classifiertype {}} { ulflows {} }} \
 {
-    teho_class_details $fixortcpd $filename $binsecs
+    teho_class_details $fixortcpd $filename $binsecs $classifier $classifiertype $ulflows
 }
