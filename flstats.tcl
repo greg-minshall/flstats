@@ -1,7 +1,7 @@
 #
 # Tcl script as part of flstats
 #
-# $Id: flstats.tcl,v 1.45 1996/03/15 01:49:17 minshall Exp minshall $
+# $Id: flstats.tcl,v 1.46 1996/03/15 02:27:22 minshall Exp minshall $
 #
 #
 
@@ -638,13 +638,18 @@ fl_set_parameters {argc argv}\
 	    incr argc -1
 	    set argv [lrange $argv 1 end]
 	} else {
-	    error [format {unknown argument %s in '%s'\nusage: %s\
+	    puts -nonewline stderr \
+		    [format "unknown argument %s in '%s'\nusage: %s" \
+					    [lindex $argv 0] $argv $argv0]
+	    error [format {\
 			[-binsecs num]\
 			[-{classes|flows|interactive}]\
+			[-debug]\
 			[-evaluate tclcommands]\
-			[-flows flowtype[s]]\
-			[-kind tracefilekind]}\
-			[lindex $argv 0] $argv $argv0]
+			[-kind tracefilekind]\
+			[-scriptfile filename]\
+			[-types flowspecifier[s]]\
+			[filename]}]
 	}
 	set arg [lindex $argv 0]
     }
