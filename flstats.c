@@ -325,6 +325,9 @@ int packet_error = 0;
 
 u_long binno;
 
+char teho_tclprogram[] = 
+#include "tehone.char"
+;
 
 /*
  * save a string
@@ -1257,9 +1260,11 @@ Tcl_AppInit(Tcl_Interp *interp)
 								NULL, NULL);
     Tcl_CreateCommand(interp, "teho_summary", teho_summary,
 								NULL, NULL);
-
-    tcl_RcFileName = "~/.tehone.tcl";
-    return TCL_OK;
+    /* call out to Tcl to set up whatever... */
+    if (Tcl_GlobalEval(interp, teho_tclprogram) != TCL_OK) {
+	return TCL_ERROR;
+    }
+    return Tcl_Eval(interp, "teho_startup");
 }
 
 main(int argc, char *argv[])
