@@ -191,21 +191,9 @@ fsimll_delete {class ftype flowid time FLOW args}\
 #
 
 proc \
-fsim_setft { classifier ulflows } \
+fsim_setft { {classifier {}} {ulflows {}} } \
 {
-
-    # default UL flows...
-    set ULFLOWS { \
-	{   ihv/ihl/tos/ttl/prot/src/dst \
-	    FT_UL_NOPORT \
-	    fsimstarttimeout \
-	    - \
-	    fsimdeleteflow} \
-	{   ihv/ihl/tos/ttl/prot/src/dst/sport/dport \
-	    FT_UL_PORT \
-	    fsimstarttimeout \
-	    - \
-	    fsimdeleteflow}}
+    global fsim
 
     set ftindex 0
 
@@ -215,10 +203,15 @@ fsim_setft { classifier ulflows } \
 
 
     if {$ulflows == {}} {
-	set ulflows $ULFLOWS
+	set ulflows $fsim(ulflows)
+    } else {
+	set fsim(ulflows) $ulflows
     }
+
     if {$classifier == {}} {
-	set classifier fsimclassifier
+	set classifier $fsim(classifier)
+    } else {
+	set fsim(classifier) $classifier
     }
 
     # ok, scan thru upper layer flows, keeping track of used tags
@@ -262,7 +255,6 @@ fsim_setft { classifier ulflows } \
     set type1 [join $type1 /]
     set type2 [join $type2 /]
     puts "# flowtype $ftindex $type1 $classifier"
-puts "fsim_set_flow_type -f $ftindex -n $classifier -t fsimll_delete $type1"
     fsim_set_flow_type -f $ftindex -n $classifier -t fsimll_delete $type1
     incr ftindex
     if {$portsseen != 0} {
@@ -298,18 +290,36 @@ puts "fsim_set_flow_type -f $ftindex -n $classifier -t fsimll_delete $type1"
 	} else {
 	    set timeout "-"
 	}
-puts "fsim_set_flow_type -f $ftindex -n $newflow \
-				-r $recv -t $timeout [lindex $flow 0]"
 	fsim_set_flow_type -f $ftindex -n $newflow \
 				-r $recv -t $timeout [lindex $flow 0]
     }
 }
 
 proc \
-fsim_setup { fixortcpd filename {binsecs 1} {classifier {}} { ulflows {} }} \
+fsim_setup { {fixortcpd {}} {filename {}} {binsecs {}} \
+				{classifier {}} { ulflows {} }} \
 {
-    set fname [glob $filename]
+    global fsim
 
+    if {$fixortcpd == {}} {
+	set fixortcpd $fsim(tracefile.format)
+    } else {
+	set fsim(tracefile.format) $fixortcpd
+    }
+
+    if {$filename == {}} {
+	set filename $fsim(tracefile.filename)
+    } else {
+	set fsim(tracefile.filename) $filename
+    }
+
+    if {$binsecs == {}} {
+	set binsecs $fsim(binsecs)
+    } else {
+	set fsim(binsecs) $binsecs
+    }
+
+    set fname [glob $filename]
     if [regexp -nocase fix $fixortcpd] {
 	fsim_set_fix_file $fname
     } elseif [regexp -nocase tcpd $fixortcpd] {
@@ -334,10 +344,13 @@ fsim_setup { fixortcpd filename {binsecs 1} {classifier {}} { ulflows {} }} \
 
 
 proc \
-fsim_flow_details { fixortcpd filename {binsecs 1} \
+fsim_flow_details { {fixortcpd {}} {filename {}} {binsecs {}} \
 					{classifier {}} { ulflows {} }} \
 {
+    global fsim
     fsim_setup $fixortcpd $filename $binsecs $classifier $ulflows
+
+    set binsecs $fsim(binsecs)		; # make sure we have correct value
 
     while {1} {
 	set bintime [lindex [split [time { \
@@ -354,9 +367,9 @@ fsim_flow_details { fixortcpd filename {binsecs 1} \
 
 
 proc \
-fsim_class_details { fixortcpd filename {binsecs 1} \
-					{classifier {}} { ulflows {} }}\
+fsim_class_details { {classifier {}} { ulflows {} }}\
 {
+    global fsim
     global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
 
     fsim_setup $fixortcpd $filename $binsecs $classifier $ulflows
@@ -380,6 +393,8 @@ fsim_class_details { fixortcpd filename {binsecs 1} \
     subst [fsimget_summary_vec $CL_SWITCHED]
     set pre gstats
     subst [fsimget_summary_vec 0]
+
+    set binsecs $fsim(binsecs)		; # make sure we have correct value
 
     while {1} {
 	set bintime [lindex [split [time { \
@@ -434,10 +449,115 @@ fsim_class_details { fixortcpd filename {binsecs 1} \
     }
 }
 
+# parse command line arguments.
+proc\
+fsim_set_parameters {argc argv}\
+{
+    global fsim
+
+    # set various defaults before processing command line...
+
+    set fsim(classifier) fsimclassifier
+    set fsim(binsecs) 1
+
+    # default UL flows...
+    set fsim(ulflows) { \
+	{   ihv/ihl/tos/ttl/prot/src/dst \
+	    FT_UL_NOPORT \
+	    fsimstarttimeout \
+	    - \
+	    fsimdeleteflow} \
+	{   ihv/ihl/tos/ttl/prot/src/dst/sport/dport \
+	    FT_UL_PORT \
+	    fsimstarttimeout \
+	    - \
+	    fsimdeleteflow}}
+
+
+    set arg [lindex $argv 0]
+    while {$argc && ([string length $arg] > 1) &&
+				([string range $arg 0 0] == "-")} {
+	if {[string first $arg -tracefile] == 0} {
+	    if {$argc < 3} {
+		error "not enough arguments for -tracefile in $argv\nlooking\
+			for '-tracefile filename { fix | tcpd }'"
+	    }
+	    set fsim(tracefile.filename) [lindex $argv 1]
+	    set fsim(tracefile.format) [lindex $argv 2]
+	    incr argc -3
+	    set argv [lrange $argv 3 end]
+	} elseif {[string first $arg -binsecs] == 0} {
+	    if {$argc < 2} {
+		error "not enough arguments for -binsecs in $argv\nlooking for\
+			    '-binsecs number'"
+	    }
+	    set fsim(binsecs) [lindex $argv 1]
+	    incr argc -2
+	    set argv [lrange $argv 2 end]
+	} elseif {[string first $arg -classifier] == 0} {
+	    if {$argc < 2} {
+		error "not enough arguments for -classifier in $argv\nlooking\
+		    for '-classifier procedurename'"
+	    }
+	    set fsim(classifier) [lindex $argv 1]
+	    incr argc -2
+	    set argv [lrange $argv 2 end]
+	} elseif {[string first $arg -flows] == 0} {
+	    if {$argc < 3} {
+		error "not enough arguments for -flows in $argv\nlooking for\
+				'-flows {file filename|- script}'"
+	    }
+	    switch -exact -- [lindex $argv 1] \
+	    file {
+		set fsim(ulflows) [source [lindex $argv 2]]
+	    } \
+	    script {
+		set fsim(ulflows) [lindex $argv 2]
+	    } \
+	    default {
+		error "looking for 'file' or 'script', found [lindex $argv 1]"
+	    }
+	    incr argc -3
+	    set argv [lrange $argv 3 end]
+	} elseif {[string first $arg -script] == 0} {
+	    uplevel #0 [lindex $argv 1]
+	    incr argc -2
+	    set argv [lrange $argv 2 end]
+	} else {
+	    error "unknown argument [lindex $argv 0] in $argv\nusage: \
+		$argv0 [-tracefile file format] [-binsecs num]\
+			[-classifier procedurename]\
+			[-flows { file name | script tclscript}]\
+			[-script tclscript] [tclfile]"
+	}
+	set arg [lindex $argv 0]
+    }
+    return [list $argc $argv]
+}
+
 proc\
 fsim_startup { }\
 {
+    global argc argv
     global tcl_RcFileName
 
-    set tcl_RcFileName "~/.flowsim.tcl"
+    set tcl_RcFileName "~/.flowsim.tcl"		; # only run if interactive...
+
+    set ret [fsim_set_parameters $argc $argv]
+    set argc [lindex $ret 0]
+    set argv [lindex $ret 1]
 }
+
+# if {!$tcl_interactive} {
+#     if [catch {
+# 	fsim_startup
+#     } result] {
+# 	global errorInfo
+# 	puts stderr $result
+# 	puts stderr $errorInfo
+# 	if {[info exists line]} {
+# 	    puts stderr "Input line:  $line"
+# 	}
+# 	exit 1
+#     }
+# }
