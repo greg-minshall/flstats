@@ -1,4 +1,4 @@
-# $Id: Makefile.in,v 1.20 1997/02/28 22:00:32 minshall Exp minshall $
+# $Id: Makefile.in,v 1.21 1997/04/24 23:21:06 minshall Exp minshall $
 
 # version for distribution...
 VERS=`cat VERSION`
@@ -13,6 +13,7 @@ INCLUDES	= -I/usr/local/include -I../../usr/include
 
 #have-gcc#CC = gcc
 #have-gcc#WARNINGS	= -Wall
+#have-gcc#LDFLAGS = -Xlinker -Bstatic
 #have-SVR4#SVR4 = -DSVR4
 
 CFLAGS	= -g ${INCLUDES} ${WARNINGS}
@@ -55,6 +56,7 @@ distribution:	fixrev tar.Z web.tar
 
 clean:
 	-rm -f flstats flstats.char flstats.o flstats.0 flstats.0.txt \
+		init.char \
 		flstats-*.tar flstats-*.tar.Z flstats-*.web.tar
 
 # keep version numbers going... (assume always at least "x.y")
