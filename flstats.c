@@ -72,13 +72,19 @@ typedef struct {
 	char	*name;		/* external name */
 	u_char	offset,		/* where in header */
 		numbytes,	/* length of field */
-		mask;		/* mask for data */
+		mask,		/* mask for data */
+		fmt;		/* format for output (see below) */
 } atoft_t, *atoft_p;
+
+#define	FMT_DECIMAL	0	/* 123 */
+#define	FMT_DOTTED	1	/* 1.2.3.4 (i.e., IP addresses) */
+#define	FMT_HEX		2	/* 0x2a */
 
 atoft_t atoft[] = {
 	{ "ihv", 0, 1, 0xf0 }, { "ihl", 0, 1, 0x0f }, { "tos", 1, 1 },
 	{ "len", 2, 2 }, { "id", 4, 2 }, { "foff", 6, 2}, { "ttl", 8, 1},
-	{ "prot", 9, 1}, { "sum", 10, 2}, { "src", 12, 4}, { "dst", 16, 4},
+	{ "prot", 9, 1}, { "sum", 10, 2},
+	{ "src", 12, 4, 0, FMT_DOTTED}, { "dst", 16, 4, 0, FMT_DOTTED},
 	{ "sport", 20, 2}, { "dport", 22, 2}
 };
 
@@ -535,27 +541,48 @@ flow_id_to_string(u_char *id)
 {
     static char result[MAX_FLOW_ID_BYTES*10];
     char fidstring[30], *fidp;
-    char *sep = "";
+    char *sep = "", *dot, *fmt0xff, *fmt0xf;
     atoft_p xp;
     int i, j;
-    char xtoatbl[] = "0123456789abcdef";
 
     result[0] = 0;
     for (i = 0; i < flow_type_indicies_len; i++) {
 	xp = &atoft[flow_type_indicies[i]];
 	fidp = fidstring;
+	dot = "";
+	switch (xp->fmt) {
+	case FMT_DECIMAL:
+	case FMT_DOTTED:
+	    fmt0xff = "%s%d";
+	    fmt0xf = "%s%d";
+	    break;
+	case FMT_HEX:
+	    fmt0xff = "%s%02x";
+	    fmt0xf = "%s%x";
+	    break;
+	default:
+	    fprintf(stderr, "%s:%d:  %d is bad fmt\n",
+				__FILE__, __LINE__, xp->fmt);
+	    break;
+	}
 	for (j = 0; j < xp->numbytes; j++) {
 	    if ((xp->mask == 0) || (xp->mask == 0xff)) {
-		*fidp++ = xtoatbl[(*id)>>4];
-		*fidp++ = xtoatbl[(*id++)&0xf];
+		sprintf(fidp, fmt0xff, dot, *id++);
+		fidp += strlen(fidp);
 	    } else if (xp->mask == 0xf0) {
-		*fidp++ = xtoatbl[(*id++)>>4];
+		sprintf(fidp, fmt0xf, dot, (*id++)>>4);
+		fidp += strlen(fidp);
 	    } else if (xp->mask == 0x0f) {
-		*fidp++ = xtoatbl[(*id++)&0xf];
+		sprintf(fidp, fmt0xf, dot, (*id++)&0xf);
+		fidp += strlen(fidp);
 	    } else {
 		/* unknown value for mask */
-		fprintf(stderr, "%s:%d --- index %d of atoft bad!\n",
-				__FILE__, __LINE__, i);
+		fprintf(stderr,
+			"%s:%d --- mask value %x of index %d of atoft bad!\n",
+				__FILE__, __LINE__, xp->mask, i);
+	    }
+	    if (xp->fmt == FMT_DOTTED) {
+		dot = ".";
 	    }
 	}
 	*fidp = 0;
