@@ -1,11 +1,20 @@
-# $Id: Makefile.in,v 1.16 1996/03/28 04:08:52 minshall Exp minshall $
+# $Id: Makefile.in,v 1.17 1996/05/18 04:00:50 minshall Exp minshall $
 
 # version for distribution...
 VERS=`cat VERSION`
 
 
-LIBPCAP = -lpcap
+# Tcl location.
+#
+# NOTE:  To change TCL version (eg, from 7.4 to 7.5), you need
+# to change the version numbers here AND in ./configure!
+#
+# Some versions of FreeBSD (at least) install libtcl74.a rather
+# than -ltcl7.4.a
 LIBTCL = -ltcl7.4
+#have-tclxy#LIBTCL = -ltcl74
+
+LIBPCAP = -lpcap
 
 INCLUDES	= -I/usr/local/include -I../../usr/include
 
