@@ -141,7 +141,7 @@ struct flowentry {
  */
 
 typedef struct clstats {
-    int	    cls_created,		/* num flows created in this class */
+    u_long  cls_created,		/* num flows created in this class */
 	    cls_deleted,		/* num flows created in this class */
 	    cls_added,			/* num flows added to this class */
 	    cls_removed,		/* num flows removed from this class */
@@ -688,10 +688,10 @@ class_statistics(clstats_p clsp)
 {
     static char summary[100];
 
-    sprintf(summary, "created %d deleted %d "
-       "added %d removed %d active %d pkts %d bytes %d sipg %d fragpkts %d "
-       "fragbytes %d toosmallpkts %d toosmallbytes %d runtpkts %d runtbytes %d "
-       "noportpkts %d noportbytes %d lastrecv %ld.%06ld",
+    sprintf(summary, "created %lu deleted %lu added %lu removed %lu "
+	"active %lu pkts %lu bytes %lu sipg %lu fragpkts %lu fragbytes %lu "
+	"toosmallpkts %lu toosmallbytes %lu runtpkts %lu runtbytes %lu "
+        "noportpkts %lu noportbytes %lu lastrecv %ld.%06ld",
 	clsp->cls_created, clsp->cls_deleted,
 	clsp->cls_added, clsp->cls_removed, clsp->cls_active,
 	clsp->cls_pkts, clsp->cls_bytes, clsp->cls_sipg>>3, clsp->cls_fragpkts,
@@ -1381,13 +1381,6 @@ teho_summary(ClientData clientData, Tcl_Interp *interp,
 }
 
 
-static char *
-one_enumeration(flowentry_p hp)
-{
-    return flow_id_to_string(&ftinfo[hp->fe_flow_type], hp->fe_key);
-}
-
-
 /*
  * set up to enumerate the flows.
  */
@@ -1404,12 +1397,16 @@ static int
 teho_continue_enumeration(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
-    char buf[20];
+    char buf[200];
 
     if (enum_state) {
 	Tcl_ResetResult(interp);
-	sprintf(buf, "%d ", enum_state->fe_flow_type);
-	Tcl_AppendResult(interp, buf, one_enumeration(enum_state), 0);
+	sprintf(buf, "type %d class %d level %d id ", enum_state->fe_flow_type,
+		enum_state->fe_class, enum_state->fe_level);
+	Tcl_AppendResult(interp, buf,
+		flow_id_to_string(&ftinfo[enum_state->fe_flow_type],
+						enum_state->fe_key),
+		" ", flow_statistics(enum_state), 0);
 	enum_state = enum_state->fe_next_in_table;
     } else {
 	interp->result = "";
