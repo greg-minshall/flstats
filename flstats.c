@@ -101,7 +101,7 @@ u_short IPtype = 0x800;
 int fileeof = 0;
 int filetype = 0;
 
-hentry_p buckets[3197];
+hentry_p buckets[31979];
 hentry_p table;			/* list of everything */
 
 struct timeval curtime, starttime;
@@ -124,15 +124,17 @@ u_long binno;
 
 /* various statistics */
 
-int
-    numflows,		/* number of flows */
-    flowscreated,	/* flows created */
-    flowsdeleted,	/* flows deleted */
-    flowsactive,	/* flows active */
-    packets,		/* number of packets read */
-    packetsnewflows,	/* packets arriving for flows just created */
-    runts,		/* runt (too short) packets seen */
-    fragments;		/* fragments seen (when using ports) */
+struct {
+    int
+	numflows,		/* number of flows */
+	flowscreated,	/* flows created */
+	flowsdeleted,	/* flows deleted */
+	flowsactive,	/* flows active */
+	packets,		/* number of packets read */
+	packetsnewflows,	/* packets arriving for flows just created */
+	runts,		/* runt (too short) packets seen */
+	fragments;		/* fragments seen (when using ports) */
+} gstats;
 
 /*
  * Compute a checksum on a contiguous area of storage
@@ -237,17 +239,17 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
     int i, j;
     hentry_p hent;
 
-    packets++;
+    gstats.packets++;
 
     /* if no packet pending, then process this packet */
     if (pending == 0) {
 
 	if (len < flow_type_covers) {
-	    runts++;
+	    gstats.runts++;
 	    return;
 	}
 	if ((packet[6]&0x1fff) && (flow_type_covers > 20)) {
-	    fragments++;	/* can't deal with if looking at ports */
+	    gstats.fragments++;	/* can't deal with if looking at ports */
 	    return;
 	}
 
@@ -267,7 +269,7 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 
     /* XXX shouldn't count runts, fragments, etc., if time hasn't arrived */
     if (binno != NOWASBINNO()) {
-	packets--;		/* undone by pending call packets++ above */
+	gstats.packets--;	/* undone by pending call packets++ above */
 	pending = 1;
 	return;
     } else {
@@ -282,8 +284,8 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	    packet_error = TCL_ERROR;
 	    return;
 	}
-	numflows++;
-	flowscreated++;
+	gstats.numflows++;
+	gstats.flowscreated++;
 	hent->last_bin_active = 0xffffffff;
 	hent->created_sec = curtime.tv_sec;
 	hent->created_usec = curtime.tv_usec;
@@ -294,10 +296,10 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
     hent->last_pkt_usec = curtime.tv_usec;
     if (hent->last_bin_active != binno) {
 	hent->last_bin_active = binno;
-	flowsactive++;
+	gstats.flowsactive++;
     }
     if (hent->created_bin == binno) {
-	packetsnewflows++;
+	gstats.packetsnewflows++;
     }
 }
 
@@ -529,10 +531,10 @@ teho_summary(ClientData clientData, Tcl_Interp *interp,
     }
 
     sprintf(summary, "%d %d %d %d %d %d %d %d",
-				binno,
-				numflows, flowscreated, flowsactive,
-				packets, packetsnewflows,
-				runts, fragments);
+		    binno,
+		    gstats.numflows, gstats.flowscreated, gstats.flowsactive,
+		    gstats.packets, gstats.packetsnewflows,
+		    gstats.runts, gstats.fragments);
     interp->result = summary;
     return TCL_OK;
 }
