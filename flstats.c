@@ -77,6 +77,7 @@ struct flowentry {
     u_long
 	fe_pkts,		/* number of packets received */
 	fe_bytes,		/* number of bytes received */
+	fe_sipg,		/* smoothed interpacket gap (units of 8 usec) */
 	fe_created_bin,
 	fe_last_bin_active;
     char
@@ -145,12 +146,15 @@ typedef struct clstats {
 	    cls_active,			/* flows active this interval */
 	    cls_pkts,			/* packets read */
 	    cls_bytes,			/* bytes read */
+	    cls_sipg,			/* smoothed ipg (in 8 usec units) */
 	    cls_fragpkts,		/* fragments seen (using ports) */
 	    cls_fragbytes,		/* bytes seen in those frags */
 	    cls_runtpkts,		/* runt (too short) packets seen */
 	    cls_runtbytes,		/* bytes seen in those frags */
 	    cls_noportpkts,		/* packet had no ports (but needed) */
 	    cls_noportbytes;		/* bytes seen in those frags */
+    struct timeval
+	    cls_last_pkt_rcvd;		/* time last packet received in class */
 } clstats_t, *clstats_p;
 
 
@@ -665,10 +669,11 @@ flow_statistics(flowentry_p fe)
 {
     static char summary[100];
 
-    sprintf(summary, "created %ld.%06ld last %ld.%06ld pkts %lu bytes %lu",
+    sprintf(summary,
+	    "created %ld.%06ld last %ld.%06ld pkts %lu bytes %lu sipg %lu",
 	    fe->fe_created.tv_sec, fe->fe_created.tv_usec,
 	    fe->fe_last_pkt_rcvd.tv_sec, fe->fe_last_pkt_rcvd.tv_usec,
-	    fe->fe_pkts, fe->fe_bytes);
+	    fe->fe_pkts, fe->fe_bytes, fe->fe_sipg>>3);
 
     return summary;
 }
@@ -680,11 +685,14 @@ class_statistics(clstats_p clsp)
     static char summary[100];
 
     sprintf(summary,
-  "added %d removed %d active %d pkts %d bytes %d fragpkts %d fragbytes %d runtpkts %d runtbytes %d noportpkts %d noportbytes %d",
+	"added %d removed %d active %d pkts %d bytes %d sipg %d fragpkts %d "
+	"fragbytes %d runtpkts %d runtbytes %d noportpkts %d noportbytes %d "
+	"lastrecv %ld.%06ld",
 	clsp->cls_added, clsp->cls_removed, clsp->cls_active,
-	clsp->cls_pkts, clsp->cls_bytes, clsp->cls_fragpkts,
+	clsp->cls_pkts, clsp->cls_bytes, clsp->cls_sipg>>3, clsp->cls_fragpkts,
 	clsp->cls_fragbytes, clsp->cls_runtpkts, clsp->cls_runtbytes,
-	clsp->cls_noportpkts, clsp->cls_noportbytes);
+	clsp->cls_noportpkts, clsp->cls_noportbytes,
+	clsp->cls_last_pkt_rcvd.tv_sec, clsp->cls_last_pkt_rcvd.tv_usec);
 
     return summary;
 }
@@ -720,6 +728,7 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int level, int class)
     fe->fe_class = class;
     fe->fe_pkts = 0;
     fe->fe_bytes = 0;
+    fe->fe_sipg = 0;
     fe->fe_created_bin = binno;
     fe->fe_last_bin_active = 0xffffffff;
     fe->fe_created = curtime;
@@ -876,8 +885,26 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
     /* update counters (after callout has had a chance to change things) */
     cl->cls_pkts++;
     cl->cls_bytes += len;
+    if (cl->cls_last_pkt_rcvd.tv_sec) {
+	register u_long ipg;
+	ipg = (curtime.tv_sec-cl->cls_last_pkt_rcvd.tv_sec)*1000000UL;
+	ipg += (curtime.tv_usec - cl->cls_last_pkt_rcvd.tv_usec);
+	/* two lines from VJ '88 SIGCOMM */
+	ipg -= (cl->cls_sipg>>3);
+	cl->cls_sipg += ipg;
+    }
+    cl->cls_last_pkt_rcvd = curtime;
+
     fe->fe_pkts++;
     fe->fe_bytes += len;
+    if (fe->fe_last_pkt_rcvd.tv_sec) {
+	register u_long ipg;
+	ipg = (curtime.tv_sec-fe->fe_last_pkt_rcvd.tv_sec)*1000000UL;
+	ipg += (curtime.tv_usec - fe->fe_last_pkt_rcvd.tv_usec);
+	/* two lines from VJ '88 SIGCOMM */
+	ipg -= (fe->fe_sipg>>3);
+	fe->fe_sipg += ipg;
+    }
     fe->fe_last_pkt_rcvd = curtime;
     if (fe->fe_last_bin_active != binno) {
 	fe->fe_last_bin_active = binno;
