@@ -1,5 +1,9 @@
-LIBPCAP = ../libpcap/libpcap-0.0.6/libpcap.a
-LIBTCL = /usr/local/lib/libtcl7.4.a
+LIBPATH = -L ../libpcap/libpcap-0.0.6 \
+			-L /home1/minshall/src/libpcap/libpcap-0.0.6 \
+			-L /usr/local/lib
+
+LIBPCAP = -lpcap
+LIBTCL = -ltcl7.4
 INCLUDES	= -I/usr/local/include
 WARNINGS	= -Wall
 
@@ -8,14 +12,14 @@ CFLAGS	= -g ${INCLUDES} ${WARNINGS}
 all:	tcpd2det fix2det tehone
 
 tcpd2det:	tcpd2det.o
-	${CC} ${CFLAGS} -o tcpd2det ${LDFLAGS} tcpd2det.o ${LIBPCAP}
+	${CC} ${CFLAGS} -o tcpd2det ${LDFLAGS} tcpd2det.o ${LIBPATH} ${LIBPCAP}
 
 fix2det:	fix2det.o
 	${CC} ${CFLAGS} -o fix2det ${LDFLAGS} fix2det.o
 
 tehone:		tehone.o
 	${CC} ${CFLAGS} -o tehone ${LDFLAGS} tehone.o \
-						${LIBTCL} ${LIBPCAP} -lm
+						${LIBPATH} ${LIBTCL} ${LIBPCAP} -lm
 
 tehone.o:	tehone.char tehone.c
 
