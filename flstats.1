@@ -1,0 +1,198 @@
+.Dd March 15, 1996
+.Dt FLSTATS 1
+.Os BSD 4.3
+.Sh NAME
+.Nm flstats
+.Nd extract flow statistics from a tcpdump -w file
+.Sh SYNOPSIS
+.Nm flstats
+.Op Fl binsecs Ar num
+.Op Fl classes
+.Op Fl flows
+.Op Fl interactive
+.Op Fl debug
+.Op Fl evaluate Ar tclcommands
+.Op Fl kind Ar {tcpd|fix24}
+.Op Fl label
+.Op Fl scriptfile Ar filename
+.Op Fl types Ar flowspecifier[s]
+.Op Ar filename
+.Sh DESCRIPTION
+.Nm Flstats
+examines a binary
+file created by
+.Xr tcpdump  1
+(using tcpdump's
+.Fl w
+option),
+and reports statistics on "flows" (for various definitions
+of flows) contained in the file.
+.Pp
+.Bl -tag -width Ic
+.It Fl binsecs
+How many seconds (in the time sequence of the input file) should elapse
+between reporting statistics.  The default is zero (0), which causes the
+statistics to be reported only once, at the end of the input file.
+.It Fl classes
+Report statistics of flow "classes", rather than about individual flows
+themselves.
+.It Fl flows
+Report statistics about individual flows, rather than "classes".
+.It Fl interactive
+Run in "interactive" mode, in which the user is prompted for Tcl
+commands to execute.
+.It Fl debug
+Run in a mode for debugging flstats itself (normally not interesting
+for users of
+.Nm flstats ).
+.It Fl evaluate
+.Ar Tclcommands
+is a list of Tcl commands to be executed while starting
+.Nm flstats .
+.It Fl kind
+The format of the input file.  The default is "tcpd", corresponding to
+a binary tcpdump file.  One other format is "fix24", for 24-byte/packet
+records from FIX-WEST.
+.It Fl label
+Causes
+.Nm flstats
+to print out lines containing information about the input file and the
+environment of the execution (for repeatability).
+.It Fl scriptfile
+The name of a file to be passed to
+.Nm flstats'
+internal Tcl interpreter during startup.
+.It Fl types
+A list of one or more flow specifiers.  While the format of a flow
+specifier can, in general, be fairly complicated (see the
+.Nm flstats
+user's manual), for the purpose of this man page a flow specifier is a
+list of one or more IP header field names (plus the port fields from
+TCP and/or UDP headers) separated by slashes ("/").  The header
+fields supported are named: ihv, ihl, tos, len, id, df, mf, foff, ttl,
+prot, sum, src, dst, sport, dport.
+.Sh EXAMPLES
+To see how many source/destination pairs there were in a trace, along
+with the number of packets, bytes, and other information about the data
+flowing between them:
+.Bd -literal -offset indent
+% flstats -c -t src/dst file.tcpd
+0 class 0 created 245 deleted 0 added 0 removed 0 active 245
+pkts 32546 bytes 11296427 sipg 18453 fragpkts 0 fragbytes 0
+toosmallpkts 0 toosmallbytes 0 runtpkts 0 runtbytes 0 noportpkts 0
+noportbytes 0 lastrecv 821828470.105442
+.Ed
+.Pp
+The above says that there were 245 unique source/destination pairs
+which together exchanged 32,546 packets totalling 11,296,427 bytes.
+The smoothed interpacket arrival time was 18,453 microseconds.
+.Pp
+To actually list out the source/destination pairs in the trace:
+.Bd -literal -offset indent
+% flstats -f -t src/dst file.tcpd
+...
+0 type 0 class 0 id src/193.240.48.242/dst/193.240.56.24 pkts 29
+bytes 8179 sipg 162880 created 821828304.762731
+last 821828308.562019
+0 type 0 class 0 id src/193.240.56.24/dst/193.240.48.242 pkts
+30 bytes 2657 sipg 144441 created 821828304.761962
+last 821828308.561519
+0 type 0 class 0 id src/145.209.108.112/dst/224.2.174.102 pkts 2
+bytes 120 sipg 812446 created 821828297.977696 last 821828304.477264
+0 type 0 class 0 id src/147.171.160.186/dst/224.2.149.161 pkts 1
+bytes 180 sipg 0 created 821828296.659958 last 821828296.659958
+...
+0 type 0 class 0 id src/145.27.139.211/dst/193.240.48.255 pkts 716
+bytes 164570 sipg 513208 created 821828173.562031
+last 821828469.957219
+0 type 0 class 0 id src/145.27.138.18/dst/193.240.53.75 pkts 1
+bytes 84 sipg 0 created 821828173.403583 last 821828173.403583
+0 type 0 class 0 id src/193.240.53.75/dst/145.27.138.18 pkts 1
+bytes 84 sipg 0 created 821828173.397634 last 821828173.397634
+0 type 0 class 0 id src/193.240.50.17/dst/229.78.197.56 pkts 30
+bytes 2520 sipg 9792677 created 821828173.375589
+last 821828463.384810
+0 type 0 class 0 id src/193.240.50.17/dst/229.78.197.57 pkts 142
+bytes 56560 sipg 2203605 created 821828173.255857
+last 821828468.266259
+0 type 0 class 0 id src/193.240.53.75/dst/193.240.56.24 pkts 4216
+bytes 5075351 sipg 239131 created 821828172.801565
+last 821828465.208086
+0 type 0 class 0 id src/193.240.56.24/dst/193.240.53.75 pkts 1728
+bytes 897203 sipg 362075 created 821828172.800775
+last 821828465.188792
+0 type 0 class 0 id src/193.240.48.255/dst/145.27.139.211 pkts 372
+bytes 67140 sipg 813475 created 821828172.750563
+last 821828468.663906
+0 type 0 class 0 id src/62.201.51.92/dst/224.60.60.60 pkts 14880
+bytes 952320 sipg 19997 created 821828172.546355
+last 821828470.105442
+.Ed
+.Pp
+Which tells us that source 193.240.48.242 sent 29 packets, totalling
+8179 bytes, to destination 193.240.56.24, as well as information about
+244 other sources (including, presumably, information about source
+193.240.56.24 sending to destination 193.240.48.242).
+.Pp
+To see how many different TOS values there are in the trace:
+.Bd -literal -offset indent
+% flstats -c -t tos file.tcpd
+0 class 0 created 2 deleted 0 added 0 removed 0 active 2 pkts 32546
+bytes 11296427 sipg 18453 fragpkts 0 fragbytes 0 toosmallpkts 0
+toosmallbytes 0 runtpkts 0 runtbytes 0 noportpkts 0 noportbytes 0
+lastrecv 821828470.105442
+.Ed
+.Pp
+Which tells us there are two.  To see which values:
+.Bd -literal -offset indent
+% flstats -f -t tos file.tcpd
+0 type 0 class 0 id tos/16 pkts 1798 bytes 139746 sipg 100101
+created 821828175.866634 last 821828469.722588
+0 type 0 class 0 id tos/0 pkts 30748 bytes 11156681 sipg 18637
+created 821828172.546355 last 821828470.105442
+.Ed
+.Pp
+So, the values are decimal 1 and decimal 16.
+.Pp
+What about packet size distribution in the trace file?  First, to see
+how many different packet sizes are in the file:
+.Bd -literal -offset indent
+% flstats -c -t len file.tcpd
+0 class 0 created 415 deleted 0 added 0 removed 0 active 415
+pkts 32546 bytes 11296427 sipg 18453 fragpkts 0 fragbytes 0
+toosmallpkts 0 toosmallbytes 0 runtpkts 0 runtbytes 0
+noportpkts 0 noportbytes 0 lastrecv 821828470.105442
+.Ed
+.Pp
+So, there are 415 distinct lengths in the file.  To see the actual
+lengths:
+.Bd -literal -offset indent
+% flstats -f -t len file.tcpd | sort -n -r +8
+0 type 0 class 0 id len/1500 pkts 4994 bytes 7491000 sipg 225622
+created 821828202.217309 last 821828465.207235
+0 type 0 class 0 id len/40 pkts 967 bytes 42916 sipg 539485 created
+821828172.750563 last 821828468.663906
+0 type 0 class 0 id len/140 pkts 961 bytes 134540 sipg 958669 created
+821828198.845845 last 821828468.256604
+0 type 0 class 0 id len/92 pkts 953 bytes 87676 sipg 172420 created
+821828215.097236 last 821828469.393897
+0 type 0 class 0 id len/60 pkts 941 bytes 56460 sipg 135764 created
+821828176.017872 last 821828469.722588
+0 type 0 class 0 id len/61 pkts 899 bytes 54839 sipg 121343 created
+821828201.908231 last 821828469.561497
+0 type 0 class 0 id len/124 pkts 773 bytes 95852 sipg 378213 created
+821828201.926018 last 821828468.389406
+0 type 0 class 0 id len/552 pkts 690 bytes 380880 sipg 21721 created
+821828197.018013 last 821828468.813834
+...
+.Ed
+.Sh SEE ALSO
+.Xr tclsh 1 ,
+.Xr tcpdump 1 ,
+.Xr pcap 3 ,
+.Sh HISTORY
+The
+.Nm flstats
+command was written at Ipsilon Networks in 1996.
+.Sh DIAGNOSTICS
+.Sh BUGS
