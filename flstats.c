@@ -18,7 +18,7 @@
 
 #define	NUM(a)	(sizeof (a)/sizeof ((a)[0]))
 
-#define	MAX_FLOW_TYPE	24	/* maximum number of bytes in a flow id */
+#define	MAX_FLOW_ID_BYTES	24	/* maximum number of bytes in flow id */
 
 #define PICKUP_NETSHORT(p)       ((((u_char *)p)[0]<<8)|((u_char *)p)[1])
 
@@ -54,6 +54,21 @@ struct hentry {
     hentry_p next_in_table;
     u_char key[1];		/* variable sized (KEEP AT END!) */
 };
+
+typedef struct {
+	char	*name;		/* external name */
+	char	offset,		/* where in header */
+		numbytes,	/* length of field */
+		mask;		/* mask for data */
+} atoft_t, *atoft_p;
+
+atoft_t atoft[] = {
+	{ "IHV", 0, 1, 0xf0 }, { "IHL", 0, 1, 0x0f }, { "TOS", 1, 1 },
+	{ "LEN", 2, 2 }, { "ID", 4, 2 }, { "FOFF", 6, 2}, { "TTL", 8, 1},
+	{ "PROT", 9, 1}, { "SUM", 10, 2}, { "SRC", 12, 4}, { "DST", 16, 4},
+	{ "SPORT", 20, 2}, { "DPORT", 22, 2}
+};
+
 
 /* definition of FIX packet format */
 
@@ -114,15 +129,16 @@ struct timeval curtime, starttime;
 
 int binsecs = 0;		/* number of seconds in a bin */
 
-u_char flow_type[2*MAX_FLOW_TYPE];
-int flow_type_len, flow_id_len, flow_type_covers;
+u_char flow_type_indicies[MAX_FLOW_ID_BYTES];
+u_char flow_bytes_and_mask[2*MAX_FLOW_ID_BYTES];
+int flow_bytes_and_mask_len, flow_id_len, flow_id_covers;
 
 pcap_t *pcap_descriptor;
 char pcap_errbuf[PCAP_ERRBUF_SIZE];
 
 FILE *fix_descriptor;
 
-u_char pending_flow_id[MAX_FLOW_TYPE];
+u_char pending_flow_id[MAX_FLOW_ID_BYTES];
 int pending;
 int packet_error = 0;
 
@@ -301,7 +317,7 @@ set_time(u_long secs, u_long usecs)
 static void
 packetin(Tcl_Interp *interp, const u_char *packet, int len)
 {
-    u_char flow_id[MAX_FLOW_TYPE];
+    u_char flow_id[MAX_FLOW_ID_BYTES];
     int i, j;
     hentry_p hent;
 
@@ -310,18 +326,19 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
     /* if no packet pending, then process this packet */
     if (pending == 0) {
 
-	if (len < flow_type_covers) {
+	if (len < flow_id_covers) {
 	    gstats.runts++;
 	    return;
 	}
-	if ((packet[6]&0x1fff) && (flow_type_covers > 20)) {
+	if ((packet[6]&0x1fff) && (flow_id_covers > 20)) {
 	    gstats.fragments++;	/* can't deal with if looking at ports */
 	    return;
 	}
 
 	/* create flow id for this packet */
-	for (i = 0, j = 0; j < flow_type_len; i++, j += 2) {
-	    pending_flow_id[i] = packet[flow_type[j]]&flow_type[j+1];
+	for (i = 0, j = 0; j < flow_bytes_and_mask_len; i++, j += 2) {
+	    pending_flow_id[i] = packet[flow_bytes_and_mask[j]]
+						    &flow_bytes_and_mask[j+1];
 	}
 
     } else {
@@ -476,7 +493,7 @@ teho_read_one_bin(ClientData clientData, Tcl_Interp *interp,
 	interp->result = "need to call teho_set_{tcpd,fix}_file first";
 	return TCL_ERROR;
     }
-    if (flow_type_len == 0) {
+    if (flow_bytes_and_mask_len == 0) {
 	interp->result = "need to call teho_set_flow_type first";
 	return TCL_ERROR;
     }
@@ -502,21 +519,19 @@ get_flow_type(Tcl_Interp *interp, char *name)
 {
     char initial[200], after[200];
     char *curdesc;
-    int i = 0;		/* number of bytes in flow_type used */
-    static struct {
-	char *name;	/* external name */
-	char offset, numbytes, mask;	/* where in header, len, mask */
-    } *xp, x[] = {
-	{ "IHV", 0, 1, 0xf0 }, { "IHL", 0, 1, 0x0f }, { "TOS", 1, 1 },
-	{ "LEN", 2, 2 }, { "ID", 4, 2 }, { "FOFF", 6, 2}, { "TTL", 8, 1},
-	{ "PROT", 9, 1}, { "SUM", 10, 2}, { "SRC", 12, 4}, { "DST", 16, 4},
-	{ "SPORT", 20, 2}, { "DPORT", 22, 2}
-    };
+    int bandm = 0;	/* number of bytes in flow_bytes_and_mask used */
+    int indicies = 0;	/* index (in atoft) of each field in flow id */
+    atoft_p xp;
+
+    /* forget current file type */
+    flow_bytes_and_mask_len = 0;
+    flow_id_covers = 0;
+    flow_id_len = 0;
 
     curdesc = name;
 
     if (strlen(name) > NUM(initial)) {
-	interp->result = "flow_type too long";
+	interp->result = "flow name too long";
 	return TCL_ERROR;
     }
 
@@ -531,27 +546,32 @@ get_flow_type(Tcl_Interp *interp, char *name)
 	} else {
 	    curdesc = after+1;	/* +1 to strip off delimiter */
 	}
-	for (j = 0, xp = x; j < NUM(x); j++, xp++) {
+	for (j = 0, xp = atoft; j < NUM(atoft); j++, xp++) {
 	    if (strcasecmp(xp->name, initial) == 0) {
 		int off, num, mask;
 		off = xp->offset;
 		num = xp->numbytes;
 		mask = xp->mask ? xp->mask : 0xff;
 		while (num--) {
-		    if (i >= (2*MAX_FLOW_TYPE)) {
-			interp->result = "flow_type too long";
+		    if (bandm >= (2*MAX_FLOW_ID_BYTES)) {
+			interp->result = "flow type too long";
 			return TCL_ERROR;
 		    }
-		    if (off > flow_type_covers) {
-			flow_type_covers = off;
+		    if (off > flow_id_covers) {
+			flow_id_covers = off;
 		    }
-		    flow_type[i++] = off++;
-		    flow_type[i++] = mask;
+		    flow_bytes_and_mask[bandm++] = off++;
+		    flow_bytes_and_mask[bandm++] = mask;
 		}
+		if (indicies >= NUM(flow_type_indicies)) {
+		    interp->result = "too many fields in flow type";
+		    return TCL_ERROR;
+		}
+		flow_type_indicies[indicies++] = j;
 		break;
 	    }
 	}
-	if (j >= NUM(x)) {
+	if (j >= NUM(atoft)) {
 	    static char errbuf[100];
 
 	    interp->result = errbuf;
@@ -561,8 +581,8 @@ get_flow_type(Tcl_Interp *interp, char *name)
 	}
     }
 goodout:
-    flow_type_len = i;
-    flow_id_len = i/2;
+    flow_bytes_and_mask_len = bandm;
+    flow_id_len = bandm/2;
     return TCL_OK;
 }
 
