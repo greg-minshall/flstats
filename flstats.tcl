@@ -1,7 +1,7 @@
 #
 # Tcl script as part of flstats
 #
-# $Id: flstats.tcl,v 1.46 1996/03/15 02:27:22 minshall Exp minshall $
+# $Id: flstats.tcl,v 1.47 1996/03/20 00:06:35 minshall Exp minshall $
 #
 #
 
@@ -438,7 +438,9 @@ fl_setft { {classifier {}} {flowtypes {}} } \
 	lappend flowtypes $merge
 	# tell ll classifier which flow types to use.
 	fl_set_ll_classifier 0 [llength $flowtypes]
-	puts "# flowtype [llength $flowtypes] $merge"
+	if {$flstats(label)} {
+	    puts "# flowtype [llength $flowtypes] $merge"
+	}
     }
 
     set flstats(lastllclassifier) 0
@@ -489,7 +491,9 @@ fl_setft { {classifier {}} {flowtypes {}} } \
     for {set whichflow 0} {$whichflow < [llength $flowtypes]} \
 					{ incr whichflow; incr ftindex } {
 	set flow [lindex $flowtypes $whichflow]
-	puts "# flowtype $ftindex $flow"
+	if {$flstats(label)} {
+	    puts "# flowtype $ftindex $flow"
+	}
 	set len [llength $flow]
 	if {$len >= 2} {
 	    global [lindex $flow 1]
@@ -539,21 +543,26 @@ fl_setup { {filename {}} {binsecs {}} \
     if {$filename != "-"} {
 	set fname [glob $filename]
 	file stat $fname filestats
-	puts [format "# file %s size %d last written %d" \
+	if {$flstats(label)} {
+	    puts [format "# file %s size %d last written %d" \
 			$fname $filestats(size) $filestats(mtime)]
+	}
     } else {
 	set fname $filename
     }
     # "eval" to get the filename in argv[1] and (optional) type in argv[2]...
     eval "fl_set_file $fname $flstats(tracefile.kind)"
 
-    puts "#"
+    if {$flstats(label)} {
+	puts "#"
+    }
     fl_setft $classifier $flowtypes
 
-    puts "#"
-    puts "# binsecs $binsecs"
-
-    puts "#"
+    if {$flstats(label)} {
+	puts "#"
+	puts "# binsecs $binsecs"
+	puts "#"
+    }
 }
 
 
@@ -637,6 +646,10 @@ fl_set_parameters {argc argv}\
 	    set flstats(debug) 1
 	    incr argc -1
 	    set argv [lrange $argv 1 end]
+	} elseif {[string first $arg -label] == 0} { ; # label output
+	    set flstats(label) 1
+	    incr argc -1
+	    set argv [lrange $argv 1 end]
 	} else {
 	    puts -nonewline stderr \
 		    [format "unknown argument %s in '%s'\nusage: %s" \
@@ -647,6 +660,7 @@ fl_set_parameters {argc argv}\
 			[-debug]\
 			[-evaluate tclcommands]\
 			[-kind tracefilekind]\
+			[-label]\
 			[-scriptfile filename]\
 			[-types flowspecifier[s]]\
 			[filename]}]
@@ -713,6 +727,7 @@ fl_startup { argc argv }\
 
 # set some defaults...
 set flstats(debug) 0
+set flstats(label) 0
 set flstats(classifier) {}
 set flstats(binsecs) 0
 set flstats(tracefile.kind) {}
