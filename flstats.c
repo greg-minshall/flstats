@@ -624,6 +624,8 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
      * now, we know the flow type and flow id.  we don't know
      * where the flow entry is, yet.
      */
+
+    /* find the low level flow entry */
     hent = tbl_lookup(pending_flow_id, ftip->fti_id_len);
     if (hent == 0) {
 	hent = tbl_add(pending_flow_id, ftip->fti_id_len);
@@ -714,7 +716,7 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 }
 
 static void
-newpacket(u_char *user, const struct pcap_pkthdr *h, const u_char *buffer)
+receive_tcpd(u_char *user, const struct pcap_pkthdr *h, const u_char *buffer)
 {
         u_short type;
         u_long *longs;
@@ -770,7 +772,7 @@ process_one_packet(Tcl_Interp *interp)
     } else {
 	if (filetype == TYPE_PCAP) {
 	    if (pcap_dispatch(pcap_descriptor, 1,
-				newpacket, (u_char *)interp) == 0) {
+				receive_tcpd, (u_char *)interp) == 0) {
 		fileeof = 1;
 		filetype = TYPE_UNKNOWN;
 	    }
