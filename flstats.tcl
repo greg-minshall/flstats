@@ -22,11 +22,35 @@ classifier { class flowtype flowid }\
 #    6 {return "$CL_SWITCHED $FT_LL_NOPORT"}
     regexp {/prot/([^/]*)/} $flowid match prot
     switch -exact -- $prot {
-    6 {return "$CL_TO_BE_SWITCHED $FT_UL_PORT getswitched [switchtime]"}
-    11 {return "$CL_NONSWITCHED $FT_LL_NOPORT"}
-    default {return "$CL_NONSWITCHED $FT_LL_NOPORT"}
+    6 {return "$CL_TO_BE_SWITCHED $FT_UL_PORT getswitched [switchtime] \
+							deleteflow 2.0 0x2"}
+    11 {return "$CL_NONSWITCHED $FT_LL_NOPORT - 0.0 deleteflow 2.0 0x2"}
+    default {return "$CL_NONSWITCHED $FT_LL_NOPORT - 0.0 deleteflow 2.0 0x2"}
     }
 }
+
+proc\
+deleteflow {cookie class ftype flowid time FLOW args}\
+{
+    # ahh, dr. regsub... 
+    regsub -all {([a-zA-Z_]+) ([0-9.]+)} $args {[set x_\1 \2]} bar
+    subst $bar
+
+    if {[expr $time - $x_last] > $cookie} {
+	puts "DELETE"		; # gone...
+	return "DELETE"		; # gone...
+    }
+
+    set time [expr 2 * $cookie]
+    if {$time > 64} {
+	set time 64
+    }
+
+    puts "- deleteflow $time.0 $time"
+    return "- deleteflow $time.0 $time"
+}
+
+
 
 proc\
 getswitched { class flowtype flowid args}\
@@ -36,6 +60,28 @@ getswitched { class flowtype flowid args}\
     return "$CL_SWITCHED -"
 }
 ### END OF PARAMTERS ###
+
+proc\
+deletellflow {cookie class ftype flowid time FLOW args}\
+{
+    # ahh, dr. regsub... 
+    regsub -all {([a-zA-Z_]+) ([0-9.]+)} $args {[set x_\1 \2]} bar
+    subst $bar
+
+    if {[expr $time - $x_last] > $cookie} {
+	puts "DELETE"		; # gone...
+	return "DELETE"		; # gone...
+    }
+
+    set time [expr 2 * $cookie]
+    if {$time > 64} {
+	set time 64
+    }
+
+    puts "- deletellflow $time.0 $time"
+    return "- deletellflow $time.0 $time"
+}
+
 
 proc\
 vec_difference { l1 l2 }\
@@ -123,6 +169,7 @@ simul { fixortcpd filename {binsecs 1} } \
 			[lindex $diffswitched 3] \
 			[lindex $diffwaiting 0] \
 			[lindex $waiting 0]]
+	teho_run_timeouts
 	flush stdout
 	set onon $non
 	set owaiting $waiting

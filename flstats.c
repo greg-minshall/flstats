@@ -1335,6 +1335,55 @@ teho_set_fix_file(ClientData clientData, Tcl_Interp *interp,
     return TCL_OK;
 }
 
+static int
+teho_run_timeouts(ClientData clientData, Tcl_Interp *interp,
+		int argc, char *argv[])
+{
+    hentry_p fe = table;
+    char buf[100], buf2[100];
+    int n;
+
+    while (fe) {
+	if (fe->timeout_cmd && TIME_LT(&fe->timeout_time, &curtime)) {
+	    /*
+	     * call:	"timeout_cmd cookie class ftype flowid FLOW flowstats"
+	     * result:  "command timeout_cmd secs.usecs cookie"
+	     */
+	    sprintf(buf, " %p %d %d ", fe->timeout_cookie,
+					fe->class, fe->flow_type);
+	    sprintf(buf2, " %ld.%06ld ", curtime.tv_sec, curtime.tv_usec);
+	    if (Tcl_VarEval(interp, fe->timeout_cmd, buf,
+			    flow_id_to_string(&ftinfo[fe->flow_type], fe->key),
+			    buf2,
+			    " FLOW ", flow_statistics(fe), 0) != TCL_OK) {
+		return TCL_ERROR;
+	    }
+
+	    fe->timeout_time.tv_usec = 0;
+	    n = sscanf(interp->result, "%s %s %ld.%ld %p",
+			buf, buf2, &fe->timeout_time.tv_sec,
+			&fe->timeout_time.tv_usec, &fe->timeout_cookie);
+	    if (n >= 2) {
+		if (buf2[0] == '-') {
+		    free(fe->timeout_cmd);
+		    fe->timeout_cmd = 0;
+		} else {
+		    if (strcmp(fe->timeout_cmd, buf2)) {
+			free(fe->timeout_cmd);
+			fe->timeout_cmd = strsave(buf2);
+		    }
+		}
+	    }
+	    if (n >= 3) {
+		TIME_ADD(&fe->timeout_time, &fe->timeout_time, &curtime);
+	    }
+	}
+	fe = fe->next_in_table;
+    }
+
+    return TCL_OK;
+}
+
 
 int
 Tcl_AppInit(Tcl_Interp *interp)
@@ -1343,19 +1392,21 @@ Tcl_AppInit(Tcl_Interp *interp)
 	return TCL_ERROR;
     }
 
-    Tcl_CreateCommand(interp, "teho_set_flow_type", teho_set_flow_type,
-								NULL, NULL);
-    Tcl_CreateCommand(interp, "teho_read_one_bin", teho_read_one_bin,
-								NULL, NULL);
-    Tcl_CreateCommand(interp, "teho_start_enumeration", teho_start_enumeration,
+    Tcl_CreateCommand(interp, "teho_class_summary", teho_class_summary,
 								NULL, NULL);
     Tcl_CreateCommand(interp, "teho_continue_enumeration",
 					teho_continue_enumeration, NULL, NULL);
-    Tcl_CreateCommand(interp, "teho_set_tcpd_file", teho_set_tcpd_file,
+    Tcl_CreateCommand(interp, "teho_read_one_bin", teho_read_one_bin,
+								NULL, NULL);
+    Tcl_CreateCommand(interp, "teho_run_timeouts", teho_run_timeouts,
 								NULL, NULL);
     Tcl_CreateCommand(interp, "teho_set_fix_file", teho_set_fix_file,
 								NULL, NULL);
-    Tcl_CreateCommand(interp, "teho_class_summary", teho_class_summary,
+    Tcl_CreateCommand(interp, "teho_set_flow_type", teho_set_flow_type,
+								NULL, NULL);
+    Tcl_CreateCommand(interp, "teho_set_tcpd_file", teho_set_tcpd_file,
+								NULL, NULL);
+    Tcl_CreateCommand(interp, "teho_start_enumeration", teho_start_enumeration,
 								NULL, NULL);
     Tcl_CreateCommand(interp, "teho_summary", teho_summary,
 								NULL, NULL);
