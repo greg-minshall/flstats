@@ -1,7 +1,7 @@
 #
 # Tcl script as part of flstats
 #
-# $Id: flstats.tcl,v 1.47 1996/03/20 00:06:35 minshall Exp minshall $
+# $Id: flstats.tcl,v 1.3 1996/07/29 21:09:39 minshall Exp $
 #
 #
 
@@ -350,8 +350,6 @@ fl_setft { {classifier {}} {flowtypes {}} } \
 {
     global flstats
 
-    set ftindex 0
-
     # the following is like atoft in the .c file:
     set alltags {}
 
@@ -437,7 +435,7 @@ fl_setft { {classifier {}} {flowtypes {}} } \
 	set merge [concat [join $merge /] $classifier - flll_delete]
 	lappend flowtypes $merge
 	# tell ll classifier which flow types to use.
-	fl_set_ll_classifier 0 [llength $flowtypes]
+	fl_set_ll_classifier 0 [expr [llength $flowtypes] -1]
 	if {$flstats(label)} {
 	    puts "# flowtype [llength $flowtypes] $merge"
 	}
@@ -477,7 +475,7 @@ fl_setft { {classifier {}} {flowtypes {}} } \
 					    $classifier - flll_delete]
 	    lappend flowtypes $merge_no_ports
 	    # tell ll classifier which flow types to use.
-	    fl_set_ll_classifier 1 [llength $flowtypes]
+	    fl_set_ll_classifier 1 [expr [llength $flowtypes] -1]
 	}
 	set flstats(lastllclassifier) 1
     }
@@ -488,29 +486,30 @@ fl_setft { {classifier {}} {flowtypes {}} } \
     set flstats(lastclass) [llength $flowtypes]
 
     # now, scan thru the input list again, setting upper level flows...
-    for {set whichflow 0} {$whichflow < [llength $flowtypes]} \
+
+    for {set whichflow 0; set ftindex 0} {$whichflow < [llength $flowtypes]} \
 					{ incr whichflow; incr ftindex } {
 	set flow [lindex $flowtypes $whichflow]
 	if {$flstats(label)} {
 	    puts "# flowtype $ftindex $flow"
 	}
 	set len [llength $flow]
+# NO	if {$len >= 2} {
+# NO	    global [lindex $flow 1]
+# NO	    set [lindex $flow 1] $ftindex
+# NO	}
 	if {$len >= 2} {
-	    global [lindex $flow 1]
-	    set [lindex $flow 1] $ftindex
-	}
-	if {$len >= 3} {
-	    set newflow "-n [lindex $flow 2]"
+	    set newflow "-n [lindex $flow 1]"
 	} else {
 	    set newflow ""
 	}
-	if {$len >= 4} {
-	    set recv "-r [lindex $flow 3]"
+	if {$len >= 3} {
+	    set recv "-r [lindex $flow 2]"
 	} else {
 	    set recv ""
 	}
-	if {$len >= 5} {
-	    set timeout "-t [lindex $flow 4]"
+	if {$len >= 4} {
+	    set timeout "-t [lindex $flow 3]"
 	} else {
 	    set timeout ""
 	}
@@ -679,11 +678,11 @@ fl_set_parameters {argc argv}\
 	error "extra parameters at end of command line: $argv"
     }
 
-    if {$eval} {
+    if {$eval != 0} {
 	uplevel #0 [$eval]
     }
-    if {$eval} {
-	uplevel #0 [source $scriptfile]
+    if {$scriptfile != 0} {
+	uplevel #0 # [source $scriptfile]
     }
 
     # default action
@@ -736,17 +735,3 @@ set flstats(tracefile.filename) "-"		; # from standard in...
 set flstats(flowtypes) { \
 	ihv/ihl/tos/ttl/prot/src/dst ihv/ihl/tos/ttl/prot/src/dst/sport/dport \
     }
-
-# if {!$tcl_interactive} {
-#     if [catch {
-# 	fl_startup
-#     } result] {
-# 	global errorInfo
-# 	puts stderr $result
-# 	puts stderr $errorInfo
-# 	if {[info exists line]} {
-# 	    puts stderr "Input line:  $line"
-# 	}
-# 	exit 1
-#     }
-# }
