@@ -54,11 +54,14 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.73 1996/03/21 02:51:54 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.74 1996/05/18 01:25:24 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <sys/types.h>
+#include <netinet/in.h>
 
 #include <pcap.h>
 #include <tcl.h>
@@ -407,13 +410,13 @@ struct fix44pkt {
 		    dport;
 	    u_long  seq,
 		    ack;
-	#if	(BYTE_ORDER == BIG_ENDIAN)
+#if	(BYTE_ORDER == BIG_ENDIAN)
 	    u_char  doff:4,
 		    resv:4,
-	#else
+#else
 	    u_char  resv:4,
 		    doff:4,
-	#endif
+#endif
 		    flags;
 	    u_short window;
 	} tcp;
@@ -450,20 +453,11 @@ struct fix24pkt {
             usecs,
             src,
             dst;
-#if (BYTE_ORDER == BIG_ENDIAN)  /* byte order makes my head hurt... */
-    u_char  prot,
-            tflags;
-    u_short len,
-            dport,  
-            sport;  
-#endif      
-#if (BYTE_ORDER == LITTLE_ENDIAN)
     u_short len;
     u_char  prot,
             tflags;
     u_short sport,
             dport;
-#endif
 };
 
 /* global variables */
@@ -809,7 +803,7 @@ timer_insert(flowentry_p fe, struct timeval *timertime)
 }
 
 static void
-timer_delete(flowentry_p fe)
+timer_remove(flowentry_p fe)
 {
     if (fe->fe_prev_in_timer) {
 	fe->fe_prev_in_timer->fe_next_in_timer = fe->fe_next_in_timer;
@@ -988,7 +982,7 @@ tbl_delete(flowentry_p fe)
 
     /* out of timer */
     if (fe->fe_prev_in_timer) {
-	timer_delete(fe);
+	timer_remove(fe);
     }
 
     /* out of bucket */
