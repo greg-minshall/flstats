@@ -1,6 +1,9 @@
 ### PARAMETERS ###
 
 # some DEFINES
+
+# (note that because of ordering of upgrading parent classes, the *numbers*
+# here are important!  (sigh)
 set CL_NONSWITCHED		3
 set CL_TO_BE_SWITCHED		4
 set CL_SWITCHED			5
@@ -102,7 +105,7 @@ getswitched { class flowtype flowid args}\
 # this doesn't need $pre, since the subst is performed at the caller...
 
 proc\
-get_summary_vec {class} \
+teho_get_summary_vec {class} \
 {
 	# ahh, dr. regsub... 
 	regsub -all {([a-zA-Z_]+) ([0-9]+)} \
@@ -113,11 +116,11 @@ get_summary_vec {class} \
 # this doesn't need $pre, since the subst is performed at the caller...
 #
 # the $pre_\1 variables need to have been created prior to the
-# call.  a call to get_summary_vec (and subst'ing) on the same
+# call.  a call to teho_get_summary_vec (and subst'ing) on the same
 # class does this.
 
 proc\
-get_diff_vec {class} \
+teho_get_diff_vec {class} \
 {
 	# ahh, dr. regsub... 
 	regsub -all {([a-zA-Z_]+) ([0-9]+)} [teho_class_summary $class] \
@@ -125,53 +128,141 @@ get_diff_vec {class} \
 	return $bar
 }
 
-proc \
-simul_setft { llflows ulflows } \
+proc\
+teho_ll_delete {cookie class ftype flowid time FLOW args}\
 {
-    set ftindex 0
+    global CL_SWITCHED CL_TO_BE_SWITCHED CL_NONSWITCHED
 
-    foreach flows [list $llflows $ulflows] {
-	for {set whichflow 0} {$whichflow < [llength $flows]} \
-					    { incr whichflow; incr ftindex } {
-	    set flow [lindex $flows $whichflow]
-	    puts "# flow $ftindex $flow"
-	    set len [llength $flow]
-	    if {$len >= 3} {
-		global [lindex $flow 2]
-		set $[lindex $flow 2] $ftindex
+    # ahh, dr. regsub... 
+    regsub -all {([a-zA-Z_]+) ([0-9.]+)} $args {[set x_\1 \2]} bar
+    subst $bar
+
+    if {[expr $time - $x_last] > $cookie} {
+	return "DELETE"		; # gone...
+    }
+
+    set time [expr 2 * $cookie]
+    if {$time > 64} {
+	set time 64
+    }
+
+    return "- teho_ll_delete $time.0 $time"
+}
+
+
+
+#
+# set up the flow types, using the upper level flows.
+#
+# we create either one or two low level flows.  one is
+# the "merge" of all the fields used in the upper level
+# flows.  the second is only created if one or more of the
+# upper level flows use ports, and it is the first minus
+# the ports.
+#
+# classifier is the classifier to be used when new low level
+# flows arrive and need to be correlated with an upper level
+# flow.
+#
+# classifiertype is the "flow type string" (ihv/ihl/...) which
+# the classifier needs to use to classify flows.
+#
+# ulflows is a list of lists.  the inner list has the form:
+#
+#		flow-type-string classifier flow-type-index-variable
+#
+# where a flow of type flow-type-string is set up with classifier
+# the index is placed in the variable flow-type-index-variable.
+#
+
+proc \
+teho_setft { classifier classifiertype ulflows } \
+{
+    set ULFLOWS { \
+	{ ihv/ihl/tos/ttl/prot/src/dst starttimeout FT_UL_NOPORT } \
+	{ ihv/ihl/tos/ttl/prot/src/dst/sport/dport starttimeout FT_UL_PORT }}
+    set ftindex 0
+    # the following is like atoft in the .c file:
+    set alltags { ihv ihl tos len id foff ttl prot sum src dst sport dport }
+
+    if {$ulflows == {}} {
+	set ulflows $ULFLOWS
+    }
+    if {$classifier == {}} {
+	set classifier classifier
+    }
+
+    # ok, scan thru upper layer flows, keeping track of used tags
+    for {set whichflow 0} {$whichflow < [llength $ulflows]} \
+						{ incr whichflow} {
+	set type [lindex [lindex $ulflows $whichflow] 0]
+	set types [split $type /]
+	foreach type $types {
+	    if {[lsearch -exact $alltags $type] == -1} {
+		error "unknown flow type tag $type"
 	    }
-	    if {$len >= 2} {
-		teho_set_flow_type -f $ftindex -c [lindex $flow 1] \
-							    [lindex $flow 0]
+	    set fltags($type) 1
+	}
+    }
+
+    # now, make sure we get all the stuff the classifier needs
+    # (the point being to produce the union of everything)
+    foreach type $classifiertype {
+	if {[lsearch -exact $alltags $type] == -1} {
+	    error "unknown flow type tag $type in classifiertype"
+	}
+	set fltags($type) 1
+    }
+    
+    # now, know all the tags, build the flow type(s)
+    set type1 {}
+    set type2 {}
+    set portsseen 0			; # have we seen any ports?
+    foreach tag $alltags {
+	if {[info exists fltags($tag)]} {
+	    lappend type1 $tag
+	    if {($tag == "sport") || ($tag == "dport")} {
+		# don't put ports in type2
+		set portsseen 1
 	    } else {
-		teho_set_flow_type -f $ftindex [lindex $flow 0]
+		lappend type2 $tag
 	    }
 	}
-	incr ftindex			; # leave a gap between LL and UL
+    }
+    set type1 [join $type1 /]
+    set type2 [join $type2 /]
+    teho_set_flow_type -f $ftindex -c $classifier $type1
+    incr ftindex
+    if {$portsseen != 0} {
+	teho_set_flow_type -f $ftindex -c $classifier $type2
+	incr ftindex
+    }
+
+    incr ftindex			; # leave a gap between LL and UL
+
+    # now, scan thru the input list again, setting flows...
+    for {set whichflow 0} {$whichflow < [llength $ulflows]} \
+					{ incr whichflow; incr ftindex } {
+	set flow [lindex $ulflows $whichflow]
+	puts "# flow $ftindex $flow"
+	set len [llength $flow]
+	if {$len >= 3} {
+	    global [lindex $flow 2]
+	    set $[lindex $flow 2] $ftindex
+	}
+	if {$len >= 2} {
+	    teho_set_flow_type -f $ftindex -c [lindex $flow 1] \
+							[lindex $flow 0]
+	} else {
+	    teho_set_flow_type -f $ftindex [lindex $flow 0]
+	}
     }
 }
 
-# default flows...
-# set LLFLOWS [list \
-#     [list ihv/ihl/tos/ttl/prot/src/dst/sport/dport classifier] \
-#     [list ihv/ihl/tos/ttl/prot/src/dst classifier]]
-# set ULFLOWS [list \
-#     [list ihv/ihl/tos/ttl/prot/src/dst/sport/dport starttimeout FT_UL_PORT] \
-#     [list ihv/ihl/tos/ttl/prot/src/dst starttimeout FT_UL_NOPORT]]
-
-set LLFLOWS { \
-    { ihv/ihl/tos/ttl/prot/src/dst/sport/dport classifier } \
-    { ihv/ihl/tos/ttl/prot/src/dst classifier }}
-set ULFLOWS { \
-    { ihv/ihl/tos/ttl/prot/src/dst/sport/dport starttimeout FT_UL_PORT } \
-    { ihv/ihl/tos/ttl/prot/src/dst starttimeout FT_UL_NOPORT }}
-
 proc \
-simul_setup { fixortcpd filename {binsecs 1} \
-		    { llflows $LLFLOWS } { ulflows $ULFLOWS }} \
+teho_setup { fixortcpd filename {binsecs 1} {classifier {}} \
+				{classifiertype {}} { ulflows {} }} \
 {
-    global LLFLOWS ULFLOWS
-
     set fname [glob $filename]
 
     if [regexp -nocase fix $fixortcpd] {
@@ -188,7 +279,7 @@ simul_setup { fixortcpd filename {binsecs 1} \
 			$fname $filestats(size) $filestats(mtime)]
 
     puts "#"
-    simul_setft $LLFLOWS $ULFLOWS
+    teho_setft $classifier $classifiertype $ulflows
 
     puts "#"
     puts "# binsecs $binsecs"
@@ -198,13 +289,14 @@ simul_setup { fixortcpd filename {binsecs 1} \
 
 
 proc \
-flow_details { fixortcpd filename {binsecs 1} \
-		{ llflows $LLFLOWS } { ulflows $ULFLOWS }} \
+teho_flow_details { fixortcpd filename {binsecs 1} {classifier {}} \
+					{classifiertype {}} { ulflows {} }} \
 {
     global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
     global FT_LL_PORT FT_LL_NOPORT FT_UL_PORT FT_UL_NOPORT
 
-    simul_setup $fixortcpd $filename $binsecs $llflows $ulflows
+    teho_setup $fixortcpd $filename $binsecs $classifier \
+					$classifiertype $ulflows
 
     while {1} {
 	set bintime [lindex [split [time { \
@@ -224,13 +316,14 @@ flow_details { fixortcpd filename {binsecs 1} \
 
 
 proc \
-class_details { fixortcpd filename {binsecs 1} \
-		{ llflows $LLFLOWS } { ulflows $ULFLOWS }}\
+teho_class_details { fixortcpd filename {binsecs 1} {classifier {}} \
+					{classifiertype {}} { ulflows {} }}\
 {
     global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
     global FT_LL_PORT FT_LL_NOPORT FT_UL_PORT FT_UL_NOPORT
 
-    simul_setup $fixortcpd $filename $binsecs $llflows $ulflows
+    teho_setup $fixortcpd $filename $binsecs $classifier \
+					$classifiertype $ulflows
 
     puts "# plotvars 1 binno 2 pktsrouted 3 bytesrouted 4 pktsswitched"
     puts "# plotvars 5 bytesswitched 6 pktsdropped 7 bytesdropped"
@@ -247,13 +340,13 @@ class_details { fixortcpd filename {binsecs 1} \
 
     # preload the stats counters
     set pre non
-    subst [get_summary_vec $CL_NONSWITCHED]
+    subst [teho_get_summary_vec $CL_NONSWITCHED]
     set pre waiting
-    subst [get_summary_vec $CL_TO_BE_SWITCHED]
+    subst [teho_get_summary_vec $CL_TO_BE_SWITCHED]
     set pre switched
-    subst [get_summary_vec $CL_SWITCHED]
+    subst [teho_get_summary_vec $CL_SWITCHED]
     set pre gstats
-    subst [get_summary_vec 0]
+    subst [teho_get_summary_vec 0]
 
     while {1} {
 	set bintime [lindex [split [time { \
@@ -266,23 +359,23 @@ class_details { fixortcpd filename {binsecs 1} \
 
 	# get differences from previous stats counters
 	set pre non
-	subst [get_diff_vec $CL_NONSWITCHED]
+	subst [teho_get_diff_vec $CL_NONSWITCHED]
 	set pre waiting
-	subst [get_diff_vec $CL_TO_BE_SWITCHED]
+	subst [teho_get_diff_vec $CL_TO_BE_SWITCHED]
 	set pre switched
-	subst [get_diff_vec $CL_SWITCHED]
+	subst [teho_get_diff_vec $CL_SWITCHED]
 	set pre gstats
-	subst [get_diff_vec 0]
+	subst [teho_get_diff_vec 0]
 
 	# now, update the stats counters
 	set pre non
-	subst [get_summary_vec $CL_NONSWITCHED]
+	subst [teho_get_summary_vec $CL_NONSWITCHED]
 	set pre waiting
-	subst [get_summary_vec $CL_TO_BE_SWITCHED]
+	subst [teho_get_summary_vec $CL_TO_BE_SWITCHED]
 	set pre switched
-	subst [get_summary_vec $CL_SWITCHED]
+	subst [teho_get_summary_vec $CL_SWITCHED]
 	set pre gstats
-	subst [get_summary_vec 0]
+	subst [teho_get_summary_vec 0]
 	set xx [exec ps lp$pid]
 	set xx [lrange [split [join $xx]] 19 24]
 	puts [format \
@@ -316,8 +409,8 @@ class_details { fixortcpd filename {binsecs 1} \
 # for compatibility...
 
 proc \
-simul { fixortcpd filename {binsecs 1} \
-		{ llflows $LLFLOWS } { ulflows $ULFLOWS }} \
+simul { fixortcpd filename {binsecs 1} {classifier {}} \
+				{classifiertype {}} { ulflows {} }} \
 {
-    class_details $fixortcpd $filename $binsecs
+    teho_class_details $fixortcpd $filename $binsecs
 }
