@@ -806,34 +806,51 @@ teho_set_flow_type(ClientData clientData, Tcl_Interp *interp,
     int ft, sgi;
     char *new_flow_cmd;
     static char result[20];
+    static char *usage = "Usage: teho_set_flow_type ?-s stats_group_index?"
+				" ?-c new_flow_command? ?-f flow_type_index string";
+    int op;
+    extern char *optarg;
+    extern int optind, opterr, optreset;
 
-    if ((argc < 3) || (argc > 5)) {
-	interp->result =
-		"Usage: teho_set_flow_type flow_type_index string ?statistics_group_index? ?new_flow_command?";
-	return TCL_ERROR;
+    ft = 0;
+    sgi = 0;
+    new_flow_cmd = 0;
+    opterr = 0;
+    optreset = 1;
+    optind = 1;
+    while ((op = getopt(argc, argv, "f:s:c:")) != EOF) {
+	switch (op) {
+	    case 'f':
+		    ft = atoi(optarg);
+		    break;
+	    case 's':
+		    sgi = atoi(optarg);
+		    break;
+	    case 'c':
+		    new_flow_cmd = strsave(optarg);
+		    if (new_flow_cmd == 0) {
+			interp->result = "malloc failed";
+			return TCL_ERROR;
+		    }
+		    break;
+	    default:
+		    interp->result = usage;
+		    return TCL_ERROR;
+		    /*NOTREACHED*/
+	}
     }
 
-    ft = atoi(argv[1]);
+    argc -= optind;
+    argv += optind;
+
+    if (argc != 1) {
+	interp->result = usage;
+	return TCL_ERROR;
+    }
 
     if (ft >= NUM(ftinfo)) {
 	interp->result = "flow_type_index higher than maximum";
 	return TCL_ERROR;
-    }
-
-    if (argc >= 4) {
-	sgi = atoi(argv[3]);
-    } else {
-	sgi = 0;
-    }
-
-    if (argc >= 5) {
-	new_flow_cmd = strsave(argv[4]);
-	if (new_flow_cmd == 0) {
-	    interp->result = "malloc failed";
-	    return TCL_ERROR;
-	}
-    } else {
-	new_flow_cmd = 0;
     }
 
     if (sgi >= NUM(ftstats)) {
@@ -841,7 +858,7 @@ teho_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 	return TCL_ERROR;
     }
 
-    error = set_flow_type(interp, ft, argv[2], sgi, new_flow_cmd);
+    error = set_flow_type(interp, ft, argv[0], sgi, new_flow_cmd);
     if (error != TCL_OK) {
 	return error;
     }
