@@ -56,18 +56,30 @@ struct hentry {
 };
 
 
+/*
+ * This describes the IP header and relevant fields of TCP/UDP header.
+ *
+ * This is used for translating flow_types to an internal form (and
+ * going backwards).
+ *
+ * This is also used for turning flowids into ascii, as well as
+ * packet headers into ascii.  For the latter application, it is important
+ * that the elements in the array 'atoft' be specified in the order in
+ * which they occur in the packet header.
+ */
+
 typedef struct {
 	char	*name;		/* external name */
-	char	offset,		/* where in header */
+	u_char	offset,		/* where in header */
 		numbytes,	/* length of field */
 		mask;		/* mask for data */
 } atoft_t, *atoft_p;
 
 atoft_t atoft[] = {
-	{ "IHV", 0, 1, 0xf0 }, { "IHL", 0, 1, 0x0f }, { "TOS", 1, 1 },
-	{ "LEN", 2, 2 }, { "ID", 4, 2 }, { "FOFF", 6, 2}, { "TTL", 8, 1},
-	{ "PROT", 9, 1}, { "SUM", 10, 2}, { "SRC", 12, 4}, { "DST", 16, 4},
-	{ "SPORT", 20, 2}, { "DPORT", 22, 2}
+	{ "ihv", 0, 1, 0xf0 }, { "ihl", 0, 1, 0x0f }, { "tos", 1, 1 },
+	{ "len", 2, 2 }, { "id", 4, 2 }, { "foff", 6, 2}, { "ttl", 8, 1},
+	{ "prot", 9, 1}, { "sum", 10, 2}, { "src", 12, 4}, { "dst", 16, 4},
+	{ "sport", 20, 2}, { "dport", 22, 2}
 };
 
 
@@ -125,6 +137,7 @@ hentry_p buckets[31979];
 hentry_p onebehinds[NUM(buckets)];
 #endif	defined(ONEBEHIND)
 hentry_p table;			/* list of everything */
+hentry_p enum_state;
 
 struct timeval curtime, starttime;
 
@@ -173,6 +186,7 @@ newfile(void)
     hentry_p hent, nhent;
 
     fileeof = 0;
+    enum_state = 0;
     switch (filetype) {
     case TYPE_PCAP:
 	filetype = TYPE_UNKNOWN;
@@ -519,19 +533,52 @@ teho_read_one_bin(ClientData clientData, Tcl_Interp *interp,
 }
 
 static char *
-flow_type_to_string(void)
+flow_id_to_string(u_char *id)
 {
-    static char result[MAX_FLOW_ID_BYTES*5];
-    int i, sep=0;
+    static char result[MAX_FLOW_ID_BYTES*10];
+    char fidstring[30], *fidp;
+    char *sep = "";
+    atoft_p xp;
+    int i, j;
+    char xtoatbl[] = "0123456789abcdef";
 
     result[0] = 0;
     for (i = 0; i < flow_type_indicies_len; i++) {
-	if (sep) {
-	    strcat(result, "/");
-	} else {
-	    sep = 1;
+	xp = &atoft[flow_type_indicies[i]];
+	fidp = fidstring;
+	for (j = 0; j < xp->numbytes; j++) {
+	    if (xp->mask == 0xff) {
+		*fidp++ = xtoatbl[(*id)>>4];
+		*fidp++ = xtoatbl[(*id++)&0xf];
+	    } else if (xp->mask == 0xf0) {
+		*fidp++ = xtoatbl[(*id++)>>4];
+	    } else if (xp->mask == 0x0f) {
+		*fidp++ = xtoatbl[(*id++)&0xf];
+	    } else {
+		/* unknown value for mask */
+		fprintf(stderr, "%s:%d --- index %d of atoft bad!\n",
+				__FILE__, __LINE__, i);
+	    }
 	}
-	strcat(result, atoft[flow_type_indicies[i]].name);
+	*fidp = 0;
+	sprintf(result+strlen(result), "%s%s=%s", sep, xp->name, fidstring);
+	sep = "/";
+    }
+    return result;
+}
+
+static char *
+flow_type_to_string(void)
+{
+    static char result[MAX_FLOW_ID_BYTES*10];
+    char *sep = "";
+    int i;
+
+    result[0] = 0;
+    for (i = 0; i < flow_type_indicies_len; i++) {
+	sprintf(result+strlen(result), "%s%s",
+				sep, atoft[flow_type_indicies[i]].name);
+	sep = "/";
     }
     return result;
 }
@@ -650,11 +697,23 @@ teho_summary(ClientData clientData, Tcl_Interp *interp,
 }
 
 
+static char *
+one_enum(hentry_p hp)
+{
+    return flow_id_to_string(hp->key);
+}
+
+
 static int
 teho_start_enum(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
-    printf("%s\n", flow_type_to_string());
+    if (table) {
+	interp->result = one_enum(table);
+	enum_state = table->next_in_table;
+    } else {
+	interp->result = "";
+    }
     return TCL_OK;
 }
 
@@ -662,6 +721,11 @@ static int
 teho_continue_enum(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
+    if (enum_state) {
+	interp->result = one_enum(enum_state);
+    } else {
+	interp->result = "";
+    }
     return TCL_OK;
 }
 
