@@ -41,7 +41,7 @@ end
 
 if ( $sawtclxDOTy == 0 ) then
     if ( $sawtclxy == 0 ) then
-	echo "Cannot find lib$tclxDOTy.a or lib$tclxy.a!  Aborting..."
+	echo "Cannot find lib$nmtclxDOTy.a or lib$nmtclxy.a!  Aborting..."
 	exit 1
     endif
     set tclxy='-e s/^#have-tclxy#//'
