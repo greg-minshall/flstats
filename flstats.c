@@ -141,7 +141,9 @@ struct flowentry {
  */
 
 typedef struct clstats {
-    int	    cls_added,			/* num flows added to this class */
+    int	    cls_created,		/* num flows created in this class */
+	    cls_deleted,		/* num flows created in this class */
+	    cls_added,			/* num flows added to this class */
 	    cls_removed,		/* num flows removed from this class */
 	    cls_active,			/* flows active this interval */
 	    cls_pkts,			/* packets read */
@@ -149,7 +151,9 @@ typedef struct clstats {
 	    cls_sipg,			/* smoothed ipg (in 8 usec units) */
 	    cls_fragpkts,		/* fragments seen (using ports) */
 	    cls_fragbytes,		/* bytes seen in those frags */
-	    cls_runtpkts,		/* runt (too short) packets seen */
+	    cls_toosmallpkts,		/* packet length too small */
+	    cls_toosmallbytes,		/* bytes seen in those frags */
+	    cls_runtpkts,		/* captured portion too small */
 	    cls_runtbytes,		/* bytes seen in those frags */
 	    cls_noportpkts,		/* packet had no ports (but needed) */
 	    cls_noportbytes;		/* bytes seen in those frags */
@@ -348,7 +352,7 @@ FILE *fix_descriptor;
 
 int packet_error = 0;
 
-int pending;
+int pending, pendingcaplen, pendingpktlen;
 u_char *pending_packet[MAX_PACKET_SIZE];
 
 u_long binno;
@@ -684,15 +688,17 @@ class_statistics(clstats_p clsp)
 {
     static char summary[100];
 
-    sprintf(summary,
-	"added %d removed %d active %d pkts %d bytes %d sipg %d fragpkts %d "
-	"fragbytes %d runtpkts %d runtbytes %d noportpkts %d noportbytes %d "
-	"lastrecv %ld.%06ld",
+    sprintf(summary, "created %d deleted %d "
+       "added %d removed %d active %d pkts %d bytes %d sipg %d fragpkts %d "
+       "fragbytes %d toosmallpkts %d toosmallbytes %d runtpkts %d runtbytes %d "
+       "noportpkts %d noportbytes %d lastrecv %ld.%06ld",
+	clsp->cls_created, clsp->cls_deleted,
 	clsp->cls_added, clsp->cls_removed, clsp->cls_active,
 	clsp->cls_pkts, clsp->cls_bytes, clsp->cls_sipg>>3, clsp->cls_fragpkts,
-	clsp->cls_fragbytes, clsp->cls_runtpkts, clsp->cls_runtbytes,
-	clsp->cls_noportpkts, clsp->cls_noportbytes,
-	clsp->cls_last_pkt_rcvd.tv_sec, clsp->cls_last_pkt_rcvd.tv_usec);
+	clsp->cls_fragbytes, clsp->cls_toosmallpkts, clsp->cls_toosmallbytes,
+	clsp->cls_runtpkts, clsp->cls_runtbytes, clsp->cls_noportpkts,
+	clsp->cls_noportbytes, clsp->cls_last_pkt_rcvd.tv_sec,
+	clsp->cls_last_pkt_rcvd.tv_usec);
 
     return summary;
 }
@@ -702,7 +708,7 @@ class_statistics(clstats_p clsp)
 static void
 delete_flow(flowentry_p fe)
 {
-    clstats[fe->fe_class].cls_removed++;
+    clstats[fe->fe_class].cls_deleted++;
     if (fe->fe_pkt_recv_cmd) {
 	free(fe->fe_pkt_recv_cmd);
     }
@@ -792,7 +798,7 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int level, int class)
 	    TIME_ADD(&fe->fe_timeout_time, &fe->fe_timeout_time, &curtime);
 	}
     }
-    clstats[fe->fe_class].cls_added++;
+    clstats[fe->fe_class].cls_created++;
     return fe;
 }
 
@@ -925,16 +931,16 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
  */
 
 static void
-packetin(Tcl_Interp *interp, const u_char *packet, int len)
+packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
 {
     u_char llfid[MAX_FLOW_ID_BYTES], ulfid[MAX_FLOW_ID_BYTES];
-    int pkthasports, bigenough;
+    int pktprotohasports, pktbigenough, capbigenough, fragmented;
     flowentry_p llfe, ulfe;	/* lower and upper level flow entries */
     ftinfo_p llft, ulft;	/* lower and upper level flow types */
 
     /* check for a pending packet */
     if (pending) {
-	if (len) {	/* shouldn't happen! */
+	if (caplen) {	/* shouldn't happen! */
 	    interp->result = "invalid condition in packetin";
 	    packet_error = TCL_ERROR;
 	    return;
@@ -943,46 +949,71 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	binno = NOW_AS_BINNO();
 	/* use the pending packet */
 	packet = (const u_char *)pending_packet;
+	caplen = pendingcaplen;
+	pktlen = pendingpktlen;
     } else if (binno != NOW_AS_BINNO()) {
 	/* if we've gone over to another bin number... */
 	pending = 1;
-	memcpy(pending_packet, packet, MIN(len, sizeof pending_packet));
+	memcpy(pending_packet, packet, MIN(caplen, sizeof pending_packet));
+	pendingcaplen = caplen;
+	pendingpktlen = pktlen;
 	/* wait till next time */
 	return;
     }
 
     /* now, do the low level classification into a llft */
-    pkthasports = protohasports[packet[9]];
-    bigenough = 0;
+    pktprotohasports = protohasports[packet[9]];
+    pktbigenough = 0;
+    capbigenough = 0;
+    fragmented = 0;
     for (llft = ftinfo; (llft < &ftinfo[NUM(ftinfo)]) && !FTI_UNUSED(llft);
 								    llft++) {
-	if (len >= llft->fti_id_covers) {
-	    bigenough = 1;
-	    /*
-	     * if ft doesn't use ports, or this protocol has ports and we
-	     * aren't fragmented, this is fine.
-	     */
-	    if ((pkthasports && (!packet[6]&0x1fff)) || !FTI_USES_PORTS(llft)) {
-		break;
+	if (pktlen >= llft->fti_id_covers) {
+	    pktbigenough = 1;		/* packet was big enough */
+	    if (caplen >= llft->fti_id_covers) {
+		capbigenough = 1;	/* and, we captured enough */
+		/*
+		 * if ft doesn't use ports, or this protocol has ports and we
+		 * aren't fragmented, this is fine.
+		 */
+		if (FTI_USES_PORTS(llft)) {
+		    if (pktprotohasports && (!packet[6]&0x1fff)) {
+			break;
+		    } else {
+			fragmented = 1;	/* needed ports, but got a fragment */
+		    }
+		} else {
+		    break;
+		}
 	    }
 	}
     }
 
     if (llft >= &ftinfo[NUM(ftinfo)]) {
 	clstats[0].cls_pkts++;
-	clstats[0].cls_bytes += len;
-	if (bigenough) {	/* packet was big enough, but... */
-	    if (packet[6]&0x1fff) {
-		clstats[0].cls_fragpkts++;
-		clstats[0].cls_fragbytes += len;
+	clstats[0].cls_bytes += pktlen;
+	if (pktbigenough) {	/* packet was big enough, but... */
+	    if (capbigenough) {
+		if (packet[6]&0x1fff) {
+		    clstats[0].cls_fragpkts++;
+		    clstats[0].cls_fragbytes += pktlen;
+		} else {
+		    /*
+		     * this means there is no flow type for protocols
+		     * which don't have a port number field (i.e., this
+		     * is probably a bug...
+		     */
+		    clstats[0].cls_noportpkts++;
+		    clstats[0].cls_noportbytes += pktlen;
+		}
 	    } else {
-		clstats[0].cls_noportpkts++;
-		clstats[0].cls_noportbytes += len;
+		clstats[0].cls_runtpkts++;
+		clstats[0].cls_runtbytes += pktlen;
 	    }
 	} else {
 	    /* never found a flow type into which it fit */
-	    clstats[0].cls_runtpkts++;
-	    clstats[0].cls_runtbytes += len;
+	    clstats[0].cls_toosmallpkts++;
+	    clstats[0].cls_toosmallbytes += pktlen;
 	}
 	return;
     }
@@ -1030,8 +1061,8 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 
     /* now, track packets in both the lower and upper flows */
     /* (notice this doesn't happen if any error above occurs...) */
-    packetinflow(interp, llfe, len);
-    packetinflow(interp, ulfe, len);
+    packetinflow(interp, llfe, pktlen);
+    packetinflow(interp, ulfe, pktlen);
 }
 
 static void
@@ -1043,7 +1074,7 @@ receive_tcpd(u_char *user, const struct pcap_pkthdr *h, const u_char *buffer)
 
         if (h->caplen < 14) {
 		/* need to call packetin to set counters, etc. */
-		packetin((Tcl_Interp *)user, buffer, 0);
+		packetin((Tcl_Interp *)user, buffer, 0, 0);
                 return;
         }
 
@@ -1053,7 +1084,7 @@ receive_tcpd(u_char *user, const struct pcap_pkthdr *h, const u_char *buffer)
                 return;         /* only IP packets */
         }
 
-        packetin((Tcl_Interp *)user, buffer+14, h->caplen-14);
+        packetin((Tcl_Interp *)user, buffer+14, h->caplen-14, h->len-14);
 }
 
 
@@ -1075,7 +1106,7 @@ receive_fix(Tcl_Interp *interp, struct fixpkt *pkt)
     *(u_short *)&pseudopkt[20] = pkt->sport;
     *(u_short *)&pseudopkt[22] = pkt->dport;
 
-    packetin(interp, pseudopkt, sizeof pseudopkt);
+    packetin(interp, pseudopkt, sizeof pseudopkt, ntohs(pkt->len));
 }
 
 
@@ -1085,7 +1116,7 @@ process_one_packet(Tcl_Interp *interp)
     packet_error = TCL_OK;
 
     if (pending) {
-	packetin(interp, 0, 0);
+	packetin(interp, 0, 0, 0);
     } else {
 	if (filetype == TYPE_PCAP) {
 	    if (pcap_dispatch(pcap_descriptor, 1,
