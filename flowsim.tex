@@ -600,6 +600,7 @@ whether the header fields in \cmdarg{ulflows} and in
 Each of the lower level flow types is set to use \cmdarg{classifier} as
 its flow creation upcall.
 
+\begin{description}
 \item[classifier] The procedure name of the user-level classifier,
 i.e., the name of the procedure which will used for the flow creation
 upcall when new low level flows are created.  If no classifier is
@@ -671,14 +672,14 @@ events in that flow type.
 \item[flowtype] The flow type index of the flow type.
 \item[flowid] The flow identifier of the new flow being created.  This
 is in the form \texttt{name/value/name/value...}, where \texttt{name}
-is the name of a header field (see~\ref{sec:fsim\_set\_flow\_type}),
+is the name of a header field (see~\ref{sec:fsim_set_flow_type}),
 and \texttt{value} is the value of that field.  (The values are printed
 out in decimal, dotted decimal, or hexadecimal, depending on the
 field.)
 \end{description}
 
-\RETURNVALUES class parent_class parent_flow_type ?receive_time?
-?timer_value?
+\RETURNVALUES class parent\_class parent\_flow\_type ?receive\_time?
+?timer\_value?
 
 \RETURNDESC
 The return value from this call regulates the attributes of the created
@@ -687,8 +688,8 @@ order:
 
 \begin{description}
 \item[class] The class index of the newly created flow.
-\item[upper_class] The class index of any parent flow that might be created.
-\item[upper_ftype] The flow type index of any parent flow that might be
+\item[upper\_class] The class index of any parent flow that might be created.
+\item[upper\_ftype] The flow type index of any parent flow that might be
 created.
 \item[recvtime] The number of seconds, expressed as a floating point
 number, that must pass before the packet received upcall will be made
@@ -710,7 +711,7 @@ upcall for this flow entry.  If this value is returned as zero
 \DESCRIPTION
 
 This routine, registered on a per-flow-type basis, is called when a
-packet has been received on a flow when \cmdarg{receive_time} seconds
+packet has been received on a flow when \cmdarg{receive\_time} seconds
 have passed since the previous \cmdname\ or
 \cmd{upcall\_flow\_creation} upcall on this flow entry
 (\cmdarg{receive\_time} in this sentence refers to, of course, that
@@ -740,7 +741,7 @@ flow entry.
 
 \begin{description}
 \item[class]  The new (same) class for the flow entry.
-\item[receive\_time] The offset from the current time at which to call
+\item[receive\_time] The offset from the current time after which to call
 the packet received upcall again.  If this return value is missing or
 is returned with a value of zero (0), no more packet received upcalls
 will be made for this flow.
@@ -749,6 +750,46 @@ will be made for this flow.
 \manend
 
 \man{upcall\_timer\_expired}{timer expired upcall}
+
+\SYNOPSIS \cmdname\ class ftype flowid FLOW flowstats
+\RETURNVALUES ?command? ?timer\_value?
+
+The system provides the service of making upcalls to \cmdname\
+(registered on a per-flow-type basis) on a per flow-entry basis when a
+timer value (set on a per-flow-entry basis) has expired.  This timer
+queue is run once every second.  \cmdname\ can be used to delete flows.
+
+\begin{description}
+\item[class] The class of the flow entry whose timer has expired.
+\item[ftype] The flow type index of the flow entry whose timer has
+expired.
+\item[flowid] The flow identifier of the flow entry whose timer has
+expired.
+\item[FLOW] The string "FLOW".
+\item[flowstats] The flow statistics for the flow entry.
+\begin{description}
+\item[created] The creation time, in absolute time within the time
+space of the input trace file.
+\item[last] The time at which the previous packet was received on this
+flow, in absolute time.
+\item[pkts] The number of packets received on this flow.
+\item[bytes] The number of bytes received on this flow.
+\item[sipg] The smoothed inter-packet arrival time for this flow
+(using, basically,
+the Van Jacobson code from Appendix A of his SIGCOMM 88 paper).
+\end{description}
+\end{description}
+
+The return values allow the upcall routine control over the flow entry.
+
+\begin{description}
+\item[command] If set to "DELETE", the flow entry will be deleted.  If
+set to "-", or omitted, the flow entry will not be deleted.
+\item[timer\_value] The offset from the current time after which to call
+the timer expired upcall again.  If omitted or returned as zero (0), no
+more timer expired upcalls will be made on this flow again.
+\end{description}
+
 
 \manend
 \end{document}
