@@ -26,7 +26,7 @@
 		(((now)->tv_sec-(then)->tv_sec) -\
 			((now)->tv_usec < (then)->tv_usec ? 1 : 0))
 
-#define	NOWASBINNO() (binsecs == 0 ? 0 : \
+#define	NOW_AS_BINNO() (binsecs == 0 ? 0 : \
 		(TIMEDIFFSECS(&curtime, &starttime)/binsecs))
 
 #define	TYPE_UNKNOWN	0
@@ -44,7 +44,8 @@ typedef struct hentry hentry_t, *hentry_p;
 struct hentry {
     /* fields for application use */
     u_char
-	flow_type_index;	/* which flow type is this? */
+	flow_type_index,	/* which flow type is this? */
+	stats_group_index;	/* where are statistics recorded? */
     u_long
 	packets,
 	last_pkt_sec,
@@ -63,24 +64,26 @@ struct hentry {
 
 
 typedef struct ftstats {
-    int	    fts_created,
-	    fts_active,
-	    fts_packets,
-	    fts_packetsnewflows,
-	    fts_fragments;
+    int	    fts_created,		/* flows created */
+	    fts_deleted,		/* flows deleted */
+	    fts_active,			/* flows active this interval */
+	    fts_packets,		/* packets read */
+	    fts_packetsnewflows,	/* packets arriving for new flows */
+	    fts_fragments,		/* fragments seen (using ports) */
+	    fts_runts,			/* runt (too short) packets seen */
+	    fts_noports;		/* packet had no ports (but needed) */
 } ftstats_t, *ftstats_p;
 
 typedef struct ftinfo ftinfo_t, *ftinfo_p;
 
 struct ftinfo {
     u_char  fti_type_indicies[MAX_FLOW_ID_BYTES],
-            fti_bytes_and_mask[2*MAX_FLOW_ID_BYTES];
+            fti_bytes_and_mask[2*MAX_FLOW_ID_BYTES],
+	    fti_stats_group_index;	/* default */
     int	    fti_bytes_and_mask_len,
 	    fti_type_indicies_len,
 	    fti_id_len,
 	    fti_id_covers;
-    ftstats_t
-	    fti_stats;
 };
 
 #define	FTI_USES_PORTS(p) ((p)->fti_id_covers > 20)
@@ -181,7 +184,9 @@ struct timeval curtime, starttime;
 
 int binsecs = 0;		/* number of seconds in a bin */
 
-ftinfo_t ftinfo[2];
+ftinfo_t ftinfo[10];
+ftstats_t ftstats[NUM(ftinfo)];
+
 int flow_types = 0;
 
 pcap_t *pcap_descriptor;
@@ -194,20 +199,6 @@ int pending, pending_flow_type;
 int packet_error = 0;
 
 u_long binno;
-
-/* various statistics */
-
-struct {
-    int
-	flowscreated,	/* flows created */
-	flowsdeleted,	/* flows deleted */
-	flowsactive,	/* flows active */
-	packets,	/* number of packets read */
-	packetsnewflows,/* packets arriving for flows just created */
-	runts,		/* runt (too short) packets seen */
-	fragments,	/* fragments seen (when using ports) */
-	noports;	/* packet had no ports, but flow type needed ports */
-} gstats;
 
 
 /*
@@ -240,7 +231,7 @@ newfile(void)
 	fprintf(stderr, "%s.%d: filetype %d unknown!\n", __FILE__, __LINE__, filetype);
 	exit(2);
     }
-    memset(&gstats, 0, sizeof gstats);
+    memset(&ftstats[0], 0, sizeof ftstats);
     curtime.tv_sec = curtime.tv_usec = 0;
     starttime.tv_sec = starttime.tv_usec = 0;
     pending = 0;
@@ -361,7 +352,7 @@ set_time(u_long secs, u_long usecs)
 	starttime.tv_usec = curtime.tv_usec;
     }
     if (binno == -1) {
-	binno = NOWASBINNO();
+	binno = NOW_AS_BINNO();
     }
 }
 
@@ -372,7 +363,8 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
     u_char flow_id[MAX_FLOW_ID_BYTES];
     int i, j, ft, pkthasports, bigenough;
     hentry_p hent;
-    ftinfo_p ftp;
+    ftinfo_p ftip;
+    ftstats_p ftsp;
 
     /* if no packet pending, then process this packet */
     if (pending == 0) {
@@ -387,28 +379,26 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	    }
 	}
 	if (ft >= NUM(ftinfo)) {
+	    ftstats[0].fts_packets++;
 	    if (bigenough) {	/* packet was big enough, but... */
-		gstats.noports++;
-		gstats.packets++;
+		ftstats[0].fts_noports++;
 	    } else {
-		gstats.runts++;
-		gstats.packets++;
+		ftstats[0].fts_runts++;
 	    }
 	    return;
 	}
-	ftp = &ftinfo[ft];
-	if ((packet[6]&0x1fff) && FTI_USES_PORTS(ftp)) { /* XXX */
-	    gstats.fragments++;	/* can't deal with if looking at ports */
-	    gstats.packets++;
-	    ftp->fti_stats.fts_fragments++;
-	    ftp->fti_stats.fts_packets++;
+	ftip = &ftinfo[ft];
+	ftsp = &ftstats[ftip->fti_stats_group_index];
+	if ((packet[6]&0x1fff) && FTI_USES_PORTS(ftip)) { /* XXX */
+	    ftsp->fts_packets++;
+	    ftsp->fts_fragments++;
 	    return;
 	}
 
 	/* create flow id for this packet */
-	for (i = 0, j = 0; j < ftp->fti_bytes_and_mask_len; i++, j += 2) {
-	    pending_flow_id[i] = packet[ftp->fti_bytes_and_mask[j]]
-					    &ftp->fti_bytes_and_mask[j+1];
+	for (i = 0, j = 0; j < ftip->fti_bytes_and_mask_len; i++, j += 2) {
+	    pending_flow_id[i] = packet[ftip->fti_bytes_and_mask[j]]
+					    &ftip->fti_bytes_and_mask[j+1];
 	}
     } else {
 	pending = 0;
@@ -418,19 +408,17 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	    return;
 	}
 	ft = pending_flow_type;
-	ftp = &ftinfo[ft];
-	binno = NOWASBINNO();
+	ftip = &ftinfo[ft];
+	ftsp = &ftstats[ftip->fti_stats_group_index];
+	binno = NOW_AS_BINNO();
     }
 
     /* XXX shouldn't count runts, fragments, etc., if time hasn't arrived */
-    if (binno != NOWASBINNO()) {
+    if (binno != NOW_AS_BINNO()) {
 	pending = 1;
 	pending_flow_type = ft;
 	return;
     }
-
-    gstats.packets++;
-    ftp->fti_stats.fts_packets++;
 
     hent = tbl_lookup(pending_flow_id, ftinfo[ft].fti_id_len);
     if (hent == 0) {
@@ -440,25 +428,28 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	    packet_error = TCL_ERROR;
 	    return;
 	}
-	gstats.flowscreated++;
-	ftp->fti_stats.fts_created++;
 	hent->last_bin_active = 0xffffffff;
 	hent->created_sec = curtime.tv_sec;
 	hent->created_usec = curtime.tv_usec;
 	hent->created_bin = binno;
 	hent->flow_type_index = ft;
+	hent->stats_group_index = ftip->fti_stats_group_index; /* XXX */
+	ftsp = &ftstats[hent->stats_group_index];
+	ftsp->fts_created++;
     }
+
+    ftsp = &ftstats[hent->stats_group_index];
+    ftsp->fts_packets++;
+
     hent->packets++;
     hent->last_pkt_sec = curtime.tv_sec;
     hent->last_pkt_usec = curtime.tv_usec;
     if (hent->last_bin_active != binno) {
 	hent->last_bin_active = binno;
-	gstats.flowsactive++;
-	ftp->fti_stats.fts_active++;
+	ftsp->fts_active++;
     }
     if (hent->created_bin == binno) {
-	gstats.packetsnewflows++;
-	ftp->fti_stats.fts_packetsnewflows++;
+	ftsp->fts_packetsnewflows++;
     }
 }
 
@@ -582,7 +573,7 @@ teho_read_one_bin(ClientData clientData, Tcl_Interp *interp,
     binno = -1;
 
     if (!fileeof) {
-	while (((binno == -1) || (binno == NOWASBINNO())) && !fileeof) {
+	while (((binno == -1) || (binno == NOW_AS_BINNO())) && !fileeof) {
 	    error = process_one_packet(interp);
 	    if (error != TCL_OK) {
 		return error;
@@ -690,7 +681,7 @@ flow_type_to_string(int ft)
 
 
 static int
-set_flow_type(Tcl_Interp *interp, int ft, char *name)
+set_flow_type(Tcl_Interp *interp, int ft, char *name, int sgi)
 {
     char initial[MAX_FLOW_ID_BYTES*5], after[MAX_FLOW_ID_BYTES*5]; /* 5 rndm */
     char *curdesc;
@@ -759,6 +750,7 @@ goodout:
     ftinfo[ft].fti_bytes_and_mask_len = bandm;
     ftinfo[ft].fti_id_len = bandm/2;
     ftinfo[ft].fti_type_indicies_len = indicies;
+    ftinfo[ft].fti_stats_group_index = sgi;
     return TCL_OK;
 }
 
@@ -777,23 +769,34 @@ teho_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 					    int argc, char *argv[])
 {
     int error;
-    int ft;
+    int ft, sgi;
     static char result[20];
 
-    if (argc != 3) {
+    if ((argc < 3) || (argc > 4)) {
 	interp->result =
-		"Usage: teho_set_flow_type flow_type_index string";
+		"Usage: teho_set_flow_type flow_type_index string ?statistics_group_index?";
 	return TCL_ERROR;
     }
 
     ft = atoi(argv[1]);
 
     if (ft >= NUM(ftinfo)) {
+	interp->result = "flow_type_index higher than maximum";
+	return TCL_ERROR;
+    }
+
+    if (argc == 4) {
+	sgi = atoi(argv[3]);
+    } else {
+	sgi = 0;
+    }
+
+    if (sgi >= NUM(ftstats)) {
 	interp->result = "no room in ftinfo table";
 	return TCL_ERROR;
     }
 
-    error = set_flow_type(interp, ft, argv[2]);
+    error = set_flow_type(interp, ft, argv[2], sgi);
     if (error != TCL_OK) {
 	return error;
     }
@@ -811,24 +814,23 @@ teho_flow_type_summary(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
     char summary[100];
-    ftinfo_p ftp;
+    ftstats_p ftsp;
 
     if (argc != 2) {
-	interp->result = "Usage: teho_summary flow_type_index";
+	interp->result = "Usage: teho_summary statistics_group_index";
 	return TCL_ERROR;
     }
 
     if (atoi(argv[1]) >= NUM(ftinfo)) {
-	interp->result = "flow_type_index too high";
+	interp->result = "statistics_group_index too high";
 	return TCL_ERROR;
     }
 
-    ftp = ftinfo+atoi(argv[1]);
+    ftsp = &ftstats[atoi(argv[1])];
 
     sprintf(summary, "%d %d %d %d %d",
-		ftp->fti_stats.fts_created, ftp->fti_stats.fts_active,
-		ftp->fti_stats.fts_packets, ftp->fti_stats.fts_packetsnewflows,
-		ftp->fti_stats.fts_fragments);
+		    ftsp->fts_created, ftsp->fts_active, ftsp->fts_packets,
+		    ftsp->fts_packetsnewflows, ftsp->fts_fragments);
     Tcl_SetResult(interp, summary, TCL_VOLATILE);
     return TCL_OK;
 }
@@ -846,9 +848,9 @@ teho_summary(ClientData clientData, Tcl_Interp *interp,
     }
 
     sprintf(summary, "%d %d %d %d %d %d",
-		    gstats.flowscreated, gstats.flowsactive,
-		    gstats.packets, gstats.packetsnewflows,
-		    gstats.runts, gstats.fragments);
+		    ftstats[0].fts_created, ftstats[0].fts_active,
+		    ftstats[0].fts_packets, ftstats[0].fts_packetsnewflows,
+		    ftstats[0].fts_runts, ftstats[0].fts_fragments);
     Tcl_SetResult(interp, summary, TCL_VOLATILE);
     return TCL_OK;
 }
