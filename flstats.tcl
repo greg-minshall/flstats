@@ -128,22 +128,6 @@ deletellflow {cookie class ftype flowid time FLOW args}\
 }
 
 
-proc\
-vec_difference { l1 l2 }\
-{
-    set len [llength $l1]
-    if {$len > [llength $l2]} {
-	set len [llength $l2]
-    }
-    set output [list]
-
-    for {set i 0} {$i < $len} {incr i} {
-	lappend output [expr [lindex $l1 $i] - [lindex $l2 $i]]
-    }
-    return $output
-}
-
-
 # this doesn't need $pre, since the subst is performed at the caller...
 
 proc\
@@ -151,18 +135,22 @@ get_summary_vec {class} \
 {
 	# ahh, dr. regsub... 
 	regsub -all {([a-zA-Z_]+) ([0-9]+)} \
-			[teho_class_summary $class] {[set ${pre}\1 \2]} bar
+			[teho_class_summary $class] {[set ${pre}_\1 \2]} bar
 	return $bar
 }
 
 # this doesn't need $pre, since the subst is performed at the caller...
+#
+# the $pre_\1 variables need to have been created prior to the
+# call.  a call to get_summary_vec (and subst'ing) on the same
+# class does this.
 
 proc\
 get_diff_vec {class} \
 {
 	# ahh, dr. regsub... 
 	regsub -all {([a-zA-Z_]+) ([0-9]+)} [teho_class_summary $class] \
-			{[if {![info exists ${pre}_\1]} {set ${pre}_\1 0}] [set diff_${pre}_\1 [expr \2 - $${pre}_\1]]} bar
+			{[set diff_${pre}_\1 [expr \2 - $${pre}_\1]]} bar
 	return $bar
 }
 
