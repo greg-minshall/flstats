@@ -14,5 +14,5 @@ if ( `uname -s` == "SunOS" ) then
 	if ( $gcc == "" ) echo "compile errors?  maybe because you need an ANSI-compatible compiler like gcc..."
 endif
 
-sed '-e s/^#have-none#//' $gcc $SVR4 Makefile.in > Makefile
+sed -e 's/^#have-none#//' $gcc $SVR4 Makefile.in > Makefile
 chmod ug+w Makefile
