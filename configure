@@ -1,4 +1,4 @@
-#!/bin/csh -fx
+#!/bin/csh
 # !/bin/csh -fx
 
 # cheap hack to make things portable (but, note this is csh!)
@@ -48,9 +48,6 @@ foreach i (`echo $ld_path | sed "s/:/ /g"`)
 	set tclloc="-e sY__CONFIGURE__TCLLOC__Y${i}/${nmtclxy}Y"
     endif
 end
-
-echo $tclxy
-echo $tclloc
 
 if ("$tclxy" == "") then
     echo "Cannot find lib$nmtclxDOTy.a or lib$nmtclxy.a!  Aborting..."
