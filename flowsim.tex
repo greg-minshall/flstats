@@ -1,0 +1,345 @@
+\documentclass{article}
+
+\begin{document}
+
+\newcommand{\NAME}{\item[NAME]}
+\newcommand{\SYNOPSIS}{\item[SYNOPSIS]}
+\newcommand{\DESCRIPTION}{\item[DESCRIPTION]}
+\newcommand{\KEYWORDS}{\item[KEYWORDS]}
+\newcommand{\SEEALSO}{\item[SEE ALSO]}
+\newcommand{\BUGS}{\item[BUGS]}
+
+\newcommand{\cmd}[1]{\textbf{#1}}
+\newcommand{\cmdarg}[1]{\textit{#1}}
+
+\title{A User's Guide to Flowsim, a Simulator for Measuring Flow Statistics}
+
+\author{Greg Minshall \\ minshall@ipsilon.com}
+
+\maketitle
+
+\begin{abstract}
+Ipsilon is selling IP switches.  The performance of these systems is a
+function of the traffic characteristics in the environment in which
+they are being used.  As a tool for making predictions about overall
+system performance, we have written \emph{flowsim}, a simulator for
+reading in packet traces and calculating various statistics on the
+traffic in the packet trace.  The simulator is primarily written in C,
+for speed, but interfaces to Tcl for allowing policy- and
+parameter-specific tailoring in a higher level language.
+This paper discusses the general design of flowsim and documents its
+usage (primarily for Peter Newman).
+\end{abstract}
+
+\section{Introduction}
+
+\section{Basic concepts}
+\subsection{Input files}
+Flowsim is able to read files created by tcpdump(1) (using the "-w
+\emph{file}" option).  It is also able to read 24-byte data recorded
+from FIXWEST by K. Claffy and Hans Werner Braun.  Tcpdump files are
+known to flowsim as "tcpd" files; 24-byte FIXWEST files are known as
+"fix" files.
+
+\subsection{Data types}
+Flowsim's basic data types are a \emph{flow type}, a \emph{flow entry},
+and a \emph{class}.  A flow type represents a specific set of bits from
+an IP header and the first portion (source and destination ports) of a
+TCP or UDP header.  A flow type is defined with a string of the form:
+\begin{verbatim} aa/bb/cc/dd/ee \end{verbatim}
+where each of the aa, bb, etc., are names of fields in the packet
+header: ihv, ihl, tos, len, id, foff, ttl, prot, sum, src, dst, sport,
+dport.  Flow types are initialized using fsim\_set\_flow\_type;
+see~\ref{sec:fsimsetflowtype}.  Flow types are referenced using a
+numeric value, based at zero (0).
+
+A flow entry corresponds to a specific flow, i.e., ihv=4, ihl=5,
+ttl=27, src=10.1.2.3, dst=10.2.3.4.  Flow entries have certain
+attributes associated with them; see
+section~\ref{sec:fsimcontinueenumeration} for the list.
+
+A class is a more abstract entity.  Since a flow type is merely a set
+of header fields, e.g., protocol, source, and destination, there may be a
+distinction between different flows within this flow type.  For
+example, it may be the case that in a run of the simulator it is
+desirable to keep track of TCP statistics independently of UDP
+statistics.  This is the function of classes.  To flowsim, a class is a
+set of statistics; see~\ref{sec:fsimclasssummary} for details on the
+statistics recorded in a class.  Like flow types, classes are
+referenced using a numeric value, based at zero (0).
+
+\emph{Note that the class numbered zero (0) has the special property of
+accumulating statistics for packets that don't fall in any other
+class.}
+
+Thus, a given flow entry is a member of a flow type and is also a
+member of a class.  (The situation is in fact slightly more
+complicated, in that flow types are actually split into two levels; we
+shall visit this complication shortly.)
+
+\subsection{Basic operation of flowsim}
+
+The basic flow of flowsim is that a packet trace file (and format) is
+selected, certain configuration information is provided by the
+user-level code, and
+then the input file is read in a series of timesteps.  These
+timesteps are known as \emph{bins} because of their relationship to
+histogram techniques.
+
+As each packet is read, it is matched against a set of \emph{low level}
+flow types, looking for a flow type that is suitable for this packet.
+The main restriction is whether the incoming packets has enough bytes
+in it to \emph{cover} all the fields refereneced in a given flow type.
+More specifically, if a low level flow type includes source or
+destination port numbers, an incoming packet will not match this flow
+type unless it has at least the first 4 bytes beyond the IP header
+included in the packet.\footnote{
+Flowsim does \emph{not} deal with fragmented packets in any
+sophisticated sense; fragmented packets \emph{will not} be associated
+with flow entries whose type includes source or destination port
+numbers.}
+
+If no flow type is valid for the incoming packet, its statistics
+(packet length, packet received, etc.) are counted in class 0, a
+distinguished class.  These class zero statistics include information
+about why the packet couldn't be classified elsewhere.  No other
+processing is done on packets that couldn't otherwise be associated
+with a low level flow type.
+
+After a flow type has been determined, the database of \emph{low level}
+flow entries is searched to find a flow entry matching the relevant
+fields in the incoming packet.  If no flow entry is found, one is
+created.
+
+Creating a flow entry involves several operations, the most interesting
+being an \emph{upcall} to user-level code associated with the low level
+flow type informing it of the creation event and giving it some control
+over subsequent behaviour.  It is this upcall which allows the
+user-level code to associate the low-level flow entry with a class as
+well as with an upper level flow type and class; see
+section~\ref{sec:upcallflowentrycreate} for the details.
+
+Once a low level flow entry has been associated with the incoming
+packet, the database of high level flow entries is searched to find a
+flow of the appropriate type (where \emph{appropriate type} means the
+upper level flow type set in the lower level flow entry).  If this
+search is not successful, a new upper level flow entry is created; this
+results in the same upcall described above.
+
+At this point, both the low level and upper level flow entries have
+been established.  Statistics for both the low level and upper level
+flow entries and associated classes are updated.  \emph{You want to
+make sure you do \textbf{not} associated both the low level and upper
+level flow entries with the same class, or the statistics will be
+counted twice!}  Counting the statistics can also trigger yet another
+upcall, this time a \emph{packet received} upcall.  Each flow
+\emph{type} has a packet received upcall command associated with it.
+Each flow entry has a time associated with it that gives a time (in the
+time sequence associated by times in the incoming packet trace) to make
+the packet received upcall.  As each of the low level and upper level
+flow entries is processed, if its associated flow type has a non-null
+value for the packet received upcall and its time value is less than
+the current packet trace time, the upcall is made to the user-level Tcl
+code.  The upcall made informs the user-level code that a packet
+arrived after the set time, and gives certain statistics from the flow
+entry.  The upcall return value can change the class associated with
+the flow entry as well as set a new time value (specified as an offset
+from the current time) for receiving a new upcall.
+
+\subsubsection{Upgrading classes}
+
+Right after associating both a lower level and an upper level flow
+entry for the flow, a slight anomally occurs.  If the lower level flow
+entry has a \emph{parent class} value which is greater than the class
+value of the upper level flow entry, the upper level flow entry is
+\emph{removed} from its old class and \emph{added} to the class
+indicated in the lower level flow entry.  The \emph{purpose} of this
+action is to allow an upper level flow entry to be \emph{upraded} by an
+arriving packet.
+
+For example, say we decided on a policy (as described
+in Peter Newman's Infocom '96 paper~\cite{xxx}) in which flows are
+host-to-host and \emph{normally} not switched but \emph{convert} to be
+switched upon the arrival of a packet from some set of packets (a TCP
+packet or an NFS packet or...).  In this case, we could set one upper
+level class to be class number 5 and one to be class number 6.  When
+the upcall is made on receipt of, say, a UDP DNS packet, we could
+return parent class value of 5 from the upcall routine mentioned above.
+And, when a TCP FTP data packet was received, we could return a parent
+class value of 6.  Thus, the receipt of a TCP packet would cause an
+existing class 5 flow to become a class 6 flow (and thus, presumably,
+counted in the \emph{to be switched} statistics, though \emph{this}
+association is purely a matter for the user-level code and is not known
+to the general simulator).
+
+\section{Commands}
+The routines described in this section allow user-provided Tcl code to
+control the operation of the simulator.  The routines are described in
+this section in \emph{alphabetical} order; refer to
+section~\ref{sec:usage} for information on how to tie all this
+together.
+
+The following are in flowsim.c:
+
+\subsection{fsim\_class\_summary}
+\begin{description}
+
+\NAME fsim\_class\_summary - return class statistics
+
+\SYNOPSIS \cmd{fsim\_class\_summary} class
+
+\DESCRIPTION
+
+\cmd{fsim\_class\_summary} returns statistics for the class \cmdarg{class}
+(specified as a number).  The statistics are returned in a string with
+a "name value" format.  I.e., each value is preceded by the name of
+that value.  The statistics returned are:
+\begin{description}
+\item[created] the number of flow entries created into this class
+\item[deleted] the number of flow entires deleted from this class
+\item[added] the number of flow entires added to this class (from
+another class)
+\item[removed] the number of flow entries deleted from this class
+(being added to another class)
+\item[active] the number of flow entries that have seen a packet during
+this bin
+\item[pkts] the number of packets seen by flow entries in this class
+\item[bytes] the number of bytes in those packets
+\item[sipg] the smoothed inter-packet arrival time (using, basically,
+the Van Jacobson code from Appendix A of his SIGCOMM 88 paper)
+\item[fragpkts] the number of packets which ended up in this class
+because they were fragmented (normally only non-zero for class 0 statistics)
+\item[fragbytes] the number of bytes represented by those packets
+\item[toosmallpkts] the number of packets which ended up in this class
+because they were too small for the flow of any other class
+(normally only non-zero for class 0 statistics)
+\item[runtpkts] the number of packets which ended up in this class
+because the \emph{captured} length was not large enough for the flow
+type of any other class (normally only non-zero for class 0 statistics)
+\item[runtbytes] the number of bytes represented by those packets
+\item[noportpkts] the number of packets which ended up in this class
+because they didn't have port numbers (i.e., the packet protocol was
+different from TCP or UDP) and so couldn't fit into the flow type with
+any other class (normally only non-zero for class 0 statistics)
+\item[noportbytes] the number of bytes represented by those packets
+\item[lastrecv] the time (within the time space of the input trace
+dataset) the last packet was received for a flow entry associated with
+this class
+\end{description}
+
+All the values are integers with the exception of "lastrecv", which is
+expressed as a floating point number of seconds (maximum accuracy is
+microseconds).
+
+\BUGS
+
+Probably the fragpkts, etc., should be retrieved in a separate call.
+
+\end{description}
+
+\subsection{fsim\_continue\_enumeration}
+\begin{description}
+
+\NAME fsim\_continue\_enumeration - enumerate flow entries, returning
+per-flow-entry statistics
+
+\SYNOPSIS \cmd{fsim\_continue\_enumeration}
+
+\DESCRIPTION
+
+\cmd{fsim\_continue\_enumeration} continues an enumeration started by
+\cmd{fsim\_start\_enumeration} (see~\ref{sec:fsimstartenumeration}).
+The flow type, class, level, and id for the next flow entry are
+returned, along with the statistics associated with that flow entry.
+
+The output is again a string, in "name value" format.  The returned
+statistics are:
+\begin{description}
+\item[created] time flow entry was created
+\item[last] time of last packet seen
+\item[pkts] number of packets seen
+\item[bytes] number bytes represented by those packets
+\item[sipg] smoothed inter-packet arrival time for packets in this flow
+entry
+\end{description}
+
+\end{description}
+
+\subsection{fsim\_read\_one\_bin}
+\begin{description}
+
+\NAME fsim\_read\_one\_bin - run the simulator for one time interval
+
+\SYNOPSIS \cmd{fsim\_read\_one\_bin} ?binsecs?
+
+\DESCRIPTION
+
+\cmd{fsim\_read\_one\_bin} is called to run the simulator for one time
+interval.  The interval of time is specified using the \cmdarg{binsecs}
+argument; if this argument is omitted, the most recently passed value
+is used.  If binsecs is passed as zero (0), or never passed, the entire
+simulation will be run.
+
+The value of \cmdarg{binsecs} divides the trace up into various
+\emph{epochs}, known internally as \emph{bin numbers}.  The bin number
+at any given point of time is $(currenttime-tracestarttime)/binsecs$
+(assuming \cmdarg{binsecs} is not zero).
+
+The effect of \cmd{fsim\_read\_one\_bin} is to read the \emph{next}
+packet in the trace file and all the rest of the packets in the trace
+file whose bin number is the same as that packet.  A subtle effect of
+this is that the previous invocation of \cmd{fsim\_read\_one\_bin} may
+have ended at bin number 100 while the current invocation may end with
+bin number 150; this means there were no packets during bin numbers
+101--149.
+
+\end{description}
+
+\subsection{fsim\_set\_fix\_file}
+
+\begin{description}
+\NAME fsim\_set\_fix\_file - specify the name and format of a trace
+input file
+
+\SYNOPSIS \cmd{fsim\_set\_fix\_file} filename
+
+\DESCRIPTION
+
+\cmd{fsim\_set\_fix\_file} directs flowsim to use \cmdarg{filename} as
+its input file, and that this is a 24-byte per packet FIX-West data
+set.
+
+\SEEALSO
+
+\cmd{fsim\_set\_tcpd\_file}
+
+\end{description}
+
+\subsection{fsim\_set\_flow\_type}
+
+\subsection{fsim\_set\_tcpd\_file}
+
+\subsection{fsim\_start\_enumeration}
+
+\subsection{fsim\_summary}
+
+The following are in flowsim.tcl:
+\subsection{fsim\_startup}
+
+The following are in simul.tcl:
+\subsection{simul}
+
+\subsection{fsim\_class\_details}
+
+\subsection{fsim\_flow\_details}
+
+\subsection{fsim\_setup}
+
+\subsection{fsim\_setft}
+
+The following are upcalls:
+\subsection{upcall\_flow\_creation}
+
+\subsection{upcall\_packet\_reception}
+
+\end{document}
