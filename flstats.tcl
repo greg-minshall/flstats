@@ -183,8 +183,9 @@ simul { fixortcpd filename {binsecs 1} } \
 				ihv/ihl/tos/ttl/prot/src/dst
 
 
-    puts "# plotvars 1 binno 2 pktsrouted 3 pktsswitched 4 newflows 5 numflows"
-    puts "# plotvars 6 totalflows 7 bintime 8 timeouttime 9 vsz 10 rsz 11 cputime"
+    puts \
+"# plotvars 1 binno 2 pktsrouted 3 pktsswitched 4 newflows 5 numflows 6 dropped"
+    puts "# plotvars 7 totalflows 8 bintime 9 timeouttime 10 vsz 11 rsz 12 cputime"
 
     # we are looking at 3 classes: 3, 4, 5
     #	3	non-switched flows
@@ -195,6 +196,7 @@ simul { fixortcpd filename {binsecs 1} } \
     set onon [list 0 0 0 0 0 0 0]
     set owaiting [list 0 0 0 0 0 0 0]
     set oswitched [list 0 0 0 0 0 0 0]
+    set ogstats [list 0 0 0 0 0 0 0]
     while {1} {
 	set bintime [lindex [split [time {set binno [teho_read_one_bin $binsecs]}]] 0]
 	if {$binno == -1} {
@@ -206,24 +208,30 @@ simul { fixortcpd filename {binsecs 1} } \
 #	puts "waiting $waiting"
 	set switched [get_summary_vec $CL_SWITCHED]
 #	puts "switched $switched"
+	set gstats [get_summary_vec 0]
+#	puts "gstats $gstats"
 	set diffnon [vec_difference $non $onon]
 	set diffwaiting [vec_difference $waiting $owaiting]
 	set diffswitched [vec_difference $switched $oswitched]
+	set diffgstats [vec_difference $gstats $ogstats]
 	set timeouttime [lindex [split [time {set totalflows [teho_run_timeouts]}]] 0 ]
 	set xx [exec ps lp$pid]
 	set xx [lrange [split [join $xx]] 19 24]
-	puts [format "%-7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %s" \
+	puts [format "%-7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %s" \
 			$binno\
 			[expr [lindex $diffnon 3] + [lindex $diffwaiting 3]] \
 			[lindex $diffswitched 3] \
 			[lindex $diffwaiting 0] \
 			[expr ([lindex $waiting 0] + [lindex $switched 0]) - \
 				([lindex $waiting 1] + [lindex $switched 1])] \
+			[expr [lindex $diffgstats 4] + \
+			    [lindex $diffgstats 5] + [lindex $diffgstats 6]] \
 			$totalflows $bintime $timeouttime \
 			[lindex $xx 0] [lindex $xx 1] [lindex $xx 5]]
 	flush stdout
 	set onon $non
 	set owaiting $waiting
 	set oswitched $switched
+	set ogstats $gstats
     }
 }
