@@ -10,8 +10,10 @@
  *	4.	Document: [simul_setup], [flow_details],
  *		[class_details], [teho_read_one_bin].  Give
  *		examples of use; warn about memory consumption.
- *	5.	Infer LLFLOWS from ULFLOWS?  Make sure to timeout
- *		LLFLOWS.
+ *	5.	Register callbacks routines.  Point at them from
+ *		from flow_entries, etc.  (Can be done internally.)
+ *	6.	Make timeouts occur in a nicer way (i.e., slotted
+ *		timeout queues, or some such).
  */
 
 
@@ -126,7 +128,9 @@ struct flowentry {
 	    fe_next_in_bucket,
 	    fe_prev_in_bucket,
 	    fe_next_in_table,
-	    fe_prev_in_table;
+	    fe_prev_in_table,
+	    fe_next_in_timer,
+	    fe_prev_in_timer;
     u_char  fe_key[1];		/* variable sized (KEEP AT END!) */
 };
 
@@ -362,6 +366,8 @@ int packet_error = 0;
 int pending, pendingcaplen, pendingpktlen;
 u_char *pending_packet[MAX_PACKET_SIZE];
 
+flowentry_t timers[150];
+
 u_long binno;
 
 char teho_tclprogram[] = 
@@ -470,6 +476,53 @@ cksum(u_char *p, int len, u_long seed)
 
     return (u_short) (~htons(seed))&0xffff;
 }
+
+/*
+ * arrange for something to run shortly after "timeouttime"
+ */
+
+static void
+timer_insert(flowentry_p fe, struct timeval *timeouttime)
+{
+    flowentry_p timer = &timers[timeouttime->tv_sec%NUM(timers)];
+
+    timer->fe_prev_in_timer->fe_next_in_timer = fe;
+    fe->fe_prev_in_timer = timer->fe_prev_in_timer;
+    timer->fe_prev_in_timer = fe;
+    fe->fe_next_in_timer = timer;
+}
+
+static void
+timer_delete(flowentry_p fe)
+{
+    if (fe->fe_prev_in_timer) {
+	fe->fe_prev_in_timer->fe_next_in_timer = fe->fe_next_in_timer;
+	fe->fe_next_in_timer->fe_prev_in_timer = fe->fe_prev_in_timer;
+    }
+}
+
+static flowentry_p
+timer_get_slot()
+{
+    flowentry_p timer = &timers[curtime.tv_sec%NUM(timers)];
+    flowentry_p slot = timer->fe_next_in_timer;
+
+    if (slot == timer->fe_prev_in_timer) {
+	return 0;		/* nothing */
+    }
+
+    /* keep ends from dangling */
+    slot->fe_prev_in_timer = 0;
+    timer->fe_prev_in_timer->fe_next_in_timer = 0;
+
+    /* point to self */
+    timer->fe_next_in_timer = timer;
+    timer->fe_prev_in_timer = timer;
+
+    return slot;
+}
+
+
 /* table lookup */
 
 static flowentry_p
@@ -526,6 +579,8 @@ tbl_add(u_char *key, int key_len, int level)
     fe->fe_prev_in_table = 0;
     table = fe;
 
+    fe->fe_next_in_timer = fe->fe_prev_in_timer = 0;
+
     return fe;
 }
 
@@ -538,6 +593,13 @@ tbl_delete(flowentry_p fe)
     flowentry_p *honebehind = &onebehinds[sum%NUM(onebehinds)];
 
     /* dequeue the silly thing... */
+
+    /* out of timer */
+    if (fe->fe_prev_in_timer) {
+	timer_delete(fe);
+    }
+
+    /* out of bucket */
     if (fe->fe_prev_in_bucket) {
 	fe->fe_prev_in_bucket->fe_next_in_bucket = fe->fe_next_in_bucket;
     } else {
@@ -547,6 +609,11 @@ tbl_delete(flowentry_p fe)
 	fe->fe_next_in_bucket->fe_prev_in_bucket = fe->fe_prev_in_bucket;
     }
 
+    if (*honebehind == fe) {
+	*honebehind = *hbucket;
+    }
+
+    /* out of table */
     if (fe->fe_prev_in_table) {
 	fe->fe_prev_in_table->fe_next_in_table = fe->fe_next_in_table;
     } else {
@@ -554,10 +621,6 @@ tbl_delete(flowentry_p fe)
     }
     if (fe->fe_next_in_table) {
 	fe->fe_next_in_table->fe_prev_in_table = fe->fe_prev_in_table;
-    }
-
-    if (*honebehind == fe) {
-	*honebehind = *hbucket;
     }
 
     free(fe);
@@ -577,6 +640,7 @@ set_time(u_long secs, u_long usecs)
 	binno = NOW_AS_BINNO();
     }
 }
+
 
 
 static char *
@@ -803,6 +867,7 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int level, int class)
 	if (n >= 7) {
 	    /* returned value is relative to now, so make absolute */
 	    TIME_ADD(&fe->fe_timeout_time, &fe->fe_timeout_time, &curtime);
+	    timer_insert(fe, &fe->fe_timeout_time);
 	}
     }
     clstats[fe->fe_class].cls_created++;
@@ -1475,12 +1540,15 @@ static int
 teho_run_timeouts(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
-    flowentry_p nfe, fe = table;
+    flowentry_p nfe, fe;
     char buf[100], buf2[100];
     int n, i = 0;
 
+    fe = timer_get_slot();
+
     while (fe) {
-	nfe = fe->fe_next_in_table;
+	nfe = fe->fe_next_in_timer;
+	fe->fe_next_in_timer = fe->fe_prev_in_timer = 0;
 	if (fe->fe_timeout_cmd && TIME_LT(&fe->fe_timeout_time, &curtime)) {
 	    /*
 	     * call:	"timeout_cmd cookie class ftype flowid FLOW flowstats"
@@ -1517,6 +1585,8 @@ teho_run_timeouts(ClientData clientData, Tcl_Interp *interp,
 	    if ((n >= 1) && !strcmp(buf, "DELETE")) {
 		delete_flow(fe);
 	    }
+	} else {
+	    timer_insert(fe, &fe->fe_timeout_time);
 	}
 	fe = nfe;
 	i++;
@@ -1563,6 +1633,12 @@ Tcl_AppInit(Tcl_Interp *interp)
 int
 main(int argc, char *argv[])
 {
+    int i;
+
+    for (i = 0; i < NUM(timers); i++) {
+	timers[i].fe_next_in_timer = timers[i].fe_prev_in_timer = &timers[i];
+    }
+
     protohasports[6] = protohasports[17] = 1;
 
     Tcl_Main(argc, argv, Tcl_AppInit);
