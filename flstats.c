@@ -54,7 +54,7 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.71 1996/03/20 00:06:18 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.72 1996/03/21 02:12:40 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -546,6 +546,24 @@ cksum(u_char *p, int len)
 
 
 static char *
+flow_type_to_string(ftinfo_p ft)
+{
+    static char result[MAX_FLOW_ID_BYTES*10];
+    char *sep = "";
+    atoft_p xp;
+    int i;
+
+    result[0] = 0;
+    for (i = 0; i < ft->fti_type_indicies_len; i++) {
+	xp = &atoft[ft->fti_type_indicies[i]];
+	sprintf(result+strlen(result), "%s%s", sep, xp->name);
+	sep = "/";
+    }
+    return result;
+}
+
+
+static char *
 flow_id_to_string(ftinfo_p ft, u_char *id)
 {
     static char result[MAX_FLOW_ID_BYTES*10];
@@ -611,8 +629,7 @@ flow_id_to_string(ftinfo_p ft, u_char *id)
 	} else {
 	    *fidp = 0;
 	}
-	sprintf(result+strlen(result), "%s%s/%s", sep, xp->name, fidstring);
-	/* sprintf(result+strlen(result), "%s%s", sep, fidstring); */
+	sprintf(result+strlen(result), "%s%s", sep, fidstring);
 	sep = "/";
     }
     return result;
@@ -643,9 +660,10 @@ flow_statistics(flowentry_p fe)
     static char summary[200];
 
     sprintf(summary,
-	    "type %d class %d id %s pkts %lu bytes %lu sipg %lu.%06lu "
+	    "type %d class %d type %s id %s pkts %lu bytes %lu sipg %lu.%06lu "
 					"created %ld.%06ld last %ld.%06ld",
 	    fe->fe_flow_type, fe->fe_class,
+	    flow_type_to_string(&ftinfo[fe->fe_flow_type]),
 	    flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_id),
 	    fe->fe_pkts-fe->fe_pkts_last_enum, fe->fe_bytes,
 	    SIPG_TO_SECS(fe->fe_sipg), SIPG_TO_USECS(fe->fe_sipg),
@@ -950,7 +968,8 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int class)
 
 	sprintf(buf, " %d %d ", fe->fe_class, ft-ftinfo);
 	if (Tcl_VarEval(interp, ft->fti_new_flow_upcall,
-		buf, flow_id_to_string(ft, fe->fe_id), 0) != TCL_OK) {
+		buf, "type ", flow_type_to_string(ft),
+		"id ", flow_id_to_string(ft, fe->fe_id), 0) != TCL_OK) {
 	    packet_error = TCL_ERROR;
 	    return 0;
 	}

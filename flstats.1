@@ -78,54 +78,59 @@ flowing between them:
 .Bd -literal -offset indent
 % flstats -c -t src/dst file.tcpd
 0 class 0 created 245 deleted 0 added 0 removed 0 active 245
-pkts 32546 bytes 11296427 sipg 18453 fragpkts 0 fragbytes 0
+pkts 32546 bytes 11296427 sipg 0.018453 fragpkts 0 fragbytes 0
 toosmallpkts 0 toosmallbytes 0 runtpkts 0 runtbytes 0 noportpkts 0
 noportbytes 0 lastrecv 821828470.105442
 .Ed
 .Pp
-The above says that there were 245 unique source/destination pairs
+The above says that in bin number 0 (the only bin)
+there were 245 unique source/destination pairs
 which together exchanged 32,546 packets totalling 11,296,427 bytes.
 The smoothed interpacket arrival time was 18,453 microseconds.
 .Pp
 To actually list out the source/destination pairs in the trace:
 .Bd -literal -offset indent
 % flstats -f -t src/dst file.tcpd
-...
-0 type 0 class 0 id src/193.240.48.242/dst/193.240.56.24 pkts 29
-bytes 8179 sipg 162880 created 821828304.762731
+ ...
+0 type 0 class 0 type src/dst id 193.240.48.242/193.240.56.24
+pkts 29 bytes 8179 sipg 0.162880 created 821828304.762731
 last 821828308.562019
-0 type 0 class 0 id src/193.240.56.24/dst/193.240.48.242 pkts
-30 bytes 2657 sipg 144441 created 821828304.761962
+0 type 0 class 0 type src/dst id 193.240.56.24/193.240.48.242
+pkts 30 bytes 2657 sipg 0.144441 created 821828304.761962
 last 821828308.561519
-0 type 0 class 0 id src/145.209.108.112/dst/224.2.174.102 pkts 2
-bytes 120 sipg 812446 created 821828297.977696 last 821828304.477264
-0 type 0 class 0 id src/147.171.160.186/dst/224.2.149.161 pkts 1
-bytes 180 sipg 0 created 821828296.659958 last 821828296.659958
-...
-0 type 0 class 0 id src/145.27.139.211/dst/193.240.48.255 pkts 716
-bytes 164570 sipg 513208 created 821828173.562031
+0 type 0 class 0 type src/dst id 145.209.108.112/224.2.174.102
+pkts 2 bytes 120 sipg 0.812446 created 821828297.977696
+last 821828304.477264
+0 type 0 class 0 type src/dst id 147.171.160.186/224.2.149.161
+pkts 1 bytes 180 sipg 0.000000 created 821828296.659958
+last 821828296.659958
+ ...
+0 type 0 class 0 type src/dst id 145.27.139.211/193.240.48.255
+pkts 716 bytes 16 4570 sipg 0.513208 created 821828173.562031
 last 821828469.957219
-0 type 0 class 0 id src/145.27.138.18/dst/193.240.53.75 pkts 1
-bytes 84 sipg 0 created 821828173.403583 last 821828173.403583
-0 type 0 class 0 id src/193.240.53.75/dst/145.27.138.18 pkts 1
-bytes 84 sipg 0 created 821828173.397634 last 821828173.397634
-0 type 0 class 0 id src/193.240.50.17/dst/229.78.197.56 pkts 30
-bytes 2520 sipg 9792677 created 821828173.375589
+0 type 0 class 0 type src/dst id 145.27.138.18/193.240.53.75
+pkts 1 bytes 84 sipg 0.000000 created 821828173.403583
+last 821828173.403583
+0 type 0 class 0 type src/dst id 193.240.53.75/145.27.138.18
+pkts 1 bytes 84 sipg 0.000000 created 821828173.397634
+last 821828173.397634
+0 type 0 class 0 type src/dst id 193.240.50.17/229.78.197.56
+pkts 30 bytes 2520 sipg 9.792677 created 821828173.375589
 last 821828463.384810
-0 type 0 class 0 id src/193.240.50.17/dst/229.78.197.57 pkts 142
-bytes 56560 sipg 2203605 created 821828173.255857
+0 type 0 class 0 type src/dst id 193.240.50.17/229.78.197.57
+pkts 142 bytes 56560 sipg 2.203605 created 821828173.255857
 last 821828468.266259
-0 type 0 class 0 id src/193.240.53.75/dst/193.240.56.24 pkts 4216
-bytes 5075351 sipg 239131 created 821828172.801565
+0 type 0 class 0 type src/dst id 193.240.53.75/193.240.56.24
+pkts 4216 bytes 5075351 sipg 0.239131 created 821828172.801565
 last 821828465.208086
-0 type 0 class 0 id src/193.240.56.24/dst/193.240.53.75 pkts 1728
-bytes 897203 sipg 362075 created 821828172.800775
+0 type 0 class 0 type src/dst id 193.240.56.24/193.240.53.75
+pkts 1728 bytes 897203 sipg 0.362075 created 821828172.800775
 last 821828465.188792
-0 type 0 class 0 id src/193.240.48.255/dst/145.27.139.211 pkts 372
-bytes 67140 sipg 813475 created 821828172.750563
+0 type 0 class 0 type src/dst id 193.240.48.255/145.27.139.211
+pkts 372 bytes 67140 sipg 0.813475 created 821828172.750563
 last 821828468.663906
-0 type 0 class 0 id src/62.201.51.92/dst/224.60.60.60 pkts 14880
-bytes 952320 sipg 19997 created 821828172.546355
+0 type 0 class 0 type src/dst id 62.201.51.92/224.60.60.60
+pkts 14880 bytes 952320 sipg 0.019997 created 821828172.546355
 last 821828470.105442
 .Ed
 .Pp
@@ -137,19 +142,19 @@ Which tells us that source 193.240.48.242 sent 29 packets, totalling
 To see how many different TOS values there are in the trace:
 .Bd -literal -offset indent
 % flstats -c -t tos file.tcpd
-0 class 0 created 2 deleted 0 added 0 removed 0 active 2 pkts 32546
-bytes 11296427 sipg 18453 fragpkts 0 fragbytes 0 toosmallpkts 0
-toosmallbytes 0 runtpkts 0 runtbytes 0 noportpkts 0 noportbytes 0
-lastrecv 821828470.105442
+0 class 0 created 2 deleted 0 added 0 removed 0 active 2
+pkts 32546 bytes 11296427 sipg 0.018453 fragpkts 0 fragbytes 0
+toosmallpkts 0 toosmallbytes 0 runtpkts 0 runtbytes 0 noportpkts 0
+noportbytes 0 lastrecv 821828470.105442
 .Ed
 .Pp
 Which tells us there are two.  To see which values:
 .Bd -literal -offset indent
 % flstats -f -t tos file.tcpd
-0 type 0 class 0 id tos/16 pkts 1798 bytes 139746 sipg 100101
-created 821828175.866634 last 821828469.722588
-0 type 0 class 0 id tos/0 pkts 30748 bytes 11156681 sipg 18637
-created 821828172.546355 last 821828470.105442
+0 type 0 class 0 type tos id 16 pkts 1798 bytes 139746
+sipg 0.100101 created 821828175.866634 last 821828469.722588
+0 type 0 class 0 type tos id 0 pkts 30748 bytes 11156681
+sipg 0.018637 created 821828172.546355 last 821828470.105442
 .Ed
 .Pp
 So, the values are decimal 1 and decimal 16.
@@ -159,7 +164,7 @@ how many different packet sizes are in the file:
 .Bd -literal -offset indent
 % flstats -c -t len file.tcpd
 0 class 0 created 415 deleted 0 added 0 removed 0 active 415
-pkts 32546 bytes 11296427 sipg 18453 fragpkts 0 fragbytes 0
+pkts 32546 bytes 11296427 sipg 0.018453 fragpkts 0 fragbytes 0
 toosmallpkts 0 toosmallbytes 0 runtpkts 0 runtbytes 0
 noportpkts 0 noportbytes 0 lastrecv 821828470.105442
 .Ed
@@ -167,24 +172,33 @@ noportpkts 0 noportbytes 0 lastrecv 821828470.105442
 So, there are 415 distinct lengths in the file.  To see the actual
 lengths:
 .Bd -literal -offset indent
-% flstats -f -t len file.tcpd | sort -n -r +8
-0 type 0 class 0 id len/1500 pkts 4994 bytes 7491000 sipg 225622
-created 821828202.217309 last 821828465.207235
-0 type 0 class 0 id len/40 pkts 967 bytes 42916 sipg 539485 created
-821828172.750563 last 821828468.663906
-0 type 0 class 0 id len/140 pkts 961 bytes 134540 sipg 958669 created
-821828198.845845 last 821828468.256604
-0 type 0 class 0 id len/92 pkts 953 bytes 87676 sipg 172420 created
-821828215.097236 last 821828469.393897
-0 type 0 class 0 id len/60 pkts 941 bytes 56460 sipg 135764 created
-821828176.017872 last 821828469.722588
-0 type 0 class 0 id len/61 pkts 899 bytes 54839 sipg 121343 created
-821828201.908231 last 821828469.561497
-0 type 0 class 0 id len/124 pkts 773 bytes 95852 sipg 378213 created
-821828201.926018 last 821828468.389406
-0 type 0 class 0 id len/552 pkts 690 bytes 380880 sipg 21721 created
-821828197.018013 last 821828468.813834
-...
+% flstats -f -t len file.tcpd | sort -n -r +10
+0 type 0 class 0 type len id 64 pkts 14976 bytes 958464
+sipg 0.019997 created 821828172.546355 last 821828470.105442
+0 type 0 class 0 type len id 1500 pkts 4994 bytes 7491000
+sipg 0.225622 created 821828202.217309 last 821828465.207235
+0 type 0 class 0 type len id 40 pkts 967 bytes 42916
+sipg 0.539485 created 82182 8172.750563 last 821828468.663906
+0 type 0 class 0 type len id 140 pkts 961 bytes 134540
+sipg 0.958669 created 821828198.845845 last 821828468.256604
+0 type 0 class 0 type len id 92 pkts 953 bytes 87676
+sipg 0.172420 created 821828215.097236 last 821828469.393897
+0 type 0 class 0 type len id 60 pkts 941 bytes 56460
+sipg 0.135764 created 821828176.017872 last 821828469.722588
+0 type 0 class 0 type len id 61 pkts 899 bytes 54839
+sipg 0.121343 created 821828201.908231 last 821828469.561497
+0 type 0 class 0 type len id 124 pkts 773 bytes 95852
+sipg 0.378213 created 821828201.926018 last 821828468.389406
+0 type 0 class 0 type len id 552 pkts 690 bytes 380880
+sipg 0.021721 created 821828197.018013 last 821828468.813834
+ ...
+.Ed
+.Pp
+This also shows the interpacket arrival time (smoothed) between
+packets of the same time.  To see only the lengths, packet counts
+and byte counts, we could pipe the above through
+.Bd -literal -offset indent
+awk '{print $9, $11, $13}'
 .Ed
 .Sh SEE ALSO
 .Xr tclsh 1 ,
@@ -194,5 +208,3 @@ created 821828202.217309 last 821828465.207235
 The
 .Nm flstats
 command was written at Ipsilon Networks in 1996.
-.Sh DIAGNOSTICS
-.Sh BUGS
