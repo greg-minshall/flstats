@@ -13,4 +13,11 @@ fix2det:	fix2det.o
 	${CC} ${CFLAGS} -o fix2det ${LDFLAGS} fix2det.o
 
 tehone:		tehone.o
-	${CC} ${CFLAGS} -o tehone ${LDFLAGS} tehone.o ${LIBTCL} ${LIBPCAP} -lm
+	${CC} ${CFLAGS} -o tehone ${LDFLAGS} tehone.o \
+						${LIBTCL} ${LIBPCAP} -lm
+
+tehone.o:	tehone.char tehone.c
+
+tehone.char:	tehone.tcl
+	sed 's/\\/\\\\/g' < tehone.tcl | sed 's/"/\\"/g' | \
+				sed 's/^/"/' | sed 's/$$/\\n"/' > tehone.char
