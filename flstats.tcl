@@ -312,9 +312,6 @@ teho_flow_details { fixortcpd filename {binsecs 1} {classifier {}} \
 	if {$binno == -1} {
 	    break;	# eof
 	}
-	set timeouttime [lindex [split [time { \
-			set totalflows [teho_run_timeouts]}]] 0 ]
-
 	teho_start_enumeration
 	while { [set x [teho_continue_enumeration]] != ""} {
 	    puts "$binno $x"
@@ -335,8 +332,8 @@ teho_class_details { fixortcpd filename {binsecs 1} {classifier {}} \
 
     puts "# plotvars 1 binno 2 pktsrouted 3 bytesrouted 4 pktsswitched"
     puts "# plotvars 5 bytesswitched 6 pktsdropped 7 bytesdropped"
-    puts "# plotvars 8 created 9 deleted 10 numflows 11 totalflows"
-    puts "# plotvars 12 bintime 13 timeouttime 14 vsz 15 rsz 16 cputime"
+    puts "# plotvars 8 created 9 deleted 10 numflows "
+    puts "# plotvars 11 bintime 12 vsz 13 rsz 14 cputime"
 
     # we look at 3 classes: CL_NONSWITCHED, CL_TO_BE_SWITCHED, CL_SWITCHED
 
@@ -359,8 +356,6 @@ teho_class_details { fixortcpd filename {binsecs 1} {classifier {}} \
 	if {$binno == -1} {
 	    break;	# eof
 	}
-	set timeouttime [lindex [split [time { \
-			set totalflows [teho_run_timeouts]}]] 0 ]
 
 	# get differences from previous stats counters
 	set pre non
@@ -384,7 +379,7 @@ teho_class_details { fixortcpd filename {binsecs 1} {classifier {}} \
 	set xx [exec ps lp$pid]
 	set xx [lrange [split [join $xx]] 19 24]
 	puts [format \
-	    "%-7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %s" \
+	    "%-7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %s" \
 		$binno\
 		[expr $diff_non_pkts + $diff_waiting_pkts] \
 		[expr $diff_non_bytes + $diff_waiting_bytes] \
@@ -400,9 +395,7 @@ teho_class_details { fixortcpd filename {binsecs 1} {classifier {}} \
 					$waiting_added + $switched_added) - \
 			($waiting_deleted + $switched_deleted + \
 					$waiting_removed + $switched_removed)] \
-		$totalflows \
 		$bintime \
-		$timeouttime \
 		[lindex $xx 0] \
 		[lindex $xx 1] \
 		[lindex $xx 5]]

@@ -477,170 +477,6 @@ cksum(u_char *p, int len, u_long seed)
     return (u_short) (~htons(seed))&0xffff;
 }
 
-/*
- * arrange for something to run shortly after "timeouttime"
- */
-
-static void
-timer_insert(flowentry_p fe, struct timeval *timeouttime)
-{
-    flowentry_p timer = &timers[timeouttime->tv_sec%NUM(timers)];
-
-    timer->fe_prev_in_timer->fe_next_in_timer = fe;
-    fe->fe_prev_in_timer = timer->fe_prev_in_timer;
-    timer->fe_prev_in_timer = fe;
-    fe->fe_next_in_timer = timer;
-}
-
-static void
-timer_delete(flowentry_p fe)
-{
-    if (fe->fe_prev_in_timer) {
-	fe->fe_prev_in_timer->fe_next_in_timer = fe->fe_next_in_timer;
-	fe->fe_next_in_timer->fe_prev_in_timer = fe->fe_prev_in_timer;
-    }
-}
-
-static flowentry_p
-timer_get_slot()
-{
-    flowentry_p timer = &timers[curtime.tv_sec%NUM(timers)];
-    flowentry_p slot = timer->fe_next_in_timer;
-
-    if (slot == timer->fe_prev_in_timer) {
-	return 0;		/* nothing */
-    }
-
-    /* keep ends from dangling */
-    slot->fe_prev_in_timer = 0;
-    timer->fe_prev_in_timer->fe_next_in_timer = 0;
-
-    /* point to self */
-    timer->fe_next_in_timer = timer;
-    timer->fe_prev_in_timer = timer;
-
-    return slot;
-}
-
-
-/* table lookup */
-
-static flowentry_p
-tbl_lookup(u_char *key, int key_len, int level)
-{
-    u_short sum = cksum(key, key_len, level);
-    flowentry_p fe = buckets[sum%NUM(buckets)];
-    flowentry_p onebehind = onebehinds[sum%NUM(onebehinds)];
-#define MATCH(key,len,sum,level,p) \
-	((sum == (p)->fe_sum) && (level == (p)->fe_level) && \
-		(len == (p)->fe_key_len) && !memcmp(key, (p)->fe_key, len))
-
-    if (onebehind && MATCH(key, key_len, sum, level, onebehind)) {
-	return onebehind;
-    }
-
-    while (fe) {
-	if (MATCH(key, key_len, sum, level, fe)) {
-	    onebehinds[sum%NUM(onebehinds)] = fe;
-	    break;
-	}
-	fe = fe->fe_next_in_bucket;
-    }
-    return fe;
-}
-
-static flowentry_p
-tbl_add(u_char *key, int key_len, int level)
-{
-    u_short sum = cksum(key, key_len, level);
-    flowentry_p *hbucket = &buckets[sum%NUM(buckets)];
-    flowentry_p fe;
-
-    fe = (flowentry_p) malloc(sizeof *fe+key_len-1);
-    if (fe == 0) {
-	return 0;
-    }
-    fe->fe_sum = sum;
-    fe->fe_key_len = key_len;
-    fe->fe_level = level;
-    memcpy(fe->fe_key, key, key_len);
-
-    fe->fe_next_in_bucket = *hbucket;
-    if (fe->fe_next_in_bucket) {
-	fe->fe_next_in_bucket->fe_prev_in_bucket = fe;
-    }
-    fe->fe_prev_in_bucket = 0;
-    *hbucket = fe;
-
-    fe->fe_next_in_table = table;
-    if (fe->fe_next_in_table) {
-	fe->fe_next_in_table->fe_prev_in_table = fe;
-    }
-    fe->fe_prev_in_table = 0;
-    table = fe;
-
-    fe->fe_next_in_timer = fe->fe_prev_in_timer = 0;
-
-    return fe;
-}
-
-
-static void
-tbl_delete(flowentry_p fe)
-{
-    u_short sum = cksum(fe->fe_key, fe->fe_key_len, fe->fe_level);
-    flowentry_p *hbucket = &buckets[sum%NUM(buckets)];
-    flowentry_p *honebehind = &onebehinds[sum%NUM(onebehinds)];
-
-    /* dequeue the silly thing... */
-
-    /* out of timer */
-    if (fe->fe_prev_in_timer) {
-	timer_delete(fe);
-    }
-
-    /* out of bucket */
-    if (fe->fe_prev_in_bucket) {
-	fe->fe_prev_in_bucket->fe_next_in_bucket = fe->fe_next_in_bucket;
-    } else {
-	*hbucket = fe->fe_next_in_bucket;
-    }
-    if (fe->fe_next_in_bucket) {
-	fe->fe_next_in_bucket->fe_prev_in_bucket = fe->fe_prev_in_bucket;
-    }
-
-    if (*honebehind == fe) {
-	*honebehind = *hbucket;
-    }
-
-    /* out of table */
-    if (fe->fe_prev_in_table) {
-	fe->fe_prev_in_table->fe_next_in_table = fe->fe_next_in_table;
-    } else {
-	table = fe->fe_next_in_table;
-    }
-    if (fe->fe_next_in_table) {
-	fe->fe_next_in_table->fe_prev_in_table = fe->fe_prev_in_table;
-    }
-
-    free(fe);
-}
-
-
-static void
-set_time(u_long secs, u_long usecs)
-{
-    curtime.tv_sec = secs;
-    curtime.tv_usec = usecs;
-    if ((starttime.tv_sec == ZERO.tv_sec) && 
-				(starttime.tv_usec == ZERO.tv_usec)) {
-	starttime = curtime;
-    }
-    if (binno == -1) {
-	binno = NOW_AS_BINNO();
-    }
-}
-
 
 
 static char *
@@ -754,6 +590,7 @@ flow_statistics(flowentry_p fe)
 }
 
 
+
 static char *
 class_statistics(clstats_p clsp)
 {
@@ -773,6 +610,236 @@ class_statistics(clstats_p clsp)
 
     return summary;
 }
+
+
+/*
+ * arrange for something to run shortly after "timeouttime"
+ */
+
+static void
+timer_insert(flowentry_p fe, struct timeval *timeouttime)
+{
+    flowentry_p timer = &timers[timeouttime->tv_sec%NUM(timers)];
+
+    timer->fe_prev_in_timer->fe_next_in_timer = fe;
+    fe->fe_prev_in_timer = timer->fe_prev_in_timer;
+    timer->fe_prev_in_timer = fe;
+    fe->fe_next_in_timer = timer;
+}
+
+static void
+timer_delete(flowentry_p fe)
+{
+    if (fe->fe_prev_in_timer) {
+	fe->fe_prev_in_timer->fe_next_in_timer = fe->fe_next_in_timer;
+	fe->fe_next_in_timer->fe_prev_in_timer = fe->fe_prev_in_timer;
+    }
+}
+
+static flowentry_p
+timer_get_slot()
+{
+    flowentry_p timer = &timers[curtime.tv_sec%NUM(timers)];
+    flowentry_p slot = timer->fe_next_in_timer;
+
+    if (slot == timer->fe_prev_in_timer) {
+	return 0;		/* nothing */
+    }
+
+    /* keep ends from dangling */
+    slot->fe_prev_in_timer = 0;
+    timer->fe_prev_in_timer->fe_next_in_timer = 0;
+
+    /* point to self */
+    timer->fe_next_in_timer = timer;
+    timer->fe_prev_in_timer = timer;
+
+    return slot;
+}
+
+static void
+do_timeouts(Tcl_Interp *interp)
+{
+    flowentry_p nfe, fe;
+    char buf[100], buf2[100];
+    int n, i = 0;
+    static void delete_flow(flowentry_p fe);
+
+    fe = timer_get_slot();
+
+    while (fe) {
+	nfe = fe->fe_next_in_timer;
+	fe->fe_next_in_timer = fe->fe_prev_in_timer = 0;
+	if (fe->fe_timeout_cmd && TIME_LT(&fe->fe_timeout_time, &curtime)) {
+	    /*
+	     * call:	"timeout_cmd cookie class ftype flowid FLOW flowstats"
+	     * result:  "command timeout_cmd secs.usecs cookie"
+	     */
+	    sprintf(buf, " %p %d %d ", fe->fe_timeout_cookie,
+					fe->fe_class, fe->fe_flow_type);
+	    sprintf(buf2, " %ld.%06ld ", curtime.tv_sec, curtime.tv_usec);
+	    if (Tcl_VarEval(interp, fe->fe_timeout_cmd, buf,
+			    flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_key),
+			    buf2,
+			    " FLOW ", flow_statistics(fe), 0) != TCL_OK) {
+		packet_error = TCL_ERROR;
+		return;
+	    }
+
+	    fe->fe_timeout_time.tv_usec = 0;
+	    n = sscanf(interp->result, "%s %s %ld.%ld %p",
+			buf, buf2, &fe->fe_timeout_time.tv_sec,
+			&fe->fe_timeout_time.tv_usec, &fe->fe_timeout_cookie);
+	    if (n >= 2) {
+		if (buf2[0] == '-') {
+		    free(fe->fe_timeout_cmd);
+		    fe->fe_timeout_cmd = 0;
+		} else {
+		    if (strcmp(fe->fe_timeout_cmd, buf2)) {
+			free(fe->fe_timeout_cmd);
+			fe->fe_timeout_cmd = strsave(buf2);
+		    }
+		}
+	    }
+	    if (n >= 3) {
+		TIME_ADD(&fe->fe_timeout_time, &fe->fe_timeout_time, &curtime);
+	    }
+	    if ((n >= 1) && !strcmp(buf, "DELETE")) {
+		delete_flow(fe);
+	    }
+	} else {
+	    timer_insert(fe, &fe->fe_timeout_time);
+	}
+	fe = nfe;
+	i++;
+    }
+}
+
+static void
+set_time(Tcl_Interp *interp, u_long secs, u_long usecs)
+{
+    if ((starttime.tv_sec == ZERO.tv_sec) && 
+				(starttime.tv_usec == ZERO.tv_usec)) {
+	starttime.tv_sec = secs;
+	starttime.tv_usec = usecs;
+	curtime = starttime;
+    } else {
+	/* call timeouts once per second */
+	while (curtime.tv_sec != secs) {
+	    do_timeouts(interp);
+	    curtime.tv_sec++;		/* advance the time */
+	}
+	curtime.tv_usec = usecs;
+    }
+    if (binno == -1) {
+	binno = NOW_AS_BINNO();
+    }
+}
+
+
+/* table lookup */
+
+static flowentry_p
+tbl_lookup(u_char *key, int key_len, int level)
+{
+    u_short sum = cksum(key, key_len, level);
+    flowentry_p fe = buckets[sum%NUM(buckets)];
+    flowentry_p onebehind = onebehinds[sum%NUM(onebehinds)];
+#define MATCH(key,len,sum,level,p) \
+	((sum == (p)->fe_sum) && (level == (p)->fe_level) && \
+		(len == (p)->fe_key_len) && !memcmp(key, (p)->fe_key, len))
+
+    if (onebehind && MATCH(key, key_len, sum, level, onebehind)) {
+	return onebehind;
+    }
+
+    while (fe) {
+	if (MATCH(key, key_len, sum, level, fe)) {
+	    onebehinds[sum%NUM(onebehinds)] = fe;
+	    break;
+	}
+	fe = fe->fe_next_in_bucket;
+    }
+    return fe;
+}
+
+static flowentry_p
+tbl_add(u_char *key, int key_len, int level)
+{
+    u_short sum = cksum(key, key_len, level);
+    flowentry_p *hbucket = &buckets[sum%NUM(buckets)];
+    flowentry_p fe;
+
+    fe = (flowentry_p) malloc(sizeof *fe+key_len-1);
+    if (fe == 0) {
+	return 0;
+    }
+    fe->fe_sum = sum;
+    fe->fe_key_len = key_len;
+    fe->fe_level = level;
+    memcpy(fe->fe_key, key, key_len);
+
+    fe->fe_next_in_bucket = *hbucket;
+    if (fe->fe_next_in_bucket) {
+	fe->fe_next_in_bucket->fe_prev_in_bucket = fe;
+    }
+    fe->fe_prev_in_bucket = 0;
+    *hbucket = fe;
+
+    fe->fe_next_in_table = table;
+    if (fe->fe_next_in_table) {
+	fe->fe_next_in_table->fe_prev_in_table = fe;
+    }
+    fe->fe_prev_in_table = 0;
+    table = fe;
+
+    fe->fe_next_in_timer = fe->fe_prev_in_timer = 0;
+
+    return fe;
+}
+
+
+static void
+tbl_delete(flowentry_p fe)
+{
+    u_short sum = cksum(fe->fe_key, fe->fe_key_len, fe->fe_level);
+    flowentry_p *hbucket = &buckets[sum%NUM(buckets)];
+    flowentry_p *honebehind = &onebehinds[sum%NUM(onebehinds)];
+
+    /* dequeue the silly thing... */
+
+    /* out of timer */
+    if (fe->fe_prev_in_timer) {
+	timer_delete(fe);
+    }
+
+    /* out of bucket */
+    if (fe->fe_prev_in_bucket) {
+	fe->fe_prev_in_bucket->fe_next_in_bucket = fe->fe_next_in_bucket;
+    } else {
+	*hbucket = fe->fe_next_in_bucket;
+    }
+    if (fe->fe_next_in_bucket) {
+	fe->fe_next_in_bucket->fe_prev_in_bucket = fe->fe_prev_in_bucket;
+    }
+
+    if (*honebehind == fe) {
+	*honebehind = *hbucket;
+    }
+
+    /* out of table */
+    if (fe->fe_prev_in_table) {
+	fe->fe_prev_in_table->fe_next_in_table = fe->fe_next_in_table;
+    } else {
+	table = fe->fe_next_in_table;
+    }
+    if (fe->fe_next_in_table) {
+	fe->fe_next_in_table->fe_prev_in_table = fe->fe_prev_in_table;
+    }
+
+    free(fe);
+}
+
 
 
 
@@ -1154,12 +1221,13 @@ static void
 receive_tcpd(u_char *user, const struct pcap_pkthdr *h, const u_char *buffer)
 {
         u_short type;
+	Tcl_Interp *interp = (Tcl_Interp *)user;
 
-	set_time(h->ts.tv_sec, h->ts.tv_usec);
+	set_time(interp, h->ts.tv_sec, h->ts.tv_usec);
 
         if (h->caplen < 14) {
 		/* need to call packetin to set counters, etc. */
-		packetin((Tcl_Interp *)user, buffer, 0, 0);
+		packetin(interp, buffer, 0, 0);
                 return;
         }
 
@@ -1169,7 +1237,7 @@ receive_tcpd(u_char *user, const struct pcap_pkthdr *h, const u_char *buffer)
                 return;         /* only IP packets */
         }
 
-        packetin((Tcl_Interp *)user, buffer+14, h->caplen-14, h->len-14);
+        packetin(interp, buffer+14, h->caplen-14, h->len-14);
 }
 
 
@@ -1181,7 +1249,7 @@ receive_fix(Tcl_Interp *interp, struct fixpkt *pkt)
 	0x22, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0};
 
-    set_time(ntohl(pkt->secs), ntohl(pkt->usecs));
+    set_time(interp, ntohl(pkt->secs), ntohl(pkt->usecs));
 
     *(u_short *)&pseudopkt[2] = pkt->len;
     pseudopkt[9] = pkt->prot;
@@ -1536,67 +1604,6 @@ teho_set_fix_file(ClientData clientData, Tcl_Interp *interp,
     return TCL_OK;
 }
 
-static int
-teho_run_timeouts(ClientData clientData, Tcl_Interp *interp,
-		int argc, char *argv[])
-{
-    flowentry_p nfe, fe;
-    char buf[100], buf2[100];
-    int n, i = 0;
-
-    fe = timer_get_slot();
-
-    while (fe) {
-	nfe = fe->fe_next_in_timer;
-	fe->fe_next_in_timer = fe->fe_prev_in_timer = 0;
-	if (fe->fe_timeout_cmd && TIME_LT(&fe->fe_timeout_time, &curtime)) {
-	    /*
-	     * call:	"timeout_cmd cookie class ftype flowid FLOW flowstats"
-	     * result:  "command timeout_cmd secs.usecs cookie"
-	     */
-	    sprintf(buf, " %p %d %d ", fe->fe_timeout_cookie,
-					fe->fe_class, fe->fe_flow_type);
-	    sprintf(buf2, " %ld.%06ld ", curtime.tv_sec, curtime.tv_usec);
-	    if (Tcl_VarEval(interp, fe->fe_timeout_cmd, buf,
-			    flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_key),
-			    buf2,
-			    " FLOW ", flow_statistics(fe), 0) != TCL_OK) {
-		return TCL_ERROR;
-	    }
-
-	    fe->fe_timeout_time.tv_usec = 0;
-	    n = sscanf(interp->result, "%s %s %ld.%ld %p",
-			buf, buf2, &fe->fe_timeout_time.tv_sec,
-			&fe->fe_timeout_time.tv_usec, &fe->fe_timeout_cookie);
-	    if (n >= 2) {
-		if (buf2[0] == '-') {
-		    free(fe->fe_timeout_cmd);
-		    fe->fe_timeout_cmd = 0;
-		} else {
-		    if (strcmp(fe->fe_timeout_cmd, buf2)) {
-			free(fe->fe_timeout_cmd);
-			fe->fe_timeout_cmd = strsave(buf2);
-		    }
-		}
-	    }
-	    if (n >= 3) {
-		TIME_ADD(&fe->fe_timeout_time, &fe->fe_timeout_time, &curtime);
-	    }
-	    if ((n >= 1) && !strcmp(buf, "DELETE")) {
-		delete_flow(fe);
-	    }
-	} else {
-	    timer_insert(fe, &fe->fe_timeout_time);
-	}
-	fe = nfe;
-	i++;
-    }
-
-    sprintf(buf, "%d", i);
-    Tcl_SetResult(interp, buf, TCL_VOLATILE);
-    return TCL_OK;
-}
-
 
 int
 Tcl_AppInit(Tcl_Interp *interp)
@@ -1610,8 +1617,6 @@ Tcl_AppInit(Tcl_Interp *interp)
     Tcl_CreateCommand(interp, "teho_continue_enumeration",
 					teho_continue_enumeration, NULL, NULL);
     Tcl_CreateCommand(interp, "teho_read_one_bin", teho_read_one_bin,
-								NULL, NULL);
-    Tcl_CreateCommand(interp, "teho_run_timeouts", teho_run_timeouts,
 								NULL, NULL);
     Tcl_CreateCommand(interp, "teho_set_fix_file", teho_set_fix_file,
 								NULL, NULL);
