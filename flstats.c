@@ -23,6 +23,10 @@
 		(timesecs-starttimesecs)/binsecs - \
 			(timeusecs < starttimeusecs ? 1:0))
 
+#define	TYPE_UNKNOWN	1
+#define	TYPE_PCAP	2
+#define	TYPE_FIX	3
+
 /* type defines */
 
 typedef struct hentry hentry_t, *hentry_p;
@@ -45,11 +49,54 @@ struct hentry {
     u_char key[1];		/* variable sized (KEEP AT END!) */
 };
 
+/* definition of FIX packet format */
+
+/*
+ * The input of the file looks like:
+ *
+ *         +-------------------------------------+  
+ *      0  |        timestamp in seconds         |
+ *         +-------------------------------------+
+ *      1  |      timestamp in microseconds      |
+ *         +-------------------------------------+
+ *      2  |          IP source address          |
+ *         +-------------------------------------+
+ *      3  |       IP destination address        |
+ *         +--------+---------+------------------+
+ *      4  | IPProt | TCPflags|  Packet-length   |
+ *         +--------+---------+------------------+
+ *      5  | destination port |   source port    |
+ *         +------------------+------------------+
+ */         
+            
+            
+struct fixpkt {
+    u_long  secs,
+            usecs,
+            src,
+            dst;
+#if (BYTE_ORDER == BIG_ENDIAN)  /* byte order makes my head hurt... */
+    u_char  prot,
+            tflags;
+    u_short len,
+            dport,  
+            sport;  
+#endif      
+#if (BYTE_ORDER == LITTLE_ENDIAN)
+    u_short len;
+    u_char  prot,
+            tflags;
+    u_short sport,
+            dport;
+#endif
+};
+
 /* global variables */
 
 u_short IPtype = 0x800;
 
 int fileeof = 0;
+int filetype = 0;
 
 hentry_p buckets[3197];
 hentry_p table;			/* list of everything */
@@ -64,6 +111,8 @@ int flow_type_len, flow_id_len, flow_type_covers;
 
 pcap_t *pcap_descriptor;
 char pcap_errbuf[PCAP_ERRBUF_SIZE];
+
+FILE *fix_descriptor;
 
 u_char pending_flow_id[MAX_FLOW_TYPE];
 int pending;
@@ -137,6 +186,7 @@ tbl_lookup(u_char *key, int key_len)
 				(!memcmp(key, hent->key, key_len))) {
 	    break;
 	}
+	hent = hent->next_in_bucket;
     }
     return hent;
 }
@@ -273,6 +323,29 @@ newpacket(u_char *user, const struct pcap_pkthdr *h, const u_char *buffer)
 }
 
 
+static void
+receive_fix(Tcl_Interp *interp, struct fixpkt *pkt)
+{
+    struct timeval cur;
+    static char pseudopkt[24] = {
+	0x45, 0, 0, 0, 0, 0, 0, 0,
+	0x22, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0};
+
+    set_time(ntohl(pkt->secs), ntohl(pkt->usecs));
+
+    *(u_short *)&pseudopkt[2] = pkt->len;
+    pseudopkt[9] = pkt->prot;
+    /* src and dst are in ??? intel order ??? */
+    *(u_long *)&pseudopkt[12] = ntohl(pkt->src);
+    *(u_long *)&pseudopkt[16] = ntohl(pkt->dst);
+    *(u_short *)&pseudopkt[20] = pkt->sport;
+    *(u_short *)&pseudopkt[22] = pkt->dport;
+
+    packetin(interp, pseudopkt, sizeof pseudopkt);
+}
+
+
 static int
 process_one_packet(Tcl_Interp *interp)
 {
@@ -281,9 +354,28 @@ process_one_packet(Tcl_Interp *interp)
     if (pending) {
 	packetin(interp, 0, 0);
     } else {
-	if (pcap_dispatch(pcap_descriptor, 1,
+	if (filetype == TYPE_PCAP) {
+	    if (pcap_dispatch(pcap_descriptor, 1,
 				newpacket, (u_char *)interp) == 0) {
-	    fileeof = 1;
+		fileeof = 1;
+		filetype = TYPE_UNKNOWN;
+	    }
+	} else {	/* TYPE_FIX */
+	    struct fixpkt fixpacket;
+	    int count;
+
+	    count = fread(&fixpacket, sizeof fixpacket, 1, fix_descriptor);
+	    if (count == 0) {
+		if (feof(fix_descriptor)) {
+		    fileeof = 1;
+		    filetype = TYPE_UNKNOWN;
+		} else {
+		    interp->result = "error on read";
+		    return TCL_ERROR;
+		}
+	    } else {
+		receive_fix(interp, &fixpacket);
+	    }
 	}
     }
     return packet_error;
@@ -310,8 +402,8 @@ teho_read_one_bin(ClientData clientData, Tcl_Interp *interp,
     } else if (argc == 1) {
 	;		/* use old binsecs */
     }
-    if (pcap_descriptor == 0) {
-	interp->result = "need to call teho_set_tcpd_file first";
+    if (filetype == TYPE_UNKNOWN) {
+	interp->result = "need to call teho_set_{tcpd,fix}_file first";
 	return TCL_ERROR;
     }
     if (flow_type_len == 0) {
@@ -473,6 +565,25 @@ teho_set_tcpd_file(ClientData clientData, Tcl_Interp *interp,
 	return TCL_ERROR;
     }
     fileeof = 0;
+    filetype = TYPE_PCAP;
+    return TCL_OK;
+}
+
+static int
+teho_set_fix_file(ClientData clientData, Tcl_Interp *interp,
+		int argc, char *argv[])
+{
+    if (argc != 2) {
+	interp->result = "Usage: teho_set_fix_file filename";
+	return TCL_ERROR;
+    }
+    fix_descriptor = fopen(argv[1], "r");
+    if (fix_descriptor == 0) {
+	interp->result = "error opening file";
+	return TCL_ERROR;
+    }
+    fileeof = 0;
+    filetype = TYPE_FIX;
     return TCL_OK;
 }
 
@@ -493,6 +604,8 @@ Tcl_AppInit(Tcl_Interp *interp)
     Tcl_CreateCommand(interp, "teho_continue_enum", teho_continue_enum,
 								NULL, NULL);
     Tcl_CreateCommand(interp, "teho_set_tcpd_file", teho_set_tcpd_file,
+								NULL, NULL);
+    Tcl_CreateCommand(interp, "teho_set_fix_file", teho_set_fix_file,
 								NULL, NULL);
     Tcl_CreateCommand(interp, "teho_summary", teho_summary,
 								NULL, NULL);
