@@ -11,6 +11,13 @@ set FT_GUARD			2
 set FT_UL_PORT			3
 set FT_UL_NOPORT		4
 
+set LLFLOWS [list \
+    [list ihv/ihl/tos/ttl/prot/src/dst/sport/dport classifier] \
+    [list ihv/ihl/tos/ttl/prot/src/dst classifier]]
+set ULFLOWS [list \
+    [list ihv/ihl/tos/ttl/prot/src/dst/sport/dport starttimeout FT_UL_PORT] \
+    [list ihv/ihl/tos/ttl/prot/src/dst starttimeout FT_UL_NOPORT]]
+
 proc switchtime {} { return 0.300000 }	; # time to switch
 
 #
@@ -146,12 +153,38 @@ get_diff_vec {class} \
 	return $bar
 }
 
+proc \
+simul_setft { llflows ulflows } \
+{
+    set ftindex 0
+
+    foreach flows [list $llflows $ulflows] {
+	for {set whichflow 0} {$whichflow < [llength $flows]} \
+					    { incr whichflow; incr ftindex } {
+	    set flow [lindex $flows $whichflow]
+	    set len [llength $flow]
+	    if {$len >= 3} {
+		global [lindex $flow 2]
+		set $[lindex $flow 2] $ftindex
+	    }
+	    if {$len >= 2} {
+		teho_set_flow_type -f $ftindex -c [lindex $flow 1] \
+							    [lindex $flow 0]
+	    } else {
+		teho_set_flow_type -f $ftindex [lindex $flow 0]
+	    }
+	}
+	incr ftindex			; # leave a gap between LL and UL
+    }
+}
+
 
 proc \
-simul { fixortcpd filename {binsecs 1} } \
+simul_setup { fixortcpd filename {binsecs 1} } \
 {
-    global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
-    global FT_LL_PORT FT_LL_NOPORT FT_UL_PORT FT_UL_NOPORT
+    global LLFLOWS ULFLOWS
+
+    simul_setft $LLFLOWS $ULFLOWS
 
     set fname [glob $filename]
     file stat $fname filestats
@@ -169,21 +202,41 @@ simul { fixortcpd filename {binsecs 1} } \
 	puts "bad fixortcpd"
 	return
     }
+}
 
-    # set lower level flow types
-    teho_set_flow_type -f $FT_LL_PORT -c classifier \
-				ihv/ihl/tos/ttl/prot/src/dst/sport/dport
-    teho_set_flow_type -f $FT_LL_NOPORT -c classifier \
-				ihv/ihl/tos/ttl/prot/src/dst
 
-    # leave *2* uninitialized (as a guard)
+proc \
+flow_details { fixortcpd filename {binsecs 1} } \
+{
+    global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
+    global FT_LL_PORT FT_LL_NOPORT FT_UL_PORT FT_UL_NOPORT
 
-    # set upper level flow types
-    teho_set_flow_type -f $FT_UL_PORT -c starttimeout \
-				ihv/ihl/tos/ttl/prot/src/dst/sport/dport
-    teho_set_flow_type -f $FT_UL_NOPORT -c starttimeout \
-				ihv/ihl/tos/ttl/prot/src/dst
+    simul_setup $fixortcpd $filename $binsecs
 
+    while {1} {
+	set bintime [lindex [split [time { \
+			set binno [teho_read_one_bin $binsecs]}]] 0]
+	if {$binno == -1} {
+	    break;	# eof
+	}
+	set timeouttime [lindex [split [time { \
+			set totalflows [teho_run_timeouts]}]] 0 ]
+
+	teho_start_enumeration
+	while { [set x [teho_continue_enumeration]] != ""} {
+	    puts "$binno $x"
+	}
+    }
+}
+
+
+proc \
+class_details { fixortcpd filename {binsecs 1} } \
+{
+    global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
+    global FT_LL_PORT FT_LL_NOPORT FT_UL_PORT FT_UL_NOPORT
+
+    simul_setup $fixortcpd $filename $binsecs
 
     puts "# plotvars 1 binno 2 pktsrouted 3 bytesrouted 4 pktsswitched"
     puts "# plotvars 5 bytesswitched 6 pktsdropped 7 bytesdropped"
@@ -263,4 +316,13 @@ simul { fixortcpd filename {binsecs 1} } \
 		[lindex $xx 5]]
 	flush stdout
     }
+}
+
+
+# for compatibility...
+
+proc \
+simul { fixortcpd filename {binsecs 1} } \
+{
+    simul_class $fixortcpd $filename $binsecs
 }
