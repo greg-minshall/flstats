@@ -52,11 +52,12 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.86 1997/05/05 02:41:09 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.87 1997/05/08 04:43:47 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <sys/types.h>
 

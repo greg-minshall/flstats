@@ -1,4 +1,4 @@
-# $Id: Makefile.in,v 1.21 1997/04/24 23:21:06 minshall Exp minshall $
+# $Id: Makefile.in,v 1.22 1997/04/25 00:51:27 minshall Exp minshall $
 
 # version for distribution...
 VERS=`cat VERSION`
@@ -9,7 +9,7 @@ LIBTCL = -l__CONFIGURE__TCLXY__
 
 LIBPCAP = -lpcap
 
-INCLUDES	= -I/usr/local/include -I../../usr/include
+INCLUDES = -I__CONFIGURE__TCLINCL__
 
 #have-gcc#CC = gcc
 #have-gcc#WARNINGS	= -Wall
@@ -38,7 +38,7 @@ flstats:		flstats.o
 
 flstats.o:	flstats.char init.char flstats.c
 
-init.char:	__CONFIGURE__TCLLOC__/init.tcl
+init.char:	__CONFIGURE__TCLINCLDIR__/init.tcl
 
 flstats.char:	flstats.tcl
 

@@ -1,17 +1,20 @@
 #!/bin/csh
-# !/bin/csh -fx
+#!/bin/csh -fx
 
 # cheap hack to make things portable (but, note this is csh!)
 
 # what versions of TCL library do we look for?
 # (this is what needs to change in order to use a different version of Tcl.)
-set nmtclxy=tcl75
-set nmtclxDOTy=tcl7.5
+set nmtclxy=tcl80
+set nmtclxDOTy=tcl8.0
+
+set includelocs = (/usr/include /usr/local/include /usr/pkg/include ../../usr/include)
 
 set gcc
 set SVR4
 set tclxy
 set tclloc
+set tclincl
 
 # determine gcc status
 gcc -v >& /dev/null
@@ -24,29 +27,18 @@ if ( `uname -s` == "SunOS" ) then
 endif
 
 # determine name of TCL library and lib directory...
-set ld_path="/lib:/usr/lib:/usr/local/lib:/usr/X11/lib"
+set ld_path="/lib:/usr/lib:/usr/local/lib:/usr/X11/lib:/usr/pkg/lib"
 if ($?LD_LIBRARY_PATH) then
     set ld_path=($ld_path $LD_LIBRARY_PATH)
 endif
 
 foreach i (`echo $ld_path | sed "s/:/ /g"`)
-    ls $i/lib$nmtclxDOTy* >& /dev/null
-    if ($status == 0) then
-	set tclxy="-e s/__CONFIGURE__TCLXY__/$nmtclxDOTy/"
-    endif
-    ls $i/lib$nmtclxy* >& /dev/null
-    if ($status == 0) then
-	set tclxy="-e s/__CONFIGURE__TCLXY__/$nmtclxy/"
-    endif
-end
-
-foreach i (`echo $ld_path | sed "s/:/ /g"`)
-    if (-d $i/$nmtclxDOTy) then
-	set tclloc="-e sY__CONFIGURE__TCLLOC__Y${i}/${nmtclxDOTy}Y"
-    endif
-    if (-d $i/$nmtclxy) then
-	set tclloc="-e sY__CONFIGURE__TCLLOC__Y${i}/${nmtclxy}Y"
-    endif
+    foreach j (${nmtclxDOTy} ${nmtclxy})
+        ls ${i}/lib${j}* >& /dev/null
+        if ($status == 0) then
+            set tclxy="-e s/__CONFIGURE__TCLXY__/${j}/"
+        endif
+    end
 end
 
 if ("$tclxy" == "") then
@@ -55,10 +47,43 @@ if ("$tclxy" == "") then
     exit 1
 endif
 
+foreach i (`echo $ld_path | sed "s/:/ /g"`)
+    foreach j (${i}/${nmtclxDOTy} ${i}/${nmtclxy})
+        if (-e ${j}/init.tcl) then
+            set tclloc="-e sY__CONFIGURE__TCLINCLDIR__Y${j}Y"
+        endif
+    end
+end
+
+if ("$tclloc" == "") then
+    echo "Cannot find init.tcl from Tcl distribution!  Aborting..."
+    echo "(to change the searched directories, edit ``configure'')"
+    exit 1
+endif    
+
+foreach i ( ${includelocs} )
+    foreach j ( ${i} ${i}/${nmtclxy} ${i}/${nmtclxDOTy} )
+        if (-e ${j}/tcl.h) then
+            if ("$tclincl" == "") then
+                set tclincl="-e sY__CONFIGURE__TCLINCL__Y${j}Y"
+            endif
+        endif
+    end
+end
+
+if ("$tclincl" == "") then
+    echo "Cannot find tcl.h!  Aborting..."
+    echo "(to change the searched directories, edit ``configure'')"
+    exit 1
+endif
+    
+    
+            
+
 # prepare Makefile
 echo "# THIS FILE IS CREATED BY ./configure -- DO NOT HAND EDIT!" > Makefile
 echo "# (Edit Makefile.in and then rerun ./configure instead.)" >> Makefile
 
 # now, edit Makefile.in...
-sed -e 's/^#have-none#//' $gcc $SVR4 $tclxy $tclloc Makefile.in >> Makefile
+sed -e 's/^#have-none#//' $gcc $SVR4 $tclxy $tclloc $tclincl Makefile.in >> Makefile
 chmod ug+w Makefile
