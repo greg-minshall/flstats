@@ -1,4 +1,4 @@
-# $Id: Makefile.in,v 1.17 1996/05/18 04:00:50 minshall Exp minshall $
+# $Id: Makefile.in,v 1.18 1996/07/29 21:11:32 minshall Exp minshall $
 
 # version for distribution...
 VERS=`cat VERSION`
@@ -31,11 +31,11 @@ DISTRIBUTION = ${SOURCES} flstats.0 flstats.0.txt
 
 all:	flstats
 
-distribution:	fixrev tar.Z shar web.tar
+distribution:	fixrev tar.Z web.tar
 
 clean:
 	-rm -f flstats flstats.char flstats.o flstats.0 flstats.0.txt \
-		flstats-*.tar flstats-*.tar.Z flstats-*.web.tar flstats-*.shar
+		flstats-*.tar flstats-*.tar.Z flstats-*.web.tar
 
 # keep version numbers going... (assume always at least "x.y")
 
@@ -99,10 +99,6 @@ tar.Z:	${DISTRIBUTION}
 	tar cf flstats-${VERS}.tar ${DISTRIBUTION}
 	rm -f flstats-${VERS}.tar.Z
 	compress flstats-${VERS}.tar
-
-shar:	${DISTRIBUTION}
-	rm -f flstats-${VERS}.shar
-	shar ${DISTRIBUTION} > flstats-${VERS}.shar
 
 web.tar:	tar.Z flstats.html flstats.0.txt
 	tar cf flstats-${VERS}.web.tar \
