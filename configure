@@ -5,8 +5,8 @@
 
 # what versions of TCL library do we look for?
 # (this is what needs to change in order to use a different version of Tcl.)
-set nmtclxy=tcl75
-set nmtclxDOTy=tcl7.5
+set nmtclxy=tcl74
+set nmtclxDOTy=tcl7.4
 
 set gcc
 set SVR4
