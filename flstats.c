@@ -35,6 +35,10 @@
 
 /* type defines */
 
+/*
+ * This is the basic hash table entry.
+ */
+
 typedef struct hentry hentry_t, *hentry_p;
 
 struct hentry {
@@ -69,8 +73,6 @@ typedef struct ftstats {
 typedef struct ftinfo ftinfo_t, *ftinfo_p;
 
 struct ftinfo {
-    ftinfo_p
-	    fti_parent;		/* parent flow type */
     u_char  fti_type_indicies[MAX_FLOW_ID_BYTES],
             fti_bytes_and_mask[2*MAX_FLOW_ID_BYTES];
     int	    fti_bytes_and_mask_len,
