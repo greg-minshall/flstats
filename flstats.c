@@ -5,6 +5,13 @@
  *	1.	Make non-ethernet specific!
  *	2.	Use indicies for *external* communication, but use
  *		pointers internally (ftype, class).
+ *	3.	Support for #pkts, sipg, to trigger pkt-recv
+ *		callout.
+ *	4.	Document: [simul_setup], [flow_details],
+ *		[class_details], [teho_read_one_bin].  Give
+ *		examples of use; warn about memory consumption.
+ *	5.	Infer LLFLOWS from ULFLOWS?  Make sure to timeout
+ *		LLFLOWS.
  */
 
 
@@ -472,8 +479,8 @@ tbl_lookup(u_char *key, int key_len, int level)
     flowentry_p fe = buckets[sum%NUM(buckets)];
     flowentry_p onebehind = onebehinds[sum%NUM(onebehinds)];
 #define MATCH(key,len,sum,level,p) \
-	((sum == (p)->fe_sum) && (level == (p)->fe_level) && (len == (p)->fe_key_len) \
-			&& !memcmp(key, (p)->fe_key, len))
+	((sum == (p)->fe_sum) && (level == (p)->fe_level) && \
+		(len == (p)->fe_key_len) && !memcmp(key, (p)->fe_key, len))
 
     if (onebehind && MATCH(key, key_len, sum, level, onebehind)) {
 	return onebehind;
@@ -815,6 +822,41 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
 {
     clstats_p cl;
 
+    cl = &clstats[fe->fe_class];
+
+    /* update statistics */
+
+    cl->cls_pkts++;
+    cl->cls_bytes += len;
+    if (cl->cls_last_pkt_rcvd.tv_sec) {		/* sipg */
+	register u_long ipg;
+	ipg = (curtime.tv_sec-cl->cls_last_pkt_rcvd.tv_sec)*1000000UL;
+	ipg += (curtime.tv_usec - cl->cls_last_pkt_rcvd.tv_usec);
+	/* two lines from VJ '88 SIGCOMM */
+	ipg -= (cl->cls_sipg>>3);
+	cl->cls_sipg += ipg;
+    }
+    cl->cls_last_pkt_rcvd = curtime;
+
+    fe->fe_pkts++;
+    fe->fe_bytes += len;
+    if (fe->fe_last_pkt_rcvd.tv_sec) {		/* sipg */
+	register u_long ipg;
+	ipg = (curtime.tv_sec-fe->fe_last_pkt_rcvd.tv_sec)*1000000UL;
+	ipg += (curtime.tv_usec - fe->fe_last_pkt_rcvd.tv_usec);
+	/* two lines from VJ '88 SIGCOMM */
+	ipg -= (fe->fe_sipg>>3);
+	fe->fe_sipg += ipg;
+    }
+    fe->fe_last_pkt_rcvd = curtime;
+
+    /* count activity in this bin */
+    if (fe->fe_last_bin_active != binno) {
+	fe->fe_last_bin_active = binno;
+	cl->cls_active++;
+    }
+
+
     /* do we need to callout? */
 
 	/*
@@ -831,21 +873,6 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
 	 *	could use this to detect that we were still
 	 *	receiving on the default label after
 	 *	N seconds.
-	 * 3.  if this is associated with a more coarse
-	 *	statistics group, but some packets in that
-	 *	statistics group might want to be in a different
-	 *	(more fine grained) statistics group.
-	 *	(i'm not sure about this, though; if the initial
-	 *	flow types are as fine as you get, then this will
-	 *	get accomplished when you create the new fine-grained
-	 *	flow entry -- at that point you would have associated
-	 *	that fine-grained flow entry with the more coarse-
-	 *	grained statistics group.)
-	 * 4.  as a way of "timing out" flows;  i.e., if this
-	 *	has been idle for more than NNN seconds, then
-	 *	this should be deleted.  by using the timer,
-	 *	this can make the deletion "data driven" (by the
-	 *	*next* packet received in the same flow).
 	 */
 
     if (fe->fe_pkt_recv_cmd && TIME_LT(&curtime, &fe->fe_pkt_recv_cmd_time)) {
@@ -856,8 +883,8 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
 	sprintf(buf, " %d %d ", fe->fe_class, fe->fe_flow_type);
 
 	if (Tcl_VarEval(interp, fe->fe_pkt_recv_cmd, buf,
-			flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_key),
-			" FLOW ", flow_statistics(fe), 0) != TCL_OK) {
+		    flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_key),
+				" FLOW ", flow_statistics(fe), 0) != TCL_OK) {
 	    packet_error = TCL_ERROR;
 	    return;
 	}
@@ -885,36 +912,6 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
 		TIME_ADD(&fe->fe_pkt_recv_cmd_time, &curtime, &outtime);
 	    }
 	}
-    }
-
-    cl = &clstats[fe->fe_class];
-    /* update counters (after callout has had a chance to change things) */
-    cl->cls_pkts++;
-    cl->cls_bytes += len;
-    if (cl->cls_last_pkt_rcvd.tv_sec) {
-	register u_long ipg;
-	ipg = (curtime.tv_sec-cl->cls_last_pkt_rcvd.tv_sec)*1000000UL;
-	ipg += (curtime.tv_usec - cl->cls_last_pkt_rcvd.tv_usec);
-	/* two lines from VJ '88 SIGCOMM */
-	ipg -= (cl->cls_sipg>>3);
-	cl->cls_sipg += ipg;
-    }
-    cl->cls_last_pkt_rcvd = curtime;
-
-    fe->fe_pkts++;
-    fe->fe_bytes += len;
-    if (fe->fe_last_pkt_rcvd.tv_sec) {
-	register u_long ipg;
-	ipg = (curtime.tv_sec-fe->fe_last_pkt_rcvd.tv_sec)*1000000UL;
-	ipg += (curtime.tv_usec - fe->fe_last_pkt_rcvd.tv_usec);
-	/* two lines from VJ '88 SIGCOMM */
-	ipg -= (fe->fe_sipg>>3);
-	fe->fe_sipg += ipg;
-    }
-    fe->fe_last_pkt_rcvd = curtime;
-    if (fe->fe_last_bin_active != binno) {
-	fe->fe_last_bin_active = binno;
-	cl->cls_active++;
     }
 }
 
@@ -1057,6 +1054,29 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
 	    }
 	    return;
 	}
+    }
+
+    /*
+     * there is a situation in which a UL flow is shared by
+     * various LL flow types.  in this case, it may be that
+     * the class of the UL flow depends on which LL flows are
+     * using it.  this *could* cause us to call out every time
+     * a new packet arrives (or, a packet arrives with a new
+     * UL class, or ...).
+     *
+     * we use the following hack XXX :  we infer a priority based
+     * on the class number.  if a packet comes in and the class
+     * number in its parent_class field is greater than the class
+     * numberin its parent, then the parent is "reclassed".
+     *
+     * i really don't know how to do this "right", sigh.
+     */
+
+    if (llfe->fe_parent_class > ulfe->fe_class) {
+	/* class is changing --- update statistics */
+	clstats[ulfe->fe_class].cls_removed++;
+	ulfe->fe_class = llfe->fe_parent_class;
+	clstats[ulfe->fe_class].cls_added++;
     }
 
     /* now, track packets in both the lower and upper flows */
