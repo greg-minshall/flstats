@@ -422,7 +422,7 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	hent->created_sec = curtime.tv_sec;
 	hent->created_usec = curtime.tv_usec;
 	hent->created_bin = binno;
-	hent->flow_type_index = 0;
+	hent->flow_type_index = ft;
     }
     hent->packets++;
     hent->last_pkt_sec = curtime.tv_sec;
@@ -634,7 +634,8 @@ flow_id_to_string(int ft, u_char *id)
 	} else {
 	    *fidp = 0;
 	}
-	sprintf(result+strlen(result), "%s%s/%s", sep, xp->name, fidstring);
+	/*sprintf(result+strlen(result), "%s%s/%s", sep, xp->name, fidstring);*/
+	sprintf(result+strlen(result), "%s%s", sep, fidstring);
 	sep = "/";
     }
     return result;
@@ -730,32 +731,37 @@ goodout:
     return TCL_OK;
 }
 
+
+/*
+ * set a flow type.
+ *
+ * the caller manages the index since the way the system
+ * works, an incoming packet will be mapped to a specific
+ * flow type in a way which is dependent on the flow type
+ * index.
+ */
+
 static int
 teho_set_flow_type(ClientData clientData, Tcl_Interp *interp,
-		int argc, char *argv[])
+					    int argc, char *argv[])
 {
     int error;
     int ft;
     static char result[20];
 
-    if (argc != 2) {
+    if (argc != 3) {
 	interp->result = "Usage: teho_set_flow_type index flowtypedescription";
 	return TCL_ERROR;
     }
 
-    /* XXX look for next available flow type */
-    for (ft = 0; ft < NUM(fti); ft++) {
-	if (fti[ft].flow_id_len == 0) {
-	    break;
-	}
-    }
+    ft = atoi(argv[1]);
 
     if (ft >= NUM(fti)) {
 	interp->result = "no room in flow_type_info table";
 	return TCL_ERROR;
     }
 
-    error = set_flow_type(interp, ft, argv[1]);
+    error = set_flow_type(interp, ft, argv[2]);
     if (error != TCL_OK) {
 	return error;
     }
@@ -766,6 +772,7 @@ teho_set_flow_type(ClientData clientData, Tcl_Interp *interp,
     interp->result = result;
     return TCL_OK;
 }
+
 
 static int
 teho_summary(ClientData clientData, Tcl_Interp *interp,
@@ -811,8 +818,12 @@ static int
 teho_continue_enumeration(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
+    char buf[20];
+
     if (enum_state) {
-	interp->result = one_enumeration(enum_state);
+	Tcl_ResetResult(interp);
+	sprintf(buf, "%d ", enum_state->flow_type_index);
+	Tcl_AppendResult(interp, buf, one_enumeration(enum_state), 0);
 	enum_state = enum_state->next_in_table;
     } else {
 	interp->result = "";
