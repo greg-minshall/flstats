@@ -1,7 +1,12 @@
 #
 # Tcl script as part of flowsim
 #
-# $Id: flowsim.tcl,v 1.34 1996/03/01 21:03:01 minshall Exp minshall $
+# $Id: flowsim.tcl,v 1.35 1996/03/01 22:34:28 minshall Exp minshall $
+#
+#
+
+# XXX What is consequence of running -script parameter during
+# "application initialization"?
 
 
 ### The following is useful, but is also provided as an
@@ -311,8 +316,7 @@ fsim_setft { {classifier {}} {ulflows {}} } \
     set ftindex 0
 
     # the following is like atoft in the .c file:
-    set alltags \
-	    { ihv ihl tos len id df mf foff ttl prot sum src dst sport dport }
+    set alltags {}
 
 
     if {$ulflows == {}} {
@@ -334,9 +338,8 @@ fsim_setft { {classifier {}} {ulflows {}} } \
 	set types [split $type /]
 	foreach type $types {
 	    if {[lsearch -exact $alltags $type] == -1} {
-		error "unknown flow type tag $type"
+		lappend alltags $type
 	    }
-	    set fltags($type) 1
 	}
     }
 
@@ -345,9 +348,8 @@ fsim_setft { {classifier {}} {ulflows {}} } \
     set classifiertype [split [$classifier.specifier] /]
     foreach type $classifiertype {
 	if {[lsearch -exact $alltags $type] == -1} {
-	    error "unknown flow type tag $type in classifiertype"
+	    lappend alltags $type
 	}
-	set fltags($type) 1
     }
     
     # now, know all the tags, build the flow type(s)
@@ -355,14 +357,12 @@ fsim_setft { {classifier {}} {ulflows {}} } \
     set type2 {}
     set portsseen 0			; # have we seen any ports?
     foreach tag $alltags {
-	if {[info exists fltags($tag)]} {
-	    lappend type1 $tag
-	    if {($tag == "sport") || ($tag == "dport")} {
-		# don't put ports in type2
-		set portsseen 1
-	    } else {
-		lappend type2 $tag
-	    }
+	lappend type1 $tag
+	if {($tag == "sport") || ($tag == "dport")} {
+	    # don't put ports in type2
+	    set portsseen 1
+	} else {
+	    lappend type2 $tag
 	}
     }
     set type1 [join $type1 /]
@@ -415,12 +415,18 @@ fsim_setup { {fixortcpd {}} {filename {}} {binsecs {}} \
     global fsim
 
     if {$fixortcpd == {}} {
+	if {![info exists fsim(tracefile.format)]} {
+	    error "tracefile not specified"
+	}
 	set fixortcpd $fsim(tracefile.format)
     } else {
 	set fsim(tracefile.format) $fixortcpd
     }
 
     if {$filename == {}} {
+	if {![info exists fsim(tracefile.filename)]} {
+	    error "tracefile not specified"
+	}
 	set filename $fsim(tracefile.filename)
     } else {
 	set fsim(tracefile.filename) $filename
