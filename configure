@@ -12,6 +12,7 @@ set includelocs = (/usr/include /usr/local/include /usr/pkg/include ../../usr/in
 
 set gcc
 set SVR4
+set tcllibdir
 set tclxy
 set tclloc
 set tclincl
@@ -36,6 +37,7 @@ foreach i (`echo $ld_path | sed "s/:/ /g"`)
     foreach j (${nmtclxDOTy} ${nmtclxy})
         ls ${i}/lib${j}* >& /dev/null
         if ($status == 0) then
+            set tcllibdir="-e sY__CONFIGURE__TCLLIBDIR__Y${i}Y"
             set tclxy="-e s/__CONFIGURE__TCLXY__/${j}/"
         endif
     end
@@ -85,5 +87,5 @@ echo "# THIS FILE IS CREATED BY ./configure -- DO NOT HAND EDIT!" > Makefile
 echo "# (Edit Makefile.in and then rerun ./configure instead.)" >> Makefile
 
 # now, edit Makefile.in...
-sed -e 's/^#have-none#//' $gcc $SVR4 $tclxy $tclloc $tclincl Makefile.in >> Makefile
+sed -e 's/^#have-none#//' $gcc $SVR4 $tcllibdir $tclxy $tclloc $tclincl Makefile.in >> Makefile
 chmod ug+w Makefile
