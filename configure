@@ -1,0 +1,18 @@
+#!/bin/csh -f
+
+# cheap hack to make things portable (but, note this is csh!)
+
+set gcc
+set SVR4
+
+set bpf='-e s/^#have-bpf#//'
+gcc -v >& /dev/null
+if ( $status == 0 ) set gcc='-e s/^#have-gcc#//'
+
+if ( `uname -s` == "SunOS" ) then
+	if ( `uname -r | sed "s/\..*//"` == "5" ) set SVR4='-e s/^#have-SVR4#//'
+	if ( $gcc == "" ) echo "compile errors?  maybe because you need an ANSI-compatible compiler like gcc..."
+endif
+
+sed '-e s/^#have-none#//' $gcc $SVR4 Makefile.in > Makefile
+chmod ug+w Makefile
