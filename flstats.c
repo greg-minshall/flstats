@@ -28,7 +28,7 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.63 1996/03/14 05:59:28 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.64 1996/03/14 21:22:38 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -110,7 +110,6 @@ struct flowentry {
 	fe_pkts,		/* number of packets received */
 	fe_bytes,		/* number of bytes received */
 	fe_sipg,		/* smoothed interpacket gap (units of 8 usec) */
-	fe_created_bin,
 	fe_last_bin_active,	/* last bin this saw activity */
 	fe_upcall_when_pkts_ge,	/* num pkts needs to be >= m */
 	fe_upcall_when_sipg_lt;	/* sipg needs to be < p */
@@ -363,7 +362,7 @@ int filetype = 0;
 flowentry_p buckets[31979];
 flowentry_p onebehinds[NUM(buckets)];
 flowentry_p table;			/* list of everything */
-flowentry_p enum_state;
+flowentry_p flow_enum_state;
 
 struct timeval curtime, starttime;
 
@@ -380,6 +379,7 @@ llcl_t llclasses[NUM(ftinfo)];
  * it gets any counts not tied to any other flow type or flow.
  */
 clstats_t clstats[NUM(ftinfo)];
+clstats_p class_enum_state;
 
 int flow_types = 0;
 
@@ -429,7 +429,8 @@ newfile(void)
     flowentry_p fe, nfe;
 
     fileeof = 0;
-    enum_state = 0;
+    flow_enum_state = 0;
+    class_enum_state = 0;
     switch (filetype) {
     case TYPE_PCAP:
 	filetype = TYPE_UNKNOWN;
@@ -600,10 +601,13 @@ flow_type_to_string(int ftype)
 static char *
 flow_statistics(flowentry_p fe)
 {
-    static char summary[100];
+    static char summary[200];
 
     sprintf(summary,
-	    "created %ld.%06ld last %ld.%06ld pkts %lu bytes %lu sipg %lu",
+	    "type %d class %d id %s created %ld.%06ld "
+			    "last %ld.%06ld pkts %lu bytes %lu sipg %lu",
+	    fe->fe_flow_type, fe->fe_class,
+	    flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_id),
 	    fe->fe_created.tv_sec, fe->fe_created.tv_usec,
 	    fe->fe_last_pkt_rcvd.tv_sec, fe->fe_last_pkt_rcvd.tv_usec,
 	    fe->fe_pkts, fe->fe_bytes, fe->fe_sipg>>3);
@@ -618,11 +622,11 @@ class_statistics(clstats_p clsp)
 {
     static char summary[100];
 
-    sprintf(summary, "created %lu deleted %lu added %lu removed %lu "
+    sprintf(summary, "class %d created %lu deleted %lu added %lu removed %lu "
 	"active %lu pkts %lu bytes %lu sipg %lu fragpkts %lu fragbytes %lu "
 	"toosmallpkts %lu toosmallbytes %lu runtpkts %lu runtbytes %lu "
         "noportpkts %lu noportbytes %lu lastrecv %ld.%06ld",
-	clsp->cls_created, clsp->cls_deleted,
+	clsp-clstats, clsp->cls_created, clsp->cls_deleted,
 	clsp->cls_added, clsp->cls_removed, clsp->cls_active,
 	clsp->cls_pkts, clsp->cls_bytes, clsp->cls_sipg>>3, clsp->cls_fragpkts,
 	clsp->cls_fragbytes, clsp->cls_toosmallpkts, clsp->cls_toosmallbytes,
@@ -684,7 +688,7 @@ do_timers(Tcl_Interp *interp)
 {
     flowentry_p nfe, fe;
     ftinfo_p fti;
-    char buf[100], buf2[100];
+    char buf[100];
     int n;
     static void delete_flow(flowentry_p fe);
 
@@ -700,15 +704,13 @@ do_timers(Tcl_Interp *interp)
 		continue;	/* maybe flow type changed? */
 	    }
 	    /*
-	     * call:	"timer_upcall class ftype flowid FLOW flowstats"
+	     * call:	"timer_upcall timesecs.usecs FLOW flowstats"
 	     * result:  "command secs.usecs"
 	     */
-	    sprintf(buf, " %d %d ", fe->fe_class, fe->fe_flow_type);
-	    sprintf(buf2, " %ld.%06ld ", curtime.tv_sec, curtime.tv_usec);
+	    sprintf(buf, " %ld.%06ld ", curtime.tv_sec, curtime.tv_usec);
 	    if (Tcl_VarEval(interp,
 		    ftinfo[fe->fe_flow_type].fti_timer_upcall, buf,
-		    flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_id),
-		    buf2, " FLOW ", flow_statistics(fe), 0) != TCL_OK) {
+		    " FLOW ", flow_statistics(fe), 0) != TCL_OK) {
 		packet_error = TCL_ERROR;
 		return;
 	    }
@@ -885,7 +887,6 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int class)
     fe->fe_pkts = 0;
     fe->fe_bytes = 0;
     fe->fe_sipg = 0;
-    fe->fe_created_bin = binno;
     fe->fe_last_bin_active = 0xffffffff;
     fe->fe_created = curtime;
     fe->fe_last_pkt_rcvd = ZERO;
@@ -1017,14 +1018,10 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
 		(fe->fe_upcall_when_sipg_lt < fe->fe_sipg) &&
 		TIME_LE(&curtime, &fe->fe_upcall_when_secs_ge) &&
 		!TIME_EQ(&fe->fe_upcall_when_secs_ge, &ZERO)) {
-	char buf[60];
 	int n, outcls;
 	struct timeval outtime;
 
-	sprintf(buf, " %d %d ", fe->fe_class, fe->fe_flow_type);
-
-	if (Tcl_VarEval(interp, ftinfo[fe->fe_flow_type].fti_recv_upcall, buf,
-		    flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_id),
+	if (Tcl_VarEval(interp, ftinfo[fe->fe_flow_type].fti_recv_upcall,
 				" FLOW ", flow_statistics(fe), 0) != TCL_OK) {
 	    packet_error = TCL_ERROR;
 	    return;
@@ -1593,18 +1590,35 @@ fl_class_stats(ClientData clientData, Tcl_Interp *interp,
 }
 
 
+/*
+ * set up to enumerate the classes.
+ */
+
 static int
-fl_summary(ClientData clientData, Tcl_Interp *interp,
+fl_start_class_enumeration(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
-    if (argc != 1) {
-	interp->result = "Usage: fl_summary";
-	return TCL_ERROR;
-    }
-
-    Tcl_SetResult(interp, class_statistics(&clstats[0]), TCL_VOLATILE);
+    class_enum_state = clstats;
     return TCL_OK;
 }
+
+static int
+fl_continue_class_enumeration(ClientData clientData, Tcl_Interp *interp,
+		int argc, char *argv[])
+{
+    if (class_enum_state) {
+	Tcl_SetResult(interp,
+			class_statistics(class_enum_state), TCL_VOLATILE);
+	class_enum_state++;
+	if (class_enum_state >= &clstats[NUM(clstats)]) {
+	    class_enum_state = 0;
+	}
+    } else {
+	interp->result = "";
+    }
+    return TCL_OK;
+}
+
 
 
 /*
@@ -1612,28 +1626,20 @@ fl_summary(ClientData clientData, Tcl_Interp *interp,
  */
 
 static int
-fl_start_enumeration(ClientData clientData, Tcl_Interp *interp,
+fl_start_flow_enumeration(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
-    enum_state = table;
+    flow_enum_state = table;
     return TCL_OK;
 }
 
 static int
-fl_continue_enumeration(ClientData clientData, Tcl_Interp *interp,
+fl_continue_flow_enumeration(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
-    char buf[200];
-
-    if (enum_state) {
-	Tcl_ResetResult(interp);
-	sprintf(buf, "type %d class %d id ",
-			    enum_state->fe_flow_type, enum_state->fe_class);
-	Tcl_AppendResult(interp, buf,
-		flow_id_to_string(&ftinfo[enum_state->fe_flow_type],
-						enum_state->fe_id),
-		" ", flow_statistics(enum_state), 0);
-	enum_state = enum_state->fe_next_in_table;
+    if (flow_enum_state) {
+	Tcl_SetResult(interp, flow_statistics(flow_enum_state), TCL_VOLATILE);
+	flow_enum_state = flow_enum_state->fe_next_in_table;
     } else {
 	interp->result = "";
     }
@@ -1751,8 +1757,10 @@ Tcl_AppInit(Tcl_Interp *interp)
 
     Tcl_CreateCommand(interp, "fl_class_stats", fl_class_stats,
 								NULL, NULL);
-    Tcl_CreateCommand(interp, "fl_continue_enumeration",
-					fl_continue_enumeration, NULL, NULL);
+    Tcl_CreateCommand(interp, "fl_continue_class_enumeration",
+				 fl_continue_class_enumeration, NULL, NULL);
+    Tcl_CreateCommand(interp, "fl_continue_flow_enumeration",
+				  fl_continue_flow_enumeration, NULL, NULL);
     Tcl_CreateCommand(interp, "fl_read_one_bin", fl_read_one_bin,
 								NULL, NULL);
     Tcl_CreateCommand(interp, "fl_set_file", fl_set_file,
@@ -1761,10 +1769,10 @@ Tcl_AppInit(Tcl_Interp *interp)
 								NULL, NULL);
     Tcl_CreateCommand(interp, "fl_set_ll_classifier", fl_set_ll_classifier,
 								NULL, NULL);
-    Tcl_CreateCommand(interp, "fl_start_enumeration", fl_start_enumeration,
-								NULL, NULL);
-    Tcl_CreateCommand(interp, "fl_summary", fl_summary,
-								NULL, NULL);
+    Tcl_CreateCommand(interp, "fl_start_class_enumeration",
+				    fl_start_class_enumeration, NULL, NULL);
+    Tcl_CreateCommand(interp, "fl_start_flow_enumeration",
+				     fl_start_flow_enumeration, NULL, NULL);
     Tcl_CreateCommand(interp, "fl_tcl_code", fl_tcl_code,
 								NULL, NULL);
     Tcl_CreateCommand(interp, "fl_version", fl_version,
