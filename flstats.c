@@ -165,7 +165,6 @@ u_long binno;
 
 struct {
     int
-	numflows,		/* number of flows */
 	flowscreated,	/* flows created */
 	flowsdeleted,	/* flows deleted */
 	flowsactive,	/* flows active */
@@ -348,7 +347,7 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	    gstats.runts++;
 	    return;
 	}
-	if ((packet[6]&0x1fff) && (flow_id_covers > 20)) {
+	if ((packet[6]&0x1fff) && (flow_id_covers > 20)) { /* XXX */
 	    gstats.fragments++;	/* can't deal with if looking at ports */
 	    return;
 	}
@@ -385,7 +384,6 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	    packet_error = TCL_ERROR;
 	    return;
 	}
-	gstats.numflows++;
 	gstats.flowscreated++;
 	hent->last_bin_active = 0xffffffff;
 	hent->created_sec = curtime.tv_sec;
@@ -547,7 +545,7 @@ flow_id_to_string(u_char *id)
 	xp = &atoft[flow_type_indicies[i]];
 	fidp = fidstring;
 	for (j = 0; j < xp->numbytes; j++) {
-	    if (xp->mask == 0xff) {
+	    if ((xp->mask == 0) || (xp->mask == 0xff)) {
 		*fidp++ = xtoatbl[(*id)>>4];
 		*fidp++ = xtoatbl[(*id++)&0xf];
 	    } else if (xp->mask == 0xf0) {
@@ -687,9 +685,9 @@ teho_summary(ClientData clientData, Tcl_Interp *interp,
 	return TCL_ERROR;
     }
 
-    sprintf(summary, "%d %d %d %d %d %d %d %d",
+    sprintf(summary, "%d %d %d %d %d %d %d",
 		    binno,
-		    gstats.numflows, gstats.flowscreated, gstats.flowsactive,
+		    gstats.flowscreated, gstats.flowsactive,
 		    gstats.packets, gstats.packetsnewflows,
 		    gstats.runts, gstats.fragments);
     interp->result = summary;
@@ -698,31 +696,31 @@ teho_summary(ClientData clientData, Tcl_Interp *interp,
 
 
 static char *
-one_enum(hentry_p hp)
+one_enumeration(hentry_p hp)
 {
     return flow_id_to_string(hp->key);
 }
 
 
+/*
+ * set up to enumerate the flows.
+ */
+
 static int
-teho_start_enum(ClientData clientData, Tcl_Interp *interp,
+teho_start_enumeration(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
-    if (table) {
-	interp->result = one_enum(table);
-	enum_state = table->next_in_table;
-    } else {
-	interp->result = "";
-    }
+    enum_state = table;
     return TCL_OK;
 }
 
 static int
-teho_continue_enum(ClientData clientData, Tcl_Interp *interp,
+teho_continue_enumeration(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
     if (enum_state) {
-	interp->result = one_enum(enum_state);
+	interp->result = one_enumeration(enum_state);
+	enum_state = enum_state->next_in_table;
     } else {
 	interp->result = "";
     }
@@ -778,10 +776,10 @@ Tcl_AppInit(Tcl_Interp *interp)
 								NULL, NULL);
     Tcl_CreateCommand(interp, "teho_read_one_bin", teho_read_one_bin,
 								NULL, NULL);
-    Tcl_CreateCommand(interp, "teho_start_enum", teho_start_enum,
+    Tcl_CreateCommand(interp, "teho_start_enumeration", teho_start_enumeration,
 								NULL, NULL);
-    Tcl_CreateCommand(interp, "teho_continue_enum", teho_continue_enum,
-								NULL, NULL);
+    Tcl_CreateCommand(interp, "teho_continue_enumeration",
+					teho_continue_enumeration, NULL, NULL);
     Tcl_CreateCommand(interp, "teho_set_tcpd_file", teho_set_tcpd_file,
 								NULL, NULL);
     Tcl_CreateCommand(interp, "teho_set_fix_file", teho_set_fix_file,
