@@ -65,20 +65,21 @@
  * This is the basic hash table entry.
  */
 
-typedef struct hentry hentry_t, *hentry_p;
+typedef struct flowentry flowentry_t, *flowentry_p;
 
-struct hentry {
+struct flowentry {
     /* fields for application use */
     u_short
-	flow_type,		/* which flow type is this? */
-	parent_ftype,		/* parent's flow type index */
-	class;			/* class of this flow */
+	fe_flow_type,		/* which flow type is this? */
+	fe_class;		/* class of this flow */
+	fe_parent_ftype,	/* parent's flow type */
+	fe_parent_class;	/* parent's class */
     u_long
-	packets,		/* number of packets received */
-	created_bin,
-	last_bin_active;
+	fe_packets,		/* number of packets received */
+	fe_created_bin,
+	fe_last_bin_active;
     char
-	*pkt_recv_cmd;		/* command to call when a pkt received */
+	*fe_pkt_recv_cmd;	/* command to call when a pkt received */
 	    /*
 	     * routine:	pkt_recv_cmd
 	     * call:	"pkt_recv_cmd class ftype flowid FLOW flowstats"
@@ -91,7 +92,7 @@ struct hentry {
 	     * no matter how soon it arrives).
 	     */
     char
-	*timeout_cmd;		/* timeout command (if registered) */
+	*fe_timeout_cmd;	/* timeout command (if registered) */
 	    /*
 	     * routine: timeout_cmd
 	     * call:	"timeout_cmd cookie class ftype flowid FLOW flowstats"
@@ -102,22 +103,22 @@ struct hentry {
 	     * other values for "command" are TBD.
 	     */
     void
-	*timeout_cookie;	/* cookie for timeout routine */
+	*fe_timeout_cookie;	/* cookie for timeout routine */
     struct timeval
-	created,		/* time created */
-	last_pkt_rcvd,		/* time most recent packet seen */
-	pkt_recv_cmd_time,	/* pkt_recv_cmd won't run till this time */
-	timeout_time;		/* time to run timeout routine */
+	fe_created,		/* time created */
+	fe_last_pkt_rcvd,	/* time most recent packet seen */
+	fe_pkt_recv_cmd_time,	/* pkt_recv_cmd won't run till this time */
+	fe_timeout_time;	/* time to run timeout routine */
     /* fields for hashing */
-    u_short sum;		/* hash of key, speeds up searching */
-    u_char  key_len,		/* length of key */
-	    level;		/* "level" - to allow same key at diff */
-    hentry_p
-	    next_in_bucket,
-	    prev_in_bucket,
-	    next_in_table,
-	    prev_in_table;
-    u_char  key[1];		/* variable sized (KEEP AT END!) */
+    u_short fe_sum;		/* hash of key, speeds up searching */
+    u_char  fe_key_len,		/* length of key */
+	    fe_level;		/* "level" - to allow same key at diff */
+    flowentry_p
+	    fe_next_in_bucket,
+	    fe_prev_in_bucket,
+	    fe_next_in_table,
+	    fe_prev_in_table;
+    u_char  fe_key[1];		/* variable sized (KEEP AT END!) */
 };
 
 /* we define two levels; LOWER is for the low level machinery; HIGHER is ... */
@@ -311,10 +312,10 @@ u_short IPtype = 0x800;
 int fileeof = 0;
 int filetype = 0;
 
-hentry_p buckets[31979];
-hentry_p onebehinds[NUM(buckets)];
-hentry_p table;			/* list of everything */
-hentry_p enum_state;
+flowentry_p buckets[31979];
+flowentry_p onebehinds[NUM(buckets)];
+flowentry_p table;			/* list of everything */
+flowentry_p enum_state;
 
 struct timeval curtime, starttime;
 
@@ -373,7 +374,7 @@ strsave(char *s)
 static void
 newfile(void)
 {
-    hentry_p hent, nhent;
+    flowentry_p fe, nfe;
 
     fileeof = 0;
     enum_state = 0;
@@ -401,9 +402,9 @@ newfile(void)
     starttime = ZERO;
     pending = 0;
 
-    for (hent = table; hent; hent = nhent) {
-	nhent = hent->next_in_table;
-	free(hent);
+    for (fe = table; fe; fe = nfe) {
+	nfe = fe->fe_next_in_table;
+	free(fe);
     }
     table = 0;
     memset(buckets, 0, sizeof buckets);
@@ -452,88 +453,88 @@ cksum(u_char *p, int len, u_long seed)
 }
 /* table lookup */
 
-static hentry_p
+static flowentry_p
 tbl_lookup(u_char *key, int key_len, int level)
 {
     u_short sum = cksum(key, key_len, level);
-    hentry_p hent = buckets[sum%NUM(buckets)];
-    hentry_p onebehind = onebehinds[sum%NUM(onebehinds)];
+    flowentry_p fe = buckets[sum%NUM(buckets)];
+    flowentry_p onebehind = onebehinds[sum%NUM(onebehinds)];
 #define MATCH(key,len,sum,level,p) \
-	((sum == (p)->sum) && (level == (p)->level) && (len == (p)->key_len) \
-			&& !memcmp(key, (p)->key, len))
+	((sum == (p)->fe_sum) && (level == (p)->fe_level) && (len == (p)->fe_key_len) \
+			&& !memcmp(key, (p)->fe_key, len))
 
     if (onebehind && MATCH(key, key_len, sum, level, onebehind)) {
 	return onebehind;
     }
 
-    while (hent) {
-	if (MATCH(key, key_len, sum, level, hent)) {
-	    onebehinds[sum%NUM(onebehinds)] = hent;
+    while (fe) {
+	if (MATCH(key, key_len, sum, level, fe)) {
+	    onebehinds[sum%NUM(onebehinds)] = fe;
 	    break;
 	}
-	hent = hent->next_in_bucket;
+	fe = fe->fe_next_in_bucket;
     }
-    return hent;
+    return fe;
 }
 
-static hentry_p
+static flowentry_p
 tbl_add(u_char *key, int key_len, int level)
 {
     u_short sum = cksum(key, key_len, level);
-    hentry_p *hbucket = &buckets[sum%NUM(buckets)];
-    hentry_p hent;
+    flowentry_p *hbucket = &buckets[sum%NUM(buckets)];
+    flowentry_p fe;
 
-    hent = (hentry_p) malloc(sizeof *hent+key_len-1);
-    if (hent == 0) {
+    fe = (flowentry_p) malloc(sizeof *fe+key_len-1);
+    if (fe == 0) {
 	return 0;
     }
-    hent->sum = sum;
-    hent->key_len = key_len;
-    hent->level = level;
-    memcpy(hent->key, key, key_len);
+    fe->fe_sum = sum;
+    fe->fe_key_len = key_len;
+    fe->fe_level = level;
+    memcpy(fe->fe_key, key, key_len);
 
-    hent->next_in_bucket = *hbucket;
-    if (hent->next_in_bucket) {
-	hent->next_in_bucket->prev_in_bucket = hent;
+    fe->fe_next_in_bucket = *hbucket;
+    if (fe->fe_next_in_bucket) {
+	fe->fe_next_in_bucket->fe_prev_in_bucket = fe;
     }
-    hent->prev_in_bucket = 0;
-    *hbucket = hent;
+    fe->fe_prev_in_bucket = 0;
+    *hbucket = fe;
 
-    hent->next_in_table = table;
-    if (hent->next_in_table) {
-	hent->next_in_table->prev_in_table = hent;
+    fe->fe_next_in_table = table;
+    if (fe->fe_next_in_table) {
+	fe->fe_next_in_table->fe_prev_in_table = fe;
     }
-    hent->prev_in_table = 0;
-    table = hent;
+    fe->fe_prev_in_table = 0;
+    table = fe;
 
-    return hent;
+    return fe;
 }
 
 
 static void
-tbl_delete(hentry_p fe)
+tbl_delete(flowentry_p fe)
 {
-    u_short sum = cksum(fe->key, fe->key_len, fe->level);
-    hentry_p *hbucket = &buckets[sum%NUM(buckets)];
-    hentry_p *honebehind = &onebehinds[sum%NUM(onebehinds)];
+    u_short sum = cksum(fe->fe_key, fe->fe_key_len, fe->fe_level);
+    flowentry_p *hbucket = &buckets[sum%NUM(buckets)];
+    flowentry_p *honebehind = &onebehinds[sum%NUM(onebehinds)];
 
     /* dequeue the silly thing... */
-    if (fe->prev_in_bucket) {
-	fe->prev_in_bucket->next_in_bucket = fe->next_in_bucket;
+    if (fe->fe_prev_in_bucket) {
+	fe->fe_prev_in_bucket->fe_next_in_bucket = fe->fe_next_in_bucket;
     } else {
-	*hbucket = fe->next_in_bucket;
+	*hbucket = fe->fe_next_in_bucket;
     }
-    if (fe->next_in_bucket) {
-	fe->next_in_bucket->prev_in_bucket = fe->prev_in_bucket;
+    if (fe->fe_next_in_bucket) {
+	fe->fe_next_in_bucket->fe_prev_in_bucket = fe->fe_prev_in_bucket;
     }
 
-    if (fe->prev_in_table) {
-	fe->prev_in_table->next_in_table = fe->next_in_table;
+    if (fe->fe_prev_in_table) {
+	fe->fe_prev_in_table->fe_next_in_table = fe->fe_next_in_table;
     } else {
-	table = fe->next_in_table;
+	table = fe->fe_next_in_table;
     }
-    if (fe->next_in_table) {
-	fe->next_in_table->prev_in_table = fe->prev_in_table;
+    if (fe->fe_next_in_table) {
+	fe->fe_next_in_table->fe_prev_in_table = fe->fe_prev_in_table;
     }
 
     if (*honebehind == fe) {
@@ -656,13 +657,13 @@ flow_type_to_string(int ftype)
 #endif
 
 static char *
-flow_statistics(hentry_p fe)
+flow_statistics(flowentry_p fe)
 {
     static char summary[100];
 
     sprintf(summary, "created %ld.%06ld last %ld.%06ld pkts %lu",
-	    fe->created.tv_sec, fe->created.tv_usec,
-	    fe->last_pkt_rcvd.tv_sec, fe->last_pkt_rcvd.tv_usec, fe->packets);
+	    fe->fe_created.tv_sec, fe->fe_created.tv_usec,
+	    fe->fe_last_pkt_rcvd.tv_sec, fe->fe_last_pkt_rcvd.tv_usec, fe->fe_packets);
 
     return summary;
 }
@@ -685,38 +686,38 @@ class_statistics(clstats_p clsp)
 
 
 static void
-delete_flow(hentry_p fe)
+delete_flow(flowentry_p fe)
 {
-    clstats[fe->class].cls_removed++;
-    if (fe->pkt_recv_cmd) {
-	free(fe->pkt_recv_cmd);
+    clstats[fe->fe_class].cls_removed++;
+    if (fe->fe_pkt_recv_cmd) {
+	free(fe->fe_pkt_recv_cmd);
     }
-    if (fe->timeout_cmd) {
-	free(fe->timeout_cmd);
+    if (fe->fe_timeout_cmd) {
+	free(fe->fe_timeout_cmd);
     }
     tbl_delete(fe);
 }
 
 
-static hentry_p
+static flowentry_p
 new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int level)
 {
-    hentry_p fe;
+    flowentry_p fe;
 
     fe = tbl_add(flowid, ft->fti_id_len, level);
     if (fe == 0) {
 	return 0;
     }
-    fe->flow_type = ft-ftinfo;
-    fe->parent_ftype = fe->flow_type;	/* default */
-    fe->class = ft->fti_class;
-    fe->packets = 0;
-    fe->created_bin = binno;
-    fe->last_bin_active = 0xffffffff;
-    fe->created = curtime;
-    fe->pkt_recv_cmd = 0;
-    fe->timeout_cmd = 0;
-    fe->last_pkt_rcvd = ZERO;
+    fe->fe_flow_type = ft-ftinfo;
+    fe->fe_parent_ftype = fe->fe_flow_type;	/* default */
+    fe->fe_class = ft->fti_class;
+    fe->fe_packets = 0;
+    fe->fe_created_bin = binno;
+    fe->fe_last_bin_active = 0xffffffff;
+    fe->fe_created = curtime;
+    fe->fe_pkt_recv_cmd = 0;
+    fe->fe_timeout_cmd = 0;
+    fe->fe_last_pkt_rcvd = ZERO;
 
     /*
      * now, if there is a "new flow" callout registered in this
@@ -732,25 +733,25 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int level)
 	char buf[60], buf2[60];
 	int n;
 
-	sprintf(buf, " %d %d ", fe->class, ft-ftinfo);
+	sprintf(buf, " %d %d ", fe->fe_class, ft-ftinfo);
 	if (Tcl_VarEval(interp, ft->fti_new_flow_cmd,
-		buf, flow_id_to_string(ft, fe->key), 0) != TCL_OK) {
+		buf, flow_id_to_string(ft, fe->fe_key), 0) != TCL_OK) {
 	    packet_error = TCL_ERROR;
 	    return 0;
 	}
 	buf[0] = 0;
 	buf2[0] = 0;
-	fe->pkt_recv_cmd_time.tv_usec = 0;
-	fe->timeout_time.tv_usec = 0;
-	fe->timeout_cookie = 0;
+	fe->fe_pkt_recv_cmd_time.tv_usec = 0;
+	fe->fe_timeout_time.tv_usec = 0;
+	fe->fe_timeout_cookie = 0;
 
 	n = sscanf(interp->result, "%hd %hd %s %ld.%ld %s %ld.%ld %p",
-		&fe->class, &fe->parent_ftype, buf,
-			    &fe->pkt_recv_cmd_time.tv_sec,
-			    &fe->pkt_recv_cmd_time.tv_usec,
-			    buf2, &fe->timeout_time.tv_sec,
-			    &fe->timeout_time.tv_usec,
-			    &fe->timeout_cookie);
+		&fe->fe_class, &fe->fe_parent_ftype, buf,
+			    &fe->fe_pkt_recv_cmd_time.tv_sec,
+			    &fe->fe_pkt_recv_cmd_time.tv_usec,
+			    buf2, &fe->fe_timeout_time.tv_sec,
+			    &fe->fe_timeout_time.tv_usec,
+			    &fe->fe_timeout_cookie);
 
 	/*
 	 * (yes, these "if" stmts could be nested, and thus
@@ -758,23 +759,23 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int level)
 	 * so...)
 	 */
 	if (buf[0] && (buf[0] != '-')) {
-	    fe->pkt_recv_cmd = strsave(buf);
+	    fe->fe_pkt_recv_cmd = strsave(buf);
 	}
 	if (n >= 4) {
 	    /* returned value is relative to now, so make absolute */
-	    TIME_ADD(&fe->pkt_recv_cmd_time,
-			    &fe->pkt_recv_cmd_time, &curtime);
+	    TIME_ADD(&fe->fe_pkt_recv_cmd_time,
+			    &fe->fe_pkt_recv_cmd_time, &curtime);
 	}
 
 	if (buf2[0] && (buf2[0] != '-')) {
-	    fe->timeout_cmd = strsave(buf2);
+	    fe->fe_timeout_cmd = strsave(buf2);
 	}
 	if (n >= 7) {
 	    /* returned value is relative to now, so make absolute */
-	    TIME_ADD(&fe->timeout_time, &fe->timeout_time, &curtime);
+	    TIME_ADD(&fe->fe_timeout_time, &fe->fe_timeout_time, &curtime);
 	}
     }
-    clstats[fe->class].cls_added++;
+    clstats[fe->fe_class].cls_added++;
     return fe;
 }
 
@@ -787,7 +788,7 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int level)
  */
 
 static void
-packetinflow(Tcl_Interp *interp, hentry_p fe)
+packetinflow(Tcl_Interp *interp, flowentry_p fe)
 {
     clstats_p cl;
 
@@ -824,52 +825,52 @@ packetinflow(Tcl_Interp *interp, hentry_p fe)
 	 *	*next* packet received in the same flow).
 	 */
 
-    if (fe->pkt_recv_cmd && TIME_LT(&curtime, &fe->pkt_recv_cmd_time)) {
+    if (fe->fe_pkt_recv_cmd && TIME_LT(&curtime, &fe->fe_pkt_recv_cmd_time)) {
 	char buf[60];
 	int n, outcls;
 	struct timeval outtime;
 
-	sprintf(buf, " %d %d ", fe->class, fe->flow_type);
+	sprintf(buf, " %d %d ", fe->fe_class, fe->fe_flow_type);
 
-	if (Tcl_VarEval(interp, fe->pkt_recv_cmd, buf,
-			flow_id_to_string(&ftinfo[fe->flow_type], fe->key),
+	if (Tcl_VarEval(interp, fe->fe_pkt_recv_cmd, buf,
+			flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_key),
 			" FLOW ", flow_statistics(fe), 0) != TCL_OK) {
 	    packet_error = TCL_ERROR;
 	    return;
 	}
 
-	outcls = fe->class;
+	outcls = fe->fe_class;
 	n = sscanf(interp->result, "%d %s %ld.%ld",
 				    &outcls, buf,
-				    &fe->pkt_recv_cmd_time.tv_sec,
-				    &fe->pkt_recv_cmd_time.tv_usec);
+				    &fe->fe_pkt_recv_cmd_time.tv_sec,
+				    &fe->fe_pkt_recv_cmd_time.tv_usec);
 
-	if (outcls != fe->class) {
+	if (outcls != fe->fe_class) {
 	    /* class is changing --- update statistics */
-	    clstats[fe->class].cls_removed++;
-	    fe->class = outcls;
-	    clstats[fe->class].cls_added++;
+	    clstats[fe->fe_class].cls_removed++;
+	    fe->fe_class = outcls;
+	    clstats[fe->fe_class].cls_added++;
 	}
 	if (n >= 2) {
-	    free(fe->pkt_recv_cmd);
+	    free(fe->fe_pkt_recv_cmd);
 	    if (buf[0] != '-') {
-		fe->pkt_recv_cmd = strsave(buf);
+		fe->fe_pkt_recv_cmd = strsave(buf);
 	    } else {
-		fe->pkt_recv_cmd = 0;
+		fe->fe_pkt_recv_cmd = 0;
 	    }
 	    if (n >= 3) {
-		TIME_ADD(&fe->pkt_recv_cmd_time, &curtime, &outtime);
+		TIME_ADD(&fe->fe_pkt_recv_cmd_time, &curtime, &outtime);
 	    }
 	}
     }
 
-    cl = &clstats[fe->class];
+    cl = &clstats[fe->fe_class];
     /* update counters (after callout has had a chance to change things) */
     cl->cls_pkts++;
-    fe->packets++;
-    fe->last_pkt_rcvd = curtime;
-    if (fe->last_bin_active != binno) {
-	fe->last_bin_active = binno;
+    fe->fe_packets++;
+    fe->fe_last_pkt_rcvd = curtime;
+    if (fe->fe_last_bin_active != binno) {
+	fe->fe_last_bin_active = binno;
 	cl->cls_active++;
     }
 }
@@ -891,7 +892,7 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 {
     u_char llfid[MAX_FLOW_ID_BYTES], ulfid[MAX_FLOW_ID_BYTES];
     int pkthasports, bigenough;
-    hentry_p llfe, ulfe;	/* lower and upper level flow entries */
+    flowentry_p llfe, ulfe;	/* lower and upper level flow entries */
     ftinfo_p llft, ulft;	/* lower and upper level flow types */
     clstats_p llcl;		/* lower level class */
 
@@ -965,7 +966,7 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 
     /* now, need to find ulfe from llfe */
 
-    ulft = &ftinfo[llfe->parent_ftype];		/* get ll's parent flow type */
+    ulft = &ftinfo[llfe->fe_parent_ftype];		/* get ll's parent flow type */
 
     /* create the ulfid */
     FLOW_ID_FROM_HDR(ulfid, packet, ulft);
@@ -1319,9 +1320,9 @@ teho_summary(ClientData clientData, Tcl_Interp *interp,
 
 
 static char *
-one_enumeration(hentry_p hp)
+one_enumeration(flowentry_p hp)
 {
-    return flow_id_to_string(&ftinfo[hp->flow_type], hp->key);
+    return flow_id_to_string(&ftinfo[hp->fe_flow_type], hp->fe_key);
 }
 
 
@@ -1345,9 +1346,9 @@ teho_continue_enumeration(ClientData clientData, Tcl_Interp *interp,
 
     if (enum_state) {
 	Tcl_ResetResult(interp);
-	sprintf(buf, "%d ", enum_state->flow_type);
+	sprintf(buf, "%d ", enum_state->fe_flow_type);
 	Tcl_AppendResult(interp, buf, one_enumeration(enum_state), 0);
-	enum_state = enum_state->next_in_table;
+	enum_state = enum_state->fe_next_in_table;
     } else {
 	interp->result = "";
     }
@@ -1395,44 +1396,44 @@ static int
 teho_run_timeouts(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
-    hentry_p nfe, fe = table;
+    flowentry_p nfe, fe = table;
     char buf[100], buf2[100];
     int n, i = 0;
 
     while (fe) {
-	nfe = fe->next_in_table;
-	if (fe->timeout_cmd && TIME_LT(&fe->timeout_time, &curtime)) {
+	nfe = fe->fe_next_in_table;
+	if (fe->fe_timeout_cmd && TIME_LT(&fe->fe_timeout_time, &curtime)) {
 	    /*
 	     * call:	"timeout_cmd cookie class ftype flowid FLOW flowstats"
 	     * result:  "command timeout_cmd secs.usecs cookie"
 	     */
-	    sprintf(buf, " %p %d %d ", fe->timeout_cookie,
-					fe->class, fe->flow_type);
+	    sprintf(buf, " %p %d %d ", fe->fe_timeout_cookie,
+					fe->fe_class, fe->fe_flow_type);
 	    sprintf(buf2, " %ld.%06ld ", curtime.tv_sec, curtime.tv_usec);
-	    if (Tcl_VarEval(interp, fe->timeout_cmd, buf,
-			    flow_id_to_string(&ftinfo[fe->flow_type], fe->key),
+	    if (Tcl_VarEval(interp, fe->fe_timeout_cmd, buf,
+			    flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_key),
 			    buf2,
 			    " FLOW ", flow_statistics(fe), 0) != TCL_OK) {
 		return TCL_ERROR;
 	    }
 
-	    fe->timeout_time.tv_usec = 0;
+	    fe->fe_timeout_time.tv_usec = 0;
 	    n = sscanf(interp->result, "%s %s %ld.%ld %p",
-			buf, buf2, &fe->timeout_time.tv_sec,
-			&fe->timeout_time.tv_usec, &fe->timeout_cookie);
+			buf, buf2, &fe->fe_timeout_time.tv_sec,
+			&fe->fe_timeout_time.tv_usec, &fe->fe_timeout_cookie);
 	    if (n >= 2) {
 		if (buf2[0] == '-') {
-		    free(fe->timeout_cmd);
-		    fe->timeout_cmd = 0;
+		    free(fe->fe_timeout_cmd);
+		    fe->fe_timeout_cmd = 0;
 		} else {
-		    if (strcmp(fe->timeout_cmd, buf2)) {
-			free(fe->timeout_cmd);
-			fe->timeout_cmd = strsave(buf2);
+		    if (strcmp(fe->fe_timeout_cmd, buf2)) {
+			free(fe->fe_timeout_cmd);
+			fe->fe_timeout_cmd = strsave(buf2);
 		    }
 		}
 	    }
 	    if (n >= 3) {
-		TIME_ADD(&fe->timeout_time, &fe->timeout_time, &curtime);
+		TIME_ADD(&fe->fe_timeout_time, &fe->fe_timeout_time, &curtime);
 	    }
 	    if ((n >= 1) && !strcmp(buf, "DELETE")) {
 		delete_flow(fe);
