@@ -52,7 +52,7 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.83 1997/04/24 21:24:55 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.84 1997/04/24 23:22:17 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -386,7 +386,7 @@ atoft_t atoft[] = {
 
 
 struct fix44pkt {
-    u_long  secs,
+    long    secs,
 	    usecs;
     /* IP header */
     struct {
@@ -457,8 +457,9 @@ struct fix44pkt {
             
             
 struct fix24pkt {
-    u_long  secs,
-            usecs,
+    long    secs,
+            usecs;
+    u_long
             src,
             dst;
     u_short len;
@@ -578,7 +579,7 @@ u_char *pending_packet, *pktbuffer;;
 
 flowentry_t timers[150];
 
-u_long binno;
+u_long binno, pktcount;
 
 char	*args,			/* arguments... */
 	argcount[20];		/* number of them */
@@ -604,6 +605,19 @@ strsave(char *s)
     return new;
 }
 
+
+/*
+ * identify a packet for an error message
+ */
+
+char *
+pktloc()
+{
+    static char loc[100];
+
+    sprintf(loc, "%ld", pktcount);
+    return loc;
+}
 
 /*
  * a new file is being opened, so clean up from the last one.
@@ -988,20 +1002,41 @@ do_timers(Tcl_Interp *interp)
 }
 
 static void
-set_time(Tcl_Interp *interp, u_long secs, u_long usecs)
+set_time(Tcl_Interp *interp, long sec, long usec)
 {
+    struct timeval now;
+
+    now.tv_sec = sec;
+    now.tv_usec = usec;
+
+    if (TIME_LT(&now, &ZERO)) {
+	sprintf(interp->result,
+		    "[%s] bad trace file format -- negative time in packet",
+								    pktloc());
+	packet_error = TCL_ERROR;
+	return;
+    }
+
     if ((starttime.tv_sec == ZERO.tv_sec) && 
 				(starttime.tv_usec == ZERO.tv_usec)) {
-	starttime.tv_sec = secs;
-	starttime.tv_usec = usecs;
+	starttime.tv_sec = now.tv_sec;
+	starttime.tv_usec = now.tv_usec;
 	curtime = starttime;
     } else {
+	if (TIME_LT(&now, &curtime)) {
+	    
+	sprintf(interp->result,
+		    "[%s] bad trace file format -- time goes backwards",
+								    pktloc());
+	    packet_error = TCL_ERROR;
+	    return;
+	}
 	/* call timers once per second */
-	while (curtime.tv_sec != secs) {
+	while (curtime.tv_sec != now.tv_sec) {
 	    do_timers(interp);
 	    curtime.tv_sec++;		/* advance the time */
 	}
-	curtime.tv_usec = usecs;
+	curtime.tv_usec = now.tv_usec;
     }
     if (binno == -1) {
 	binno = NOW_AS_BINNO();
@@ -1362,6 +1397,8 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
 	/* wait till next time */
 	return;
     }
+
+    pktcount++;
 
     /* now, do the low level classification into a llft */
     pktprotohasports = protohasports[packet[9]];
