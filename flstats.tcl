@@ -27,7 +27,7 @@ set FT_UL_PORT			0
 set FT_UL_NOPORT		0
 
 proc \
-fsim_switchtime {} \
+fsimswitchtime {} \
 {
     return 0.300000 	; # time to switch
 }
@@ -45,7 +45,7 @@ fsim_switchtime {} \
 #
 
 proc\
-fsim_classifier { class flowtype flowid }\
+fsimclassifier { class flowtype flowid }\
 {
     global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
     global FT_UL_PORT FT_UL_NOPORT
@@ -65,12 +65,12 @@ fsim_classifier { class flowtype flowid }\
 #
 
 proc\
-fsim_starttimeout { class flowtype flowid }\
+fsimstarttimeout { class flowtype flowid }\
 {
     global CL_TO_BE_SWITCHED CL_NONSWITCHED
 
     if {$class == $CL_TO_BE_SWITCHED} {
-	return "$class $class $flowtype [fsim_switchtime] 2.0"
+	return "$class $class $flowtype [fsimswitchtime] 2.0"
     } else {
 	return "$class $class $flowtype 0.0 2.0"
     }
@@ -82,7 +82,7 @@ fsim_starttimeout { class flowtype flowid }\
 #
 
 proc\
-fsim_deleteflow {class ftype flowid time FLOW args}\
+fsimdeleteflow {class ftype flowid time FLOW args}\
 {
     # ahh, dr. regsub... 
     regsub -all {([a-zA-Z_]+) ([0-9.]+)} $args {[set x_\1 \2]} bar
@@ -104,7 +104,7 @@ fsim_deleteflow {class ftype flowid time FLOW args}\
 
 
 proc\
-fsim_getswitched { class flowtype flowid args}\
+fsimgetswitched { class flowtype flowid args}\
 {
     global CL_SWITCHED
 
@@ -117,7 +117,7 @@ fsim_getswitched { class flowtype flowid args}\
 # this doesn't need $pre, since the subst is performed at the caller...
 
 proc\
-fsim_get_summary_vec {class} \
+fsimget_summary_vec {class} \
 {
 	# ahh, dr. regsub... 
 	regsub -all {([a-zA-Z_]+) ([0-9]+)} \
@@ -128,11 +128,11 @@ fsim_get_summary_vec {class} \
 # this doesn't need $pre, since the subst is performed at the caller...
 #
 # the $pre_\1 variables need to have been created prior to the
-# call.  a call to fsim_get_summary_vec (and subst'ing) on the same
+# call.  a call to fsimget_summary_vec (and subst'ing) on the same
 # class does this.
 
 proc\
-fsim_get_diff_vec {class} \
+fsimget_diff_vec {class} \
 {
 	# ahh, dr. regsub... 
 	regsub -all {([a-zA-Z_]+) ([0-9]+)} [fsim_class_summary $class] \
@@ -141,7 +141,7 @@ fsim_get_diff_vec {class} \
 }
 
 proc\
-fsim_ll_delete {class ftype flowid time FLOW args}\
+fsimll_delete {class ftype flowid time FLOW args}\
 {
     # ahh, dr. regsub... 
     regsub -all {([a-zA-Z_]+) ([0-9.]+)} $args {[set x_\1 \2]} bar
@@ -161,6 +161,10 @@ fsim_ll_delete {class ftype flowid time FLOW args}\
     return "- $time.0"
 }
 
+#
+# end of local
+#
+# start of global
 
 
 #
@@ -195,14 +199,14 @@ fsim_setft { classifier classifiertype ulflows } \
     set ULFLOWS { \
 	{   ihv/ihl/tos/ttl/prot/src/dst \
 	    FT_UL_NOPORT \
-	    fsim_starttimeout \
+	    fsimstarttimeout \
 	    - \
-	    fsim_deleteflow} \
+	    fsimdeleteflow} \
 	{   ihv/ihl/tos/ttl/prot/src/dst/sport/dport \
 	    FT_UL_PORT \
-	    fsim_starttimeout \
+	    fsimstarttimeout \
 	    - \
-	    fsim_deleteflow}}
+	    fsimdeleteflow}}
 
     set ftindex 0
 
@@ -214,7 +218,7 @@ fsim_setft { classifier classifiertype ulflows } \
 	set ulflows $ULFLOWS
     }
     if {$classifier == {}} {
-	set classifier fsim_classifier
+	set classifier fsimclassifier
     }
 
     # ok, scan thru upper layer flows, keeping track of used tags
@@ -258,12 +262,12 @@ fsim_setft { classifier classifiertype ulflows } \
     set type1 [join $type1 /]
     set type2 [join $type2 /]
     puts "# flowtype $ftindex $type1 $classifier"
-    puts "fsim_set_flow_type -f $ftindex -n $classifier -t fsim_ll_delete $type1"
-    fsim_set_flow_type -f $ftindex -n $classifier -t fsim_ll_delete $type1
+    puts "fsim_set_flow_type -f $ftindex -n $classifier -t fsimll_delete $type1"
+    fsim_set_flow_type -f $ftindex -n $classifier -t fsimll_delete $type1
     incr ftindex
     if {$portsseen != 0} {
 	puts "# flowtype $ftindex $type2 $classifier"
-	fsim_set_flow_type -f $ftindex -n $classifier -t fsim_ll_delete $type2
+	fsim_set_flow_type -f $ftindex -n $classifier -t fsimll_delete $type2
 	incr ftindex
     }
 
@@ -376,13 +380,13 @@ fsim_class_details { fixortcpd filename {binsecs 1} {classifier {}} \
 
     # preload the stats counters
     set pre non
-    subst [fsim_get_summary_vec $CL_NONSWITCHED]
+    subst [fsimget_summary_vec $CL_NONSWITCHED]
     set pre waiting
-    subst [fsim_get_summary_vec $CL_TO_BE_SWITCHED]
+    subst [fsimget_summary_vec $CL_TO_BE_SWITCHED]
     set pre switched
-    subst [fsim_get_summary_vec $CL_SWITCHED]
+    subst [fsimget_summary_vec $CL_SWITCHED]
     set pre gstats
-    subst [fsim_get_summary_vec 0]
+    subst [fsimget_summary_vec 0]
 
     while {1} {
 	set bintime [lindex [split [time { \
@@ -393,23 +397,23 @@ fsim_class_details { fixortcpd filename {binsecs 1} {classifier {}} \
 
 	# get differences from previous stats counters
 	set pre non
-	subst [fsim_get_diff_vec $CL_NONSWITCHED]
+	subst [fsimget_diff_vec $CL_NONSWITCHED]
 	set pre waiting
-	subst [fsim_get_diff_vec $CL_TO_BE_SWITCHED]
+	subst [fsimget_diff_vec $CL_TO_BE_SWITCHED]
 	set pre switched
-	subst [fsim_get_diff_vec $CL_SWITCHED]
+	subst [fsimget_diff_vec $CL_SWITCHED]
 	set pre gstats
-	subst [fsim_get_diff_vec 0]
+	subst [fsimget_diff_vec 0]
 
 	# now, update the stats counters
 	set pre non
-	subst [fsim_get_summary_vec $CL_NONSWITCHED]
+	subst [fsimget_summary_vec $CL_NONSWITCHED]
 	set pre waiting
-	subst [fsim_get_summary_vec $CL_TO_BE_SWITCHED]
+	subst [fsimget_summary_vec $CL_TO_BE_SWITCHED]
 	set pre switched
-	subst [fsim_get_summary_vec $CL_SWITCHED]
+	subst [fsimget_summary_vec $CL_SWITCHED]
 	set pre gstats
-	subst [fsim_get_summary_vec 0]
+	subst [fsimget_summary_vec 0]
 	set xx [exec ps lp$pid]
 	set xx [lrange [split [join $xx]] 19 24]
 	puts [format \
