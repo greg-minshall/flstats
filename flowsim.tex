@@ -77,18 +77,29 @@ known to flowsim as "tcpd" files; 24-byte FIXWEST files are known as
 Flowsim's basic data types are a \emph{flow type}, a \emph{flow entry},
 and a \emph{class}.  A flow type represents a specific set of bits from
 an IP header and the first portion (source and destination ports) of a
-TCP or UDP header.  A flow type is defined with a string of the form:
-\begin{verbatim} aa/bb/cc/dd/ee \end{verbatim}
-where each of the aa, bb, etc., are names of fields in the packet
-header: ihv, ihl, tos, len, id, foff, ttl, prot, sum, src, dst, sport,
-dport.  Flow types are initialized using fsim\_set\_flow\_type;
-see~\ref{sec:fsimsetflowtype}.  Flow types are referenced using a
-numeric value, based at zero (0).
+TCP or UDP header.  A flow type is defined with a string known as a
+\emph{flow type specifier} which has the form \texttt{aa/bb/cc/dd/ee}
+where each of the \texttt{aa}, \texttt{bb}, etc., are names of
+fields in the packet
+header:
+\texttt{ihv, ihl, tos, len, id, foff, ttl, prot, sum, src, dst, sport, dport}.
+Flow types are initialized using fsim\_set\_flow\_type;
+see~\ref{sec:fsim_set_flow_type}.  Flow types are referenced using a
+numeric value, based at zero (0); these numeric values are known as
+\emph{flow type indicies}.
 
-A flow entry corresponds to a specific flow, i.e., ihv=4, ihl=5,
-ttl=27, src=10.1.2.3, dst=10.2.3.4.  Flow entries have certain
-attributes associated with them; see
-section~\ref{sec:fsimcontinueenumeration} for the list.
+A flow entry corresponds to a specific flow, i.e.,
+\texttt{ihv=4, ihl=5, ttl=27, src=10.1.2.3, dst=10.2.3.4}.
+Flow entries have certain attributes associated with them; see
+section~\ref{sec:fsim_continue_enumeration} for the list.
+
+A \emph{flow identifier} is a character representation of the values of
+flow specifier for a flow entry.  For example, the flow entry in the
+previous paragraph has a flow identifier of
+\texttt{ihv/4/ihl/5/ttl/27/src/10.1.2.3/dst/10.2.3.4}.
+
+We often talk about a \emph{flow}; this normally refers to a flow
+entry.
 
 A class is a more abstract entity.  Since a flow type is merely a set
 of header fields, e.g., protocol, source, and destination, there may be a
@@ -96,9 +107,10 @@ distinction between different flows within this flow type.  For
 example, it may be the case that in a run of the simulator it is
 desirable to keep track of TCP statistics independently of UDP
 statistics.  This is the function of classes.  To flowsim, a class is a
-set of statistics; see~\ref{sec:fsimclasssummary} for details on the
+set of statistics; see~\ref{sec:fsim_class_summary} for details on the
 statistics recorded in a class.  Like flow types, classes are
-referenced using a numeric value, based at zero (0).
+referenced using a numeric value, based at zero (0); these numeric
+values are known as \emph{class indicies}.
 
 \emph{Note that the class numbered zero (0) has the special property of
 accumulating statistics for packets that don't fall in any other
@@ -155,7 +167,7 @@ flow type informing it of the creation event and giving it some control
 over subsequent behaviour.  It is this upcall which allows the
 user-level code to associate the low-level flow entry with a class as
 well as with an upper level flow type and class; see
-section~\ref{sec:upcallflowentrycreate} for the details.
+section~\ref{sec:upcall_flow_entry_create} for the details.
 
 Once a low level flow entry has been associated with the incoming
 packet, the database of high level flow entries is searched to find a
@@ -217,10 +229,95 @@ this section in \emph{alphabetical} order; refer to
 section~\ref{sec:usage} for information on how to tie all this
 together.
 
+\subsection{\protect{\emph{classifier}.specifier}}
+
+In order for the low level flows to be of fine
+enough resolution to allow the classifier to distinguish between
+packets, classifier type is a flow type specifier
+(see~\ref{sec:fsim_set_flow_type}) containing all the header fields the
+classifier needs access to.  This is a bit confusing.  The point is
+that the classifier is called when a new low level flow is created, and
+this happens when a packet arrives that doesn't match any currently
+existing low level flow.  However, if a packet arrives and \emph{does}
+match an existing low level flow, it won't be shown to the classifier.
+Thus, the classifier needs to make sure that the low level flows are
+of fine enough granularity so that two packets from what the
+\emph{classifier} thinks of as \emph{two} flows are not treated by the
+low level code as \emph{one} flow.
+
+When the simulator is being set up, a classifier is specified for the
+particular run.  Just before the run, a call is made to a routine
+\emph{classifier}.specifier (where \emph{classifier} is the name of the
+classifier for this run); this routine returns a flow specifier which
+lists the fields used by \emph{classifier} when classifying packets.
+
 The following are in flowsim.c:
 
 \clearpage
-\man{fsim\_class\_summary} {return class statistics}
+\man{flowsim}{the main program}
+\label{sec:flowsim}
+
+\SYNOPSIS \cmdname\ [-tracefile file format] [-binsecs secs]
+[-classifier procedurename] [-flows { file name | script tclscript }]
+[-script tclscript] [tclfile]"
+
+\DESCRIPTION
+
+This is the command invoked to run the simulator.
+
+\begin{description}
+\item[-tracefile] Specify the file name and format of the trace file.  The
+file format can be one of: \texttt{fix, tcpd}.
+\item[-binsecs] Specify the number of seconds for each bin (time slice)
+for the trace.  Specifying zero (0) means run the entire trace at once.
+The default is one (1) second.
+\item[-classifier] \cmdarg{classifier} is a procedure which receives a
+flow creation upcall when a new lower level flow is created.  This
+allows the \cmdarg{classifier} to determine the correct flow type and
+class for the upper level flow associated with the lower level flow.
+\item[-flows]  \cmdarg{flows} is a complex data structure (expressed
+as a string!) which describes the various upper level flows and the
+default behaviour to be associated with those flows.  \cmdarg{flows}
+is a Tcl array of flow descriptions.  Each flow description is, itself,
+an array with components in the following order:
+\begin{description}
+\item[flowtypespecifier] See~\ref{sec:fsim_set_flow_type}.
+\item[flowtypereference] The integer used to refer to this flow type.
+\item[flowcreation] The flow creation upcall routine.
+\item[receive] The packet received upcall routine.
+\item[timer] The timer expired upcall routine.
+\end{description}
+If the \cmdarg{name} subparameter is given, the upper level flows are
+set from a global tcl variable of that name; if the \emph{file}
+subparameter is given, the named file is \emph{sourced} (in Tcl), and
+the resulting \emph{Tcl list} is taken to be the array of flow
+descriptions.
+
+There is a default set of upper level flows, which is used if
+\cmdarg{ulflows} is not passed (or, is passed as the empty set):
+\begin{verbatim}
+{
+    {   ihv/ihl/tos/ttl/prot/src/dst
+        FT_UL_NOPORT
+        fsim_starttimeout
+        -
+        fsim_deleteflow
+    }
+    {	ihv/ihl/tos/ttl/prot/src/dst/sport/dport
+        FT_UL_PORT
+        fsim_starttimeout
+        -
+        fsim_deleteflow}
+}
+\end{verbatim}
+\item[-script] Use the next command line argument as a script and give
+it to Tcl to be processed.
+\end{description}
+
+\manend
+
+\man{fsim\_class\_summary}{return class statistics}
+\label{sec:fsim_class_summary}
 
 \SYNOPSIS \cmdname\ class
 
@@ -274,13 +371,14 @@ Probably the fragpkts, etc., should be retrieved in a separate call.
 \manend
 
 \man{fsim\_continue\_enumeration}{enumerate flow entries, returning per-flow-entry statistics}
+\label{sec:fsim_continue_enumeration}
 
 \SYNOPSIS \cmdname\
 
 \DESCRIPTION
 
 \cmdname\ continues an enumeration started by
-\cmd{fsim\_start\_enumeration} (see~\ref{sec:fsimstartenumeration}).
+\cmd{fsim\_start\_enumeration} (see~\ref{sec:fsim_start_enumeration}).
 The flow type, class, level, and id for the next flow entry are
 returned, along with the statistics associated with that flow entry.
 
@@ -298,6 +396,7 @@ entry
 \manend
 
 \man{fsim\_read\_one\_bin}{run the simulator for one time interval}
+\label{sec:fsim_read_one_bin}
 
 \SYNOPSIS \cmdname\ ?binsecs?
 
@@ -325,6 +424,7 @@ bin number 150; this means there were no packets during bin numbers
 \manend
 
 \man{fsim\_set\_fix\_file}{specify the name and format of a trace input file}
+\label{sec:fsim_set_fix_file}
 
 \SYNOPSIS \cmdname\ filename
 
@@ -341,6 +441,7 @@ set.
 \manend
 
 \man{fsim\_set\_flow\_type}{set a flow type and associated attributes}
+\label{sec:fsim_set_flow_type}
 
 \SYNOPSIS \cmdname\ ?-f flow\_type? ?-n new\_flow\_command? ?-r recv\_command? ?-t timerexpired\_command? flowstring
 
@@ -350,8 +451,8 @@ set.
 certain attributes with the new flow type.
 
 \cmdarg{flowstring} specifies the flow type as a series of header field
-names separated by a slash ("/").  For example, \begin{verbatim}
-ihv/ihl/tos/ttl/prot/src/dst\end{verbatim} defines a flow type that
+names separated by a slash ("/").  For example,
+\texttt{ihv/ihl/tos/ttl/prot/src/dst} defines a flow type that
 uses the internet header version, internet header length, type of
 service, time to live, protocol, source, and address fields.
 
@@ -380,15 +481,15 @@ The optional arguments are as follows:
 \item[--f] An integer used to refer to this flow type in the future.
 If this is unspecified, flow type 0 is used.
 \item[--n] The name of the procedure to receive the flow creation
-upcall.  See~\ref{sec:upcallnewflow}.  If
+upcall.  See~\ref{sec:upcall_flow_creation}.  If
 this value is unspecified, no flow creation upcall will be made for
 flows created in this flow type.
 \item[--r] The name of the procedure to receive the packet reception
-upcall.  See~\ref{sec:upcallpktrecvd}.  If this value is unspecified,
+upcall.  See~\ref{sec:upcall_packet_reception}.  If this value is unspecified,
 no packet reception upcall will be made for packets received for flows
 in this flow type.
 \item[--t] The name of the procedure to receive the timerexpired upcall.
-See~\ref{sec:upcalltimerexpired}.  If this value is unspecified,
+See~\ref{sec:upcall_timer_expired}.  If this value is unspecified,
 no timerexpired upcall will be made for flows in this flow type.
 \end{description}
 
@@ -401,6 +502,7 @@ This \emph{only} works for IPv4; IPv6 is not (yet) supported.
 \manend
 
 \man{fsim\_set\_tcpd\_file}{specify tcpdump format input file}
+\label{sec:fsim_set_tcpd_file}
 
 \SYNOPSIS \cmdname\ filename
 
@@ -417,6 +519,7 @@ its input file, and that this is a file created by tcpdump(1) using the
 \manend
 
 \man{fsim\_start\_enumeration}{intialize an enumeration of flows}
+\label{sec:fsim_start_enumeration}
 
 \SYNOPSIS \cmdname\
 
@@ -432,6 +535,7 @@ entries.
 \manend
 
 \man{fsim\_summary}{retrieve class 0 statistics}
+\label{sec:fsim_summary}
 
 \SYNOPSIS \cmdname\
 
@@ -454,6 +558,7 @@ Probably this should be removed, in favor of
 The following are in flowsim.tcl:
 
 \man{fsim\_startup}{Tcl startup procedure}
+\label{sec:fsim_startup}
 
 \SYNOPSIS \cmdname\
 
@@ -461,7 +566,7 @@ The following are in flowsim.tcl:
 
 \cmdname\ is called during initialization.  Its only effect (currently)
 is to set the Tcl variable \emph{tcl\_RcFileName} to the string
-\begin{verbatim}\~/.flowsim.tcl\end{verbatim}.  (Note that Tcl only
+\texttt{\~/.flowsim.tcl}.  (Note that Tcl only
 runs the .flowsim.tcl script only if running interactively, i.e.
 if no script file was specified on the flowsim command line.)
 
@@ -475,24 +580,23 @@ Tcl code is printed on standard output.
 The following are in simul.tcl:
 
 \man{fsim\_class\_details}{run the simulator and generate a histogram of
+\label{sec:fsim_class_details}
 class details}
 
-\SYNOPSIS \cmdname\ fixortcpd filename ?binsecs? ?classifier?
-?classifiertype? ?ulflows?
+\SYNOPSIS \cmdname\ fixortcpd filename ?binsecs? ?classifier? ?ulflows?
 
 \cmdname\ is a high level entry into the simulator (so high level, in
 fact, that it probably should not be considered part of the simulator,
 but part of user code).
 
 For the list and definition of the arguments, see \cmd{fsim\_setup}
-(\ref{sec:fsimsetup}).
+(\ref{sec:fsim_setup}).
 
 \cmdname\ runs the entire trace, printing out a line of class
 statistics at the end of each bin.  Each line has the following format:
-\begin{verbatim}
+\texttt{
 binno pktsrouted bytesrouted pktsswitched bytesswitched
-pktsdropped bytesdropped created deleted numflows
-\end{verbatim}
+pktsdropped bytesdropped created deleted numflows}
 (where \emph{created} and \emph{deleted} refer to flows created and
 deleted).
 
@@ -503,10 +607,10 @@ deleted).
 \manend
 
 \man{fsim\_flow\_details}{run the simluator and generate a histogram of
+\label{sec:fsim_flow_details}
 flow details}
 
-\SYNOPSIS \cmdname\ fixortcpd filename ?binsecs? ?classifier?
-?classifiertype? ?ulflows?
+\SYNOPSIS \cmdname\ fixortcpd filename ?binsecs? ?classifier? ?ulflows?
 
 \cmdname\ is a high level entry into the simulator (so high level, in
 fact, that it probably should not be considered to be part of the
@@ -528,9 +632,9 @@ print out statistics for each flow.
 \manend
 
 \man{fsim\_setup}{setup simulator for a run}
+\label{sec:fsim_setup}
 
-\SYNOPSIS \cmdname\ fixortcpd filename ?binsecs? ?classifier?
-?classifiertype? ?ulflows?
+\SYNOPSIS \cmdname\ fixortcpd filename ?binsecs? ?classifier? ?ulflows?
 
 \cmdname\ is used as an interface to \cmd{fsim\_set\_tcpd\_file} or
 \cmd{fsim\_set\_fix\_file} and to \cmd{fsim\_setft}.  It also generates
@@ -549,27 +653,14 @@ at once.
 i.e., the name of the procedure which will used for the flow creation
 upcall when new low level flows are created.  If no classifier is
 specified, the internal classifier \cmd{fsim\_classifier} is used
-(see~\ref{sec:fsimclassifier}).
-\item[classifiertype] In order for the low level flows to be of fine
-enough resolution to allow the classifier to distinguish between
-packets, classifier type is a flow type specifier
-(see~\ref{sec:fsimsetflowtype}) containing all the header fields the
-classifier needs access to.  This is a bit confusing.  The point is
-that the classifier is called when a new low level flow is created, and
-this happens when a packet arrives that doesn't match any currently
-existing low level flow.  However, if a packet arrives and \emph{does}
-match an existing low level flow, it won't be shown to the classifier.
-Thus, the classifier needs to make sure that the low level flows are
-of fine enough granularity so that two packets from what the
-\emph{classifier} thinks of as \emph{two} flows are not treated by the
-low level code as \emph{one} flow.
+(see~\ref{sec:fsim_classifier}).
 \item[ulflows]  \cmdarg{ulflows} is a complex data structure (expressed
 as a string!) which describes the various upper level flows and the
 default behaviour to be associated with those flows.  \cmdarg{ulflows}
 is a Tcl array of flow descriptions.  Each flow description is, itself,
 an array with components in the following order:
 \begin{description}
-\item[flowtypespecifier] See~\ref{sec:fsimsetflowtype}.
+\item[flowtypespecifier] See~\ref{sec:fsim_set_flow_type}.
 \item[flowtypereference] The integer used to refer to this flow type.
 \item[flowcreation] The flow creation upcall routine.
 \item[receive] The packet received upcall routine.
@@ -586,17 +677,20 @@ an array with components in the following order:
 \manend
 
 \man{fsim\_setft}{set lower level flow types and associated attributes}
+\label{sec:fsim_setft}
 
-\SYNOPSIS \cmdname\ classifier classifiertype ulflows
+\SYNOPSIS \cmdname\ classifier ulflows
 
 \DESCRIPTION
 
 \cmdname\ looks at the flows in \cmdarg{ulflows} and the header fields
-in \cmdarg{classifiertype} to determine how to set up lower level flows
+returned by the routine \emph{classifier}.specifier
+to determine how to set up lower level flows
 that are fine grained enough to allow the classifier to do its work.
 \cmdname\ then sets up the lower level flow types (1 or 2, depending on
-whether the header fields in \cmdarg{ulflows} and in
-\cmdarg{classifiertype} include source or destination port numbers).
+whether the header fields in \cmdarg{ulflows} and
+those returned by \emph{classifier}.specifier
+include source or destination port numbers).
 Each of the lower level flow types is set to use \cmdarg{classifier} as
 its flow creation upcall.
 
@@ -605,27 +699,14 @@ its flow creation upcall.
 i.e., the name of the procedure which will used for the flow creation
 upcall when new low level flows are created.  If no classifier is
 specified, the internal classifier \cmd{fsim\_classifier} is used
-(see~\ref{sec:fsimclassifier}).
-\item[classifiertype] In order for the low level flows to be of fine
-enough resolution to allow the classifier to distinguish between
-packets, classifier type is a flow type specifier
-(see~\ref{sec:fsimsetflowtype}) containing all the header fields the
-classifier needs access to.  This is a bit confusing.  The point is
-that the classifier is called when a new low level flow is created, and
-this happens when a packet arrives that doesn't match any currently
-existing low level flow.  However, if a packet arrives and \emph{does}
-match an existing low level flow, it won't be shown to the classifier.
-Thus, the classifier needs to make sure that the low level flows are
-of fine enough granularity so that two packets from what the
-\emph{classifier} thinks of as \emph{two} flows are not treated by the
-low level code as \emph{one} flow.
+(see~\ref{sec:fsim_classifier}).
 \item[ulflows]  \cmdarg{ulflows} is a complex data structure (expressed
 as a string!) which describes the various upper level flows and the
 default behaviour to be associated with those flows.  \cmdarg{ulflows}
 is a Tcl array of flow descriptions.  Each flow description is, itself,
 an array with components in the following order:
 \begin{description}
-\item[flowtypespecifier] See~\ref{sec:fsimsetflowtype}.
+\item[flowtypespecifier] See~\ref{sec:fsim_set_flow_type}.
 \item[flowtypereference] The integer used to refer to this flow type.
 \item[flowcreation] The flow creation upcall routine.
 \item[receive] The packet received upcall routine.
@@ -633,29 +714,12 @@ an array with components in the following order:
 \end{description}
 \end{description}
 
-There is a default set of upper level flows, which is used if
-\cmdarg{ulflows} is not passed (or, is passed as the empty set):
-\begin{verbatim}
-{
-    {   ihv/ihl/tos/ttl/prot/src/dst
-	FT_UL_NOPORT
-	teho_starttimeout
-	-
-	teho_deleteflow
-    }
-    {	ihv/ihl/tos/ttl/prot/src/dst/sport/dport
-	FT_UL_PORT
-	teho_starttimeout
-	-
-	teho_deleteflow}
-}
-\end{verbatim}
-
 \manend
 
 The following are upcalls:
 
 \man{upcall\_flow\_creation}{new flow creation upcall}
+\label{sec:upcall_flow_creation}
 
 \SYNOPSIS \cmdname\ class flowtype flowid
 
@@ -704,6 +768,7 @@ upcall for this flow entry.  If this value is returned as zero
 \manend
 
 \man{upcall\_packet\_reception}{packet received upcall}
+\label{sec:upcall_packet_reception}
 
 \SYNOPSIS \cmdname\ class ftype flowid FLOW flowstats
 \RETURNVALUES class ?receive\_time?
@@ -750,6 +815,7 @@ will be made for this flow.
 \manend
 
 \man{upcall\_timer\_expired}{timer expired upcall}
+\label{sec:upcall_timer_expired}
 
 \SYNOPSIS \cmdname\ class ftype flowid FLOW flowstats
 \RETURNVALUES ?command? ?timer\_value?
