@@ -69,7 +69,7 @@ typedef struct hentry hentry_t, *hentry_p;
 
 struct hentry {
     /* fields for application use */
-    u_char
+    u_short
 	flow_type,		/* which flow type is this? */
 	parent_ftype,		/* parent's flow type index */
 	class;			/* class of this flow */
@@ -383,8 +383,8 @@ newfile(void)
 	break;
     case TYPE_FIX:
 	filetype = TYPE_UNKNOWN;
-	if (close(fix_descriptor) < 0) {
-	    perror("close");
+	if (fclose(fix_descriptor) == EOF) {
+	    perror("fclose");
 	    exit(2);
 	}
 	break;
@@ -556,14 +556,14 @@ flow_id_to_string(ftinfo_p ft, u_char *id)
 		}
 	    } else if (xp->mask == 0xf0) {
 		if (xp->fmt == FMT_DECIMAL) {
-		    decimal = (decimal<<4)+(*id++)>>4;
+		    decimal = (decimal<<4)+((*id++)>>4);
 		} else {
 		    sprintf(fidp, fmt0xf, dot, (*id++)>>4);
 		    fidp += strlen(fidp);
 		}
 	    } else if (xp->mask == 0x0f) {
 		if (xp->fmt == FMT_DECIMAL) {
-		    decimal = (decimal<<4)+(*id++)&0xf;
+		    decimal = (decimal<<4)+((*id++)&0xf);
 		} else {
 		    sprintf(fidp, fmt0xf, dot, (*id++)&0xf);
 		    fidp += strlen(fidp);
@@ -591,6 +591,7 @@ flow_id_to_string(ftinfo_p ft, u_char *id)
 }
 
 
+#if	0	/* not used */
 static char *
 flow_type_to_string(int ftype)
 {
@@ -606,6 +607,7 @@ flow_type_to_string(int ftype)
     }
     return result;
 }
+#endif
 
 
 static hentry_p
@@ -652,7 +654,7 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int level)
 	fe->timeout_time.tv_usec = 0;
 	fe->timeout_cookie = 0;
 
-	n = sscanf(interp->result, "%d %d %s %d.%d %s %d.d 0x%x",
+	n = sscanf(interp->result, "%hd %hd %s %ld.%ld %s %ld.%ld %p",
 		&fe->class, &fe->parent_ftype, buf,
 			    &fe->pkt_recv_cmd_time.tv_sec,
 			    &fe->pkt_recv_cmd_time.tv_usec,
@@ -750,7 +752,7 @@ packetinflow(Tcl_Interp *interp, hentry_p fe)
 	    return;
 	}
 
-	n = sscanf(interp->result, "%d %s %d.%d",
+	n = sscanf(interp->result, "%hd %s %ld.%ld",
 				    &fe->class, buf,
 				    &fe->pkt_recv_cmd_time.tv_sec,
 				    &fe->pkt_recv_cmd_time.tv_usec);
@@ -795,10 +797,10 @@ static void
 packetin(Tcl_Interp *interp, const u_char *packet, int len)
 {
     u_char llfid[MAX_FLOW_ID_BYTES], ulfid[MAX_FLOW_ID_BYTES];
-    int i, j, pkthasports, bigenough;
+    int pkthasports, bigenough;
     hentry_p llfe, ulfe;	/* lower and upper level flow entries */
     ftinfo_p llft, ulft;	/* lower and upper level flow types */
-    clstats_p llcl, ulcl;	/* lower and upper level classes */
+    clstats_p llcl;		/* lower level class */
 
     /* if we've gone over to another bin number... */
     if (binno != NOW_AS_BINNO()) {
@@ -907,7 +909,6 @@ static void
 receive_tcpd(u_char *user, const struct pcap_pkthdr *h, const u_char *buffer)
 {
         u_short type;
-        u_long *longs;
 
 	set_time(h->ts.tv_sec, h->ts.tv_usec);
 
@@ -930,7 +931,6 @@ receive_tcpd(u_char *user, const struct pcap_pkthdr *h, const u_char *buffer)
 static void
 receive_fix(Tcl_Interp *interp, struct fixpkt *pkt)
 {
-    struct timeval cur;
     static char pseudopkt[24] = {
 	0x45, 0, 0, 0, 0, 0, 0, 0,
 	0x22, 0, 0, 0, 0, 0, 0, 0,
@@ -1031,7 +1031,7 @@ teho_read_one_bin(ClientData clientData, Tcl_Interp *interp,
 	}
     }
 
-    sprintf(buf, "%d", binno);
+    sprintf(buf, "%ld", binno);
     Tcl_SetResult(interp, buf, TCL_VOLATILE);
     return TCL_OK;
 }
@@ -1236,8 +1236,6 @@ static int
 teho_summary(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
-    char summary[100];
-
     if (argc != 1) {
 	interp->result = "Usage: teho_summary";
 	return TCL_ERROR;
@@ -1351,6 +1349,7 @@ Tcl_AppInit(Tcl_Interp *interp)
     return Tcl_Eval(interp, "teho_startup");
 }
 
+int
 main(int argc, char *argv[])
 {
     protohasports[6] = protohasports[17] = 1;
