@@ -208,7 +208,8 @@ fsim_setft { classifier classifiertype ulflows } \
     set ftindex 0
 
     # the following is like atoft in the .c file:
-    set alltags { ihv ihl tos len id foff ttl prot sum src dst sport dport }
+    set alltags \
+	    { ihv ihl tos len id df mf foff ttl prot sum src dst sport dport }
 
 
     if {$ulflows == {}} {
