@@ -543,15 +543,18 @@ flow_id_to_string(u_char *id)
     char fidstring[30], *fidp;
     char *sep = "", *dot, *fmt0xff, *fmt0xf;
     atoft_p xp;
+    u_long decimal;
     int i, j;
 
     result[0] = 0;
     for (i = 0; i < flow_type_indicies_len; i++) {
 	xp = &atoft[flow_type_indicies[i]];
 	fidp = fidstring;
-	dot = "";
+	dot = "";			/* for dotted decimal */
+	decimal = 0;			/* for decimal */
 	switch (xp->fmt) {
 	case FMT_DECIMAL:
+	    break;			/* done in for loop (sigh) */
 	case FMT_DOTTED:
 	    fmt0xff = "%s%d";
 	    fmt0xf = "%s%d";
@@ -565,16 +568,29 @@ flow_id_to_string(u_char *id)
 				__FILE__, __LINE__, xp->fmt);
 	    break;
 	}
+	/* (clearly, mask 0xf0 or 0x0f is incompatible with numbytes > 1) */
 	for (j = 0; j < xp->numbytes; j++) {
 	    if ((xp->mask == 0) || (xp->mask == 0xff)) {
-		sprintf(fidp, fmt0xff, dot, *id++);
-		fidp += strlen(fidp);
+		if (xp->fmt == FMT_DECIMAL) {
+		    decimal = (decimal<<8)+*id++;
+		} else {
+		    sprintf(fidp, fmt0xff, dot, *id++);
+		    fidp += strlen(fidp);
+		}
 	    } else if (xp->mask == 0xf0) {
-		sprintf(fidp, fmt0xf, dot, (*id++)>>4);
-		fidp += strlen(fidp);
+		if (xp->fmt == FMT_DECIMAL) {
+		    decimal = (decimal<<4)+(*id++)>>4;
+		} else {
+		    sprintf(fidp, fmt0xf, dot, (*id++)>>4);
+		    fidp += strlen(fidp);
+		}
 	    } else if (xp->mask == 0x0f) {
-		sprintf(fidp, fmt0xf, dot, (*id++)&0xf);
-		fidp += strlen(fidp);
+		if (xp->fmt == FMT_DECIMAL) {
+		    decimal = (decimal<<4)+(*id++)&0xf;
+		} else {
+		    sprintf(fidp, fmt0xf, dot, (*id++)&0xf);
+		    fidp += strlen(fidp);
+		}
 	    } else {
 		/* unknown value for mask */
 		fprintf(stderr,
@@ -585,7 +601,11 @@ flow_id_to_string(u_char *id)
 		dot = ".";
 	    }
 	}
-	*fidp = 0;
+	if (xp->fmt == FMT_DECIMAL) {
+	    sprintf(fidstring, "%ld", decimal);
+	} else {
+	    *fidp = 0;
+	}
 	sprintf(result+strlen(result), "%s%s=%s", sep, xp->name, fidstring);
 	sep = "/";
     }
