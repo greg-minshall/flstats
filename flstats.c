@@ -595,11 +595,20 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	char buf[20];
 	sprintf(buf, " %d ", ft);
 	/*
-	 * i can think of two main things to do here:
+	 * i can think of a few things this might be good for:
 	 *
 	 * 1.  if this should be switched, then after .N seconds,
 	 *	switch to a "switched" statistics group.
-	 * 2.  if this is associated with a more coarse
+	 * 2.  if we were running on a real system, with this
+	 *	as the split between the "fast" code and the
+	 *	"slow" (or, just a slow call between the two
+	 *	halves), then if this was associated witha
+	 *	flow coming in on a default label, and if
+	 *	we had sent a redirect upstream, then we
+	 *	could use this to detect that we were still
+	 *	receiving on the default label after
+	 *	N seconds.
+	 * 3.  if this is associated with a more coarse
 	 *	statistics group, but some packets in that
 	 *	statistics group might want to be in a different
 	 *	(more fine grained) statistics group.
@@ -609,7 +618,7 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	 *	flow entry -- at that point you would have associated
 	 *	that fine-grained flow entry with the more coarse-
 	 *	grained statistics group.)
-	 * 3.  as a way of "timing out" flows;  i.e., if this
+	 * 4.  as a way of "timing out" flows;  i.e., if this
 	 *	has been idle for more than NNN seconds, then
 	 *	this should be deleted.  by using the timer,
 	 *	this can make the deletion "data driven" (by the
