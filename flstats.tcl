@@ -11,13 +11,6 @@ set FT_GUARD			2
 set FT_UL_PORT			3
 set FT_UL_NOPORT		4
 
-set LLFLOWS [list \
-    [list ihv/ihl/tos/ttl/prot/src/dst/sport/dport classifier] \
-    [list ihv/ihl/tos/ttl/prot/src/dst classifier]]
-set ULFLOWS [list \
-    [list ihv/ihl/tos/ttl/prot/src/dst/sport/dport starttimeout FT_UL_PORT] \
-    [list ihv/ihl/tos/ttl/prot/src/dst starttimeout FT_UL_NOPORT]]
-
 proc switchtime {} { return 0.300000 }	; # time to switch
 
 #
@@ -95,7 +88,6 @@ deleteflow {cookie class ftype flowid time FLOW args}\
 }
 
 
-
 proc\
 getswitched { class flowtype flowid args}\
 {
@@ -103,28 +95,8 @@ getswitched { class flowtype flowid args}\
 
     return "$CL_SWITCHED -"
 }
+
 ### END OF PARAMTERS ###
-
-proc\
-deletellflow {cookie class ftype flowid time FLOW args}\
-{
-    # ahh, dr. regsub... 
-    regsub -all {([a-zA-Z_]+) ([0-9.]+)} $args {[set x_\1 \2]} bar
-    subst $bar
-
-    if {[expr $time - $x_last] > $cookie} {
-	puts "DELETE"		; # gone...
-	return "DELETE"		; # gone...
-    }
-
-    set time [expr 2 * $cookie]
-    if {$time > 64} {
-	set time 64
-    }
-
-    puts "- deletellflow $time.0 $time"
-    return "- deletellflow $time.0 $time"
-}
 
 
 # this doesn't need $pre, since the subst is performed at the caller...
@@ -179,9 +151,24 @@ simul_setft { llflows ulflows } \
     }
 }
 
+# default flows...
+# set LLFLOWS [list \
+#     [list ihv/ihl/tos/ttl/prot/src/dst/sport/dport classifier] \
+#     [list ihv/ihl/tos/ttl/prot/src/dst classifier]]
+# set ULFLOWS [list \
+#     [list ihv/ihl/tos/ttl/prot/src/dst/sport/dport starttimeout FT_UL_PORT] \
+#     [list ihv/ihl/tos/ttl/prot/src/dst starttimeout FT_UL_NOPORT]]
+
+set LLFLOWS { \
+    { ihv/ihl/tos/ttl/prot/src/dst/sport/dport classifier } \
+    { ihv/ihl/tos/ttl/prot/src/dst classifier }}
+set ULFLOWS { \
+    { ihv/ihl/tos/ttl/prot/src/dst/sport/dport starttimeout FT_UL_PORT } \
+    { ihv/ihl/tos/ttl/prot/src/dst starttimeout FT_UL_NOPORT }}
 
 proc \
-simul_setup { fixortcpd filename {binsecs 1} } \
+simul_setup { fixortcpd filename {binsecs 1} \
+		    { llflows $LLFLOWS } { ulflows $ULFLOWS }} \
 {
     global LLFLOWS ULFLOWS
 
@@ -211,12 +198,13 @@ simul_setup { fixortcpd filename {binsecs 1} } \
 
 
 proc \
-flow_details { fixortcpd filename {binsecs 1} } \
+flow_details { fixortcpd filename {binsecs 1} \
+		{ llflows $LLFLOWS } { ulflows $ULFLOWS }} \
 {
     global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
     global FT_LL_PORT FT_LL_NOPORT FT_UL_PORT FT_UL_NOPORT
 
-    simul_setup $fixortcpd $filename $binsecs
+    simul_setup $fixortcpd $filename $binsecs $llflows $ulflows
 
     while {1} {
 	set bintime [lindex [split [time { \
@@ -236,12 +224,13 @@ flow_details { fixortcpd filename {binsecs 1} } \
 
 
 proc \
-class_details { fixortcpd filename {binsecs 1} } \
+class_details { fixortcpd filename {binsecs 1} \
+		{ llflows $LLFLOWS } { ulflows $ULFLOWS }}\
 {
     global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
     global FT_LL_PORT FT_LL_NOPORT FT_UL_PORT FT_UL_NOPORT
 
-    simul_setup $fixortcpd $filename $binsecs
+    simul_setup $fixortcpd $filename $binsecs $llflows $ulflows
 
     puts "# plotvars 1 binno 2 pktsrouted 3 bytesrouted 4 pktsswitched"
     puts "# plotvars 5 bytesswitched 6 pktsdropped 7 bytesdropped"
@@ -327,7 +316,8 @@ class_details { fixortcpd filename {binsecs 1} } \
 # for compatibility...
 
 proc \
-simul { fixortcpd filename {binsecs 1} } \
+simul { fixortcpd filename {binsecs 1} \
+		{ llflows $LLFLOWS } { ulflows $ULFLOWS }} \
 {
-    simul_class $fixortcpd $filename $binsecs
+    class_details $fixortcpd $filename $binsecs
 }
