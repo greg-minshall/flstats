@@ -5,10 +5,10 @@
 
 # what versions of TCL library do we look for?
 # (this is what needs to change in order to use a different version of Tcl.)
-set nmtclxy=tcl80
-set nmtclxDOTy=tcl8.0
+set nmtclxy=tcl83
+set nmtclxDOTy=tcl8.3
 
-set includelocs = (/usr/include /usr/local/include /usr/pkg/include ../../usr/include)
+set includelocs = (/usr/include /usr/local/include /usr/pkg/include ../../usr/include /sw/include)
 
 set gcc
 set SVR4
@@ -28,7 +28,7 @@ if ( `uname -s` == "SunOS" ) then
 endif
 
 # determine name of TCL library and lib directory...
-set ld_path="/lib:/usr/lib:/usr/local/lib:/usr/X11/lib:/usr/pkg/lib"
+set ld_path="/lib:/usr/lib:/usr/local/lib:/usr/X11/lib:/usr/pkg/lib:/sw/lib"
 if ($?LD_LIBRARY_PATH) then
     set ld_path=($ld_path $LD_LIBRARY_PATH)
 endif
