@@ -1,12 +1,40 @@
 /*
+ * Copyright (c) 1996
+ *	Ipsilon Networks, Inc.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. All advertising materials mentioning features or use of this software
+ *    must display the following acknowledgement:
+ *      This product includes software developed by Ipsilon Networks, Inc.
+ * 4. The name of Ipsilon Networks, Inc., may not be used to endorse or
+ *    promote products derived from this software without specific prior
+ *    written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY IPSILON NETWORKS, INC., ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL IPSILON NETWORKS, INC., BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ */
+
+/*
  * output flow statistics from a tcpdump file.
  *
  * TODO:
  *	1.	Make non-ethernet specific!
- *	2.	Use indicies for *external* communication, but use
- *		pointers internally (ftype, class).
- *	3.	Support for #pkts, sipg, to trigger pkt-recv
- *		callout.
  *	4.	Document: [simul_setup], [flow_details],
  *		[class_details], [fl_read_one_bin].  Give
  *		examples of use; warn about memory consumption.
@@ -15,15 +43,9 @@
  *  	8.  	Set atoft[] from Tcl code.  (Need to change "alltags"
  *		in [fl_setft]; or delete!)
  *  	9.  	Protohasports...
- *     11.  	Specify trace file/format on command line;
- *  	    	add fl_fileinfo (returns name and format).
  *     12.  	Change atoft[] to allow spec of (SHIFT_RIGHT|IN_PLACE)
  *		(to decouple output base from shifting) and DOTTED as
  *		a flag; make fmt == char * ("%d", say)?
- *     13.  	"dump tcl code" command.
- *     14.	Call to retrieve RCS Id.
- *     15.	set_file, takes "filename format".  make tcl
- *  	    	-tracefile parms a list.
  *     16.	Change "low level" comments to general lattice.
  *     17.      make low level flows use HIGH class numbers.
  *		(flstats(maxclass), flstats(maxflow), ...) set by .c.
@@ -32,7 +54,7 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.69 1996/03/15 01:49:17 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.70 1996/03/15 17:39:52 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
