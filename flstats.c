@@ -54,7 +54,7 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.78 1996/08/01 00:53:42 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.79 1996/10/08 03:19:12 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -94,6 +94,8 @@ static char *rcsid =
 		(((a)->tv_sec < (b)->tv_sec) \
 			|| (((a)->tv_sec == (b)->tv_sec) && \
 			    ((a)->tv_usec < (b)->tv_usec)))
+
+#define	TIME_GE(a,b)	(!TIME_LT((a),(b)))
 
 #define	TIME_EQ(a,b) \
 		(((a)->tv_sec == (b)->tv_sec) && \
@@ -274,19 +276,20 @@ struct ftinfo {
 	     * 'upper_ftype' is the flow type for a created parent flow.
 	     * recvsecs.usecs after the current time in the output flow,
 	     * a received packet will cause the flow types receive routine
-	     * to be called.  timersecs.usecs from now, the flow type's
-	     * timer routine will be called for this flow.
+	     * to be called if recvpkts have been received and the smoothed
+	     * inter-packet gap is less that recvsipg.usecs.  timersecs.usecs
+	     * from now, the flow type's timer routine will be called for
+	     * this flow.
 	     */
     char    *fti_recv_upcall;	/* command to call when a pkt received */
 	    /*
 	     * routine:	recv_upcall
-	     * call:	"recv_upcall class ftype flowid FLOW flowstats"
-	     * result:	"class recvsecs.usecs" 
+	     * call:	"recv_upcall FLOW flowstats"
+	     * result:	"class recvsecs.usecs recvpkts sipgsecs.usecs" 
 	     *
-	     * if, on output, recvsecs is null,
-	     * zero will be used (which means that recv_upcall will be
-	     * called the next time a packet is received on that flow,
-	     * no matter how soon it arrives).
+	     * if, on output, recvsecs is null (i.e., not returned),
+	     * then the recv_upcall will be made when the next packet
+	     * in this flow is received.
 	     */
     char    *fti_timer_upcall;	/* timer command (if registered) */
 	    /*
@@ -297,6 +300,10 @@ struct ftinfo {
 	     * if "command" is "DELETE", the associated flow will be
 	     * deleted.  if "command" starts with '-', it will be ignored.
 	     * other values for "command" are TBD.
+	     *
+	     * if the flow is not deleted, the next timer upcall will
+	     * be made "secs.usecs" from the current time.  (A returned
+	     * value of "0" inhibits future timer upcalls for this flow.)
 	     */
 };
 
@@ -1161,10 +1168,11 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int class)
 	    packet_error = TCL_ERROR;
 	    return 0;
 	}
+
 	fe->fe_upcall_when_secs_ge.tv_usec = 0;
 	fe->fe_timer_time.tv_usec = 0;
-
 	sipgusecs = 0;
+
 	n = sscanf(interp->result, "%hd %hd %hd %ld.%ld %ld %lu.%lu %ld.%ld",
 		&fe->fe_class, &fe->fe_parent_class, &fe->fe_parent_ftype,
 			    &fe->fe_upcall_when_secs_ge.tv_sec,
@@ -1270,10 +1278,9 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
 	 */
 
     if (ftinfo[fe->fe_flow_type].fti_recv_upcall &&
-		(fe->fe_upcall_when_pkts_ge >= fe->fe_pkts) &&
-		(fe->fe_upcall_when_sipg_lt < fe->fe_sipg) &&
-		TIME_LE(&curtime, &fe->fe_upcall_when_secs_ge) &&
-		!TIME_EQ(&fe->fe_upcall_when_secs_ge, &ZERO)) {
+		(fe->fe_pkts >= fe->fe_upcall_when_pkts_ge) &&
+		(fe->fe_sipg < fe->fe_upcall_when_sipg_lt) &&
+		TIME_GE(&curtime, &fe->fe_upcall_when_secs_ge)) {
 	int n, outcls;
 	u_long sipgsecs, sipgusecs;
 	struct timeval outtime;
@@ -1284,6 +1291,7 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
 	    return;
 	}
 
+	fe->fe_upcall_when_secs_ge.tv_usec = 0;
 	sipgusecs = 0;
 	outcls = fe->fe_class;
 	n = sscanf(interp->result, "%d %ld.%ld %ld %lu.%lu", &outcls,
