@@ -1,7 +1,7 @@
 #
 # Tcl script as part of flstats
 #
-# $Id: flstats.tcl,v 1.49 1996/07/29 21:13:39 minshall Exp minshall $
+# $Id: flstats.tcl,v 1.50 1996/08/01 00:54:04 minshall Exp minshall $
 #
 #
 
@@ -187,7 +187,7 @@ fl_flow_details { {filename {}} {binsecs {}} \
 	}
 	fl_start_flow_enumeration
 	while { [set x [fl_continue_flow_enumeration]] != ""} {
-	    puts "$binno $x"
+	    puts "bin $binno $x"
 	}
     }
 }
@@ -210,7 +210,7 @@ fl_class_details { {filename {}} {binsecs {}} \
 	}
 	fl_start_class_enumeration
 	while {[set x [fl_continue_class_enumeration]] != ""} {
-	    puts "$binno $x"
+	    puts "bin $binno $x"
 	}
     }
 }
