@@ -12,7 +12,7 @@
 .Op Fl interactive
 .Op Fl debug
 .Op Fl evaluate Ar tclcommands
-.Op Fl kind Ar {tcpd|fix24}
+.Op Fl kind Ar {tcpd|fix24|fix44}
 .Op Fl label
 .Op Fl scriptfile Ar filename
 .Op Fl types Ar flowspecifier[s]
@@ -52,6 +52,7 @@ is a list of Tcl commands to be executed while starting
 .It Fl kind
 The format of the input file.  The default is "tcpd", corresponding to
 a binary tcpdump file.  One other format is "fix24", for 24-byte/packet
+records from FIX-WEST.  A final format is "fix44", for 44-byte/packet
 records from FIX-WEST.
 .It Fl label
 Causes
