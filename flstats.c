@@ -770,7 +770,7 @@ packetinflow(Tcl_Interp *interp, hentry_p fe)
 
     if (fe->pkt_recv_cmd && TIME_LT(&curtime, &fe->pkt_recv_cmd_time)) {
 	char buf[60];
-	int n;
+	int n, outcls;
 	struct timeval outtime;
 
 	sprintf(buf, " %d %d ", fe->class, fe->flow_type);
@@ -782,11 +782,18 @@ packetinflow(Tcl_Interp *interp, hentry_p fe)
 	    return;
 	}
 
-	n = sscanf(interp->result, "%hd %s %ld.%ld",
-				    &fe->class, buf,
+	outcls = fe->class;
+	n = sscanf(interp->result, "%d %s %ld.%ld",
+				    &outcls, buf,
 				    &fe->pkt_recv_cmd_time.tv_sec,
 				    &fe->pkt_recv_cmd_time.tv_usec);
 
+	if (outcls != fe->class) {
+	    /* class is changing --- update statistics */
+	    clstats[fe->class].cls_removed++;
+	    fe->class = outcls;
+	    clstats[fe->class].cls_added++;
+	}
 	if (n >= 2) {
 	    free(fe->pkt_recv_cmd);
 	    if (buf[0] != '-') {
