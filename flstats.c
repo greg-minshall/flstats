@@ -17,6 +17,9 @@
  *  	9.  	Protohasports...
  *     11.  	Specify trace file/format on command line;
  *  	    	add fsim_fileinfo (returns name and format).
+ *     12.  	Change atoft[] to allow spec of (SHIFT_RIGHT|IN_PLACE)
+ *		(to decouple output base from shifting) and DOTTED as
+ *		a flag; make fmt == char * ("%d", say)?
  */
 
 
