@@ -143,16 +143,27 @@ vec_difference { l1 l2 }\
     return $output
 }
 
+
+# this doesn't need $pre, since the subst is performed at the caller...
+
 proc\
 get_summary_vec {class} \
 {
 	# ahh, dr. regsub... 
 	regsub -all {([a-zA-Z_]+) ([0-9]+)} \
-			[teho_class_summary $class] {[set ts_\1 \2]} bar
-	subst $bar
-	return [list $ts_added $ts_removed $ts_active $ts_pkts $ts_fragpkts \
-			$ts_runtpkts $ts_noportpkts $ts_fragbytes \
-			$ts_runtbytes $ts_noportbytes $ts_bytes]
+			[teho_class_summary $class] {[set ${pre}\1 \2]} bar
+	return $bar
+}
+
+# this doesn't need $pre, since the subst is performed at the caller...
+
+proc\
+get_diff_vec {class} \
+{
+	# ahh, dr. regsub... 
+	regsub -all {([a-zA-Z_]+) ([0-9]+)} [teho_class_summary $class] \
+			{[if {![info exists ${pre}_\1]} {set ${pre}_\1 0}] [set diff_${pre}_\1 [expr \2 - $${pre}_\1]]} bar
+	return $bar
 }
 
 
@@ -206,56 +217,57 @@ simul { fixortcpd filename {binsecs 1} } \
     #	5	switched flows
 
     set pid [pid]
-    set onon 		[list 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
-    set owaiting 	[list 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
-    set oswitched	[list 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
-    set ogstats		[list 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
-    set oflowscreated 0
     set flowscreated 0
-    set oflowsdeleted 0
     set flowsdeleted 0
+    set oflowsdeleted 0
+    set oflowscreated 0
+
     while {1} {
+	set pre non
+	subst [get_summary_vec $CL_NONSWITCHED]
+	set pre waiting
+	subst [get_summary_vec $CL_TO_BE_SWITCHED]
+	set pre switched
+	subst [get_summary_vec $CL_SWITCHED]
+	set pre gstats
+	subst [get_summary_vec 0]
 	set bintime [lindex [split [time {set binno [teho_read_one_bin $binsecs]}]] 0]
+
 	if {$binno == -1} {
 	    break;	# eof
 	}
-	set timeouttime [lindex [split [time {set totalflows [teho_run_timeouts]}]] 0 ]
-	set non [get_summary_vec $CL_NONSWITCHED]
-#	puts "non $non"
-	set waiting [get_summary_vec $CL_TO_BE_SWITCHED]
-#	puts "waiting $waiting"
-	set switched [get_summary_vec $CL_SWITCHED]
-#	puts "switched $switched"
-	set gstats [get_summary_vec 0]
-#	puts "gstats $gstats"
-	set diffnon [vec_difference $non $onon]
-	set diffwaiting [vec_difference $waiting $owaiting]
-	set diffswitched [vec_difference $switched $oswitched]
-	set diffgstats [vec_difference $gstats $ogstats]
+	set timeouttime [lindex [split \
+			[time {set totalflows [teho_run_timeouts]}]] 0 ]
+
+	set pre non
+	subst [get_diff_vec $CL_NONSWITCHED]
+	set pre waiting
+	subst [get_diff_vec $CL_TO_BE_SWITCHED]
+	set pre switched
+	subst [get_diff_vec $CL_SWITCHED]
+	set pre gstats
+	subst [get_diff_vec 0]
+
 	set xx [exec ps lp$pid]
 	set xx [lrange [split [join $xx]] 19 24]
 	puts [format \
 	    "%-7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %s" \
 			$binno\
-			[expr [lindex $diffnon 3] + [lindex $diffwaiting 3]] \
-			[expr [lindex $diffnon 10] + [lindex $diffwaiting 10]] \
-			[lindex $diffswitched 3] \
-			[lindex $diffswitched 10] \
-			[expr [lindex $diffgstats 4] + [lindex $diffgstats 5] \
-				+ [lindex $diffgstats 6]] \
-			[expr [lindex $diffgstats 7] + [lindex $diffgstats 8] \
-				+ [lindex $diffgstats 9]] \
+			[expr $diff_non_pkts + $diff_waiting_pkts] \
+			[expr $diff_non_bytes + $diff_waiting_bytes] \
+			$diff_switched_pkts \
+			$diff_switched_bytes \
+			[expr $diff_gstats_fragpkts + $diff_gstats_runtpkts \
+				+ $diff_gstats_noportpkts] \
+			[expr $diff_gstats_fragbytes + $diff_gstats_runtbytes \
+				+ $diff_gstats_noportbytes] \
 			[expr $flowscreated - $oflowscreated] \
 			[expr $flowsdeleted - $oflowsdeleted] \
-			[expr ([lindex $waiting 0] + [lindex $switched 0]) - \
-				([lindex $waiting 1] + [lindex $switched 1])] \
+			[expr ($waiting_added + $switched_added) - \
+				($waiting_removed + $switched_removed)] \
 			$totalflows $bintime $timeouttime \
 			[lindex $xx 0] [lindex $xx 1] [lindex $xx 5]]
 	flush stdout
-	set onon $non
-	set owaiting $waiting
-	set oswitched $switched
-	set ogstats $gstats
 	set oflowscreated $flowscreated
 	set oflowsdeleted $flowsdeleted
     }
