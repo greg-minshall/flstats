@@ -24,10 +24,10 @@
  *     14.	Call to retrieve RCS Id.
  *     15.	set_file, takes "filename format".  make tcl
  *  	    	-tracefile parms a list.
- *     16.	"fix" --> "fix24".
  */
 
-/* $Id: flstats.c,v 1.60 1996/03/01 22:51:47 minshall Exp minshall $ */
+static char *rcsid =
+	"$Id: flstats.c,v 1.61 1996/03/13 23:33:14 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -326,7 +326,7 @@ atoft_t atoft[] = {
  */         
             
             
-struct fixpkt {
+struct fix24pkt {
     u_long  secs,
             usecs,
             src,
@@ -380,7 +380,7 @@ int flow_types = 0;
 pcap_t *pcap_descriptor;
 char pcap_errbuf[PCAP_ERRBUF_SIZE];
 
-FILE *fix_descriptor;
+FILE *fix24_descriptor;
 
 int packet_error = 0;
 
@@ -431,7 +431,7 @@ newfile(void)
 	break;
     case TYPE_FIX:
 	filetype = TYPE_UNKNOWN;
-	if (fclose(fix_descriptor) == EOF) {
+	if (fclose(fix24_descriptor) == EOF) {
 	    perror("fclose");
 	    exit(2);
 	}
@@ -1240,7 +1240,7 @@ receive_tcpd(u_char *user, const struct pcap_pkthdr *h, const u_char *buffer)
 
 
 static void
-receive_fix(Tcl_Interp *interp, struct fixpkt *pkt)
+receive_fix24(Tcl_Interp *interp, struct fix24pkt *pkt)
 {
     static char pseudopkt[24] = {
 	0x45, 0, 0, 0, 0, 0, 0, 0,
@@ -1276,21 +1276,21 @@ process_one_packet(Tcl_Interp *interp)
 		filetype = TYPE_UNKNOWN;
 	    }
 	} else {	/* TYPE_FIX */
-	    struct fixpkt fixpacket;
+	    struct fix24pkt fix24packet;
 	    int count;
 
-	    count = fread(&fixpacket, sizeof fixpacket, 1, fix_descriptor);
+	    count = fread(&fix24packet, sizeof fix24packet, 1, fix24_descriptor);
 	    if (count == 0) {
-		if (feof(fix_descriptor)) {
+		if (feof(fix24_descriptor)) {
 		    fileeof = 1;
 		    filetype = TYPE_UNKNOWN;
 		} else {
 		    interp->result = "error on read";
 		    return TCL_ERROR;
 		}
-	    } else if (ntohs(fixpacket.len) != 65535) {
+	    } else if (ntohs(fix24packet.len) != 65535) {
 		/* 65535 ==> not IP packet (ethertype in dport) */
-		receive_fix(interp, &fixpacket);
+		receive_fix24(interp, &fix24packet);
 	    }
 	}
     }
@@ -1327,7 +1327,7 @@ fl_read_one_bin(ClientData clientData, Tcl_Interp *interp,
     binno = -1;
     if (!fileeof) {
 	if (filetype == TYPE_UNKNOWN) {
-	    interp->result = "need to call fl_set_{tcpd,fix}_file first";
+	    interp->result = "need to call fl_set_{tcpd,fix24}_file first";
 	    return TCL_ERROR;
 	}
 	if (flow_types == 0) {
@@ -1548,13 +1548,13 @@ fl_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 }
 
 static int
-fl_class_summary(ClientData clientData, Tcl_Interp *interp,
+fl_class_stats(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
     clstats_p clsp;
 
     if (argc != 2) {
-	interp->result = "Usage: fl_class_summary class";
+	interp->result = "Usage: fl_class_stats class";
 	return TCL_ERROR;
     }
 
@@ -1619,15 +1619,10 @@ fl_continue_enumeration(ClientData clientData, Tcl_Interp *interp,
 
 
 static int
-fl_set_tcpd_file(ClientData clientData, Tcl_Interp *interp,
-		int argc, char *argv[])
+set_tcpd_file(ClientData clientData, Tcl_Interp *interp, char *filename)
 {
-    if (argc != 2) {
-	interp->result = "Usage: fl_set_tcpd_file filename";
-	return TCL_ERROR;
-    }
     newfile();
-    pcap_descriptor = pcap_open_offline(argv[1], pcap_errbuf);
+    pcap_descriptor = pcap_open_offline(filename, pcap_errbuf);
     if (pcap_descriptor == 0) {
 	sprintf(interp->result, "%s", pcap_errbuf);
 	return TCL_ERROR;
@@ -1637,20 +1632,58 @@ fl_set_tcpd_file(ClientData clientData, Tcl_Interp *interp,
 }
 
 static int
-fl_set_fix_file(ClientData clientData, Tcl_Interp *interp,
-		int argc, char *argv[])
+set_fix24_file(ClientData clientData, Tcl_Interp *interp, char *filename)
 {
-    if (argc != 2) {
-	interp->result = "Usage: fl_set_fix_file filename";
-	return TCL_ERROR;
-    }
     newfile();
-    fix_descriptor = fopen(argv[1], "r");
-    if (fix_descriptor == 0) {
+    fix24_descriptor = fopen(filename, "r");
+    if (fix24_descriptor == 0) {
 	interp->result = "error opening file";
 	return TCL_ERROR;
     }
     filetype = TYPE_FIX;
+    return TCL_OK;
+}
+
+static int
+fl_set_file(ClientData clientData, Tcl_Interp *interp,
+		int argc, char *argv[])
+{
+    static char *usage = "Usage: fl_set_file filename [tcpd|fix24]";
+
+    if ((argc < 2) || (argc > 3)) {
+	interp->result = usage;
+	return TCL_ERROR;
+    }
+    if ((argc == 2) || !strcmp(argv[2], "tcpd")) {
+	return set_tcpd_file(clientData, interp, argv[1]);
+    } else if (!strcmp(argv[2], "fix24")) {
+	return set_fix24_file(clientData, interp, argv[1]);
+    } else {
+	interp->result = usage;
+	return TCL_ERROR;
+    }
+}
+
+static int
+fl_tcl_code(ClientData clientData, Tcl_Interp *interp,
+		int argc, char *argv[])
+{
+    if (argc != 1) {
+	interp->result = "Usage: fl_set_version";
+	return TCL_ERROR;
+    }
+    interp->result = fl_tclprogram;
+    return TCL_OK;
+}
+static int
+fl_version(ClientData clientData, Tcl_Interp *interp,
+		int argc, char *argv[])
+{
+    if (argc != 1) {
+	interp->result = "Usage: fl_set_version";
+	return TCL_ERROR;
+    }
+    interp->result = rcsid;
     return TCL_OK;
 }
 
@@ -1662,21 +1695,23 @@ Tcl_AppInit(Tcl_Interp *interp)
 	return TCL_ERROR;
     }
 
-    Tcl_CreateCommand(interp, "fl_class_summary", fl_class_summary,
+    Tcl_CreateCommand(interp, "fl_class_stats", fl_class_stats,
 								NULL, NULL);
     Tcl_CreateCommand(interp, "fl_continue_enumeration",
 					fl_continue_enumeration, NULL, NULL);
+    Tcl_CreateCommand(interp, "fl_tcl_code", fl_tcl_code,
+								NULL, NULL);
     Tcl_CreateCommand(interp, "fl_read_one_bin", fl_read_one_bin,
 								NULL, NULL);
-    Tcl_CreateCommand(interp, "fl_set_fix_file", fl_set_fix_file,
+    Tcl_CreateCommand(interp, "fl_set_file", fl_set_file,
 								NULL, NULL);
     Tcl_CreateCommand(interp, "fl_set_flow_type", fl_set_flow_type,
-								NULL, NULL);
-    Tcl_CreateCommand(interp, "fl_set_tcpd_file", fl_set_tcpd_file,
 								NULL, NULL);
     Tcl_CreateCommand(interp, "fl_start_enumeration", fl_start_enumeration,
 								NULL, NULL);
     Tcl_CreateCommand(interp, "fl_summary", fl_summary,
+								NULL, NULL);
+    Tcl_CreateCommand(interp, "fl_version", fl_version,
 								NULL, NULL);
     /* call out to Tcl to set up whatever... */
     if (Tcl_GlobalEval(interp, fl_tclprogram) != TCL_OK) {

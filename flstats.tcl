@@ -1,7 +1,7 @@
 #
 # Tcl script as part of flstats
 #
-# $Id: flstats.tcl,v 1.37 1996/03/02 01:21:30 minshall Exp minshall $
+# $Id: flstats.tcl,v 1.38 1996/03/13 23:33:14 minshall Exp minshall $
 #
 #
 
@@ -129,7 +129,7 @@ flget_summary_vec {class} \
 {
 	# ahh, dr. regsub... 
 	regsub -all {([a-zA-Z_]+) ([0-9]+)} \
-			[fl_class_summary $class] {[set ${pre}_\1 \2]} bar
+			[fl_class_stats $class] {[set ${pre}_\1 \2]} bar
 	return $bar
 }
 
@@ -143,7 +143,7 @@ proc\
 flget_diff_vec {class} \
 {
 	# ahh, dr. regsub... 
-	regsub -all {([a-zA-Z_]+) ([0-9]+)} [fl_class_summary $class] \
+	regsub -all {([a-zA-Z_]+) ([0-9]+)} [fl_class_stats $class] \
 			{[set diff_${pre}_\1 [expr \2 - $${pre}_\1]]} bar
 	return $bar
 }
@@ -171,11 +171,11 @@ flll_delete {class ftype flowid time FLOW args}\
 
 
 proc \
-fl_flow_details { {fixortcpd {}} {filename {}} {binsecs {}} \
+fl_flow_details { {filename {}} {binsecs {}} \
 					{classifier {}} { ulflows {} }} \
 {
     global flstats
-    fl_setup $fixortcpd $filename $binsecs $classifier $ulflows
+    fl_setup $filename $binsecs $classifier $ulflows
 
     set binsecs $flstats(binsecs)	; # make sure we have correct value
 
@@ -194,13 +194,13 @@ fl_flow_details { {fixortcpd {}} {filename {}} {binsecs {}} \
 
 
 proc \
-fl_class_details { {fixortcpd {}} {filename {}} {binsecs {}} \
+fl_class_details { {filename {}} {binsecs {}} \
 					{classifier {}} { ulflows {} }}\
 {
     global flstats
     global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
 
-    fl_setup $fixortcpd $filename $binsecs $classifier $ulflows
+    fl_setup $filename $binsecs $classifier $ulflows
 
     puts "# plotvars 1 binno 2 pktsrouted 3 bytesrouted 4 pktsswitched"
     puts "# plotvars 5 bytesswitched 6 pktsdropped 7 bytesdropped"
@@ -411,19 +411,10 @@ fl_setft { {classifier {}} {ulflows {}} } \
 }
 
 proc \
-fl_setup { {fixortcpd {}} {filename {}} {binsecs {}} \
+fl_setup { {filename {}} {binsecs {}} \
 				{classifier {}} { ulflows {} }} \
 {
     global flstats
-
-    if {$fixortcpd == {}} {
-	if {![info exists flstats(tracefile.format)]} {
-	    error "tracefile not specified"
-	}
-	set fixortcpd $flstats(tracefile.format)
-    } else {
-	set flstats(tracefile.format) $fixortcpd
-    }
 
     if {$filename == {}} {
 	if {![info exists flstats(tracefile.filename)]} {
@@ -441,14 +432,8 @@ fl_setup { {fixortcpd {}} {filename {}} {binsecs {}} \
     }
 
     set fname [glob $filename]
-    if [regexp -nocase fix $fixortcpd] {
-	fl_set_fix_file $fname
-    } elseif [regexp -nocase tcpd $fixortcpd] {
-	fl_set_tcpd_file $fname
-    } else {
-	puts "bad fixortcpd"
-	return
-    }
+    # "eval" to get the filename in argv[1] and (optional) type in argv[2]...
+    eval "fl_set_file $fname"
 
     file stat $fname filestats
     puts [format "# file %s size %d last written %d" \
@@ -495,7 +480,7 @@ fl_set_parameters {argc argv}\
 	if {[string first $arg -tracefile] == 0} {
 	    if {$argc < 3} {
 		error "not enough arguments for -tracefile in $argv\nlooking\
-			for '-tracefile filename { fix | tcpd }'"
+			for '-tracefile filename { fix24 | tcpd }'"
 	    }
 	    set flstats(tracefile.filename) [lindex $argv 1]
 	    set flstats(tracefile.format) [lindex $argv 2]
