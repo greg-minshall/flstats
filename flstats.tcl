@@ -99,30 +99,31 @@ simul { fixortcpd filename {binsecs 1} } \
     #	4	to-be-switched flows
     #	5	switched flows
 
-    set onon [list 0 0 0 0 0]
-    set owaiting [list 0 0 0 0 0]
-    set oswitched [list 0 0 0 0 0]
+    set onon [list 0 0 0 0 0 0 0]
+    set owaiting [list 0 0 0 0 0 0 0]
+    set oswitched [list 0 0 0 0 0 0 0]
     while {1} {
 	set binno [teho_read_one_bin $binsecs]
 	if {$binno == -1} {
 	    break;	# eof
 	}
 	set non [get_summary_vec $CL_NONSWITCHED]
-#	puts $non
+#	puts "non $non"
 	set waiting [get_summary_vec $CL_TO_BE_SWITCHED]
-#	puts $waiting
+#	puts "waiting $waiting"
 	set switched [get_summary_vec $CL_SWITCHED]
-#	puts $switched
+#	puts "switched $switched"
 	set diffnon [vec_difference $non $onon]
 	set diffwaiting [vec_difference $waiting $owaiting]
 	set diffswitched [vec_difference $switched $oswitched]
 	# "binno pktsrouted pktsbypassed newflows numflows"
 	puts [format "%-7d %7d %7d %7d %7d" \
 			$binno\
-			[expr [lindex $diffnon 2] + [lindex $diffwaiting 2]] \
-			[lindex $diffswitched 2] \
+			[expr [lindex $diffnon 3] + [lindex $diffwaiting 3]] \
+			[lindex $diffswitched 3] \
 			[lindex $diffwaiting 0] \
 			[lindex $waiting 0]]
+	flush stdout
 	set onon $non
 	set owaiting $waiting
 	set oswitched $switched
