@@ -12,11 +12,9 @@
  *		examples of use; warn about memory consumption.
  *	7.	Verify the results of callouts (new flow, recv,
  *		timer) are valid.
- *  	8.  	Set atoft[] from Tcl code
+ *  	8.  	Set atoft[] from Tcl code.  (Need to change "alltags"
+ *		in [fsim_setft]; or delete!)
  *  	9.  	Protohasports...
- *     10.  	Separate out MF and DF from foff in atoft; generalize
- *  	    	flow_id_to_string (requires fixes to set_flow_type()
- *		*and* to FLOW_ID_FROM_HDR() and (maybe) tbl_lookup()
  *     11.  	Specify trace file/format on command line;
  *  	    	add fsim_fileinfo (returns name and format).
  */
@@ -279,8 +277,8 @@ struct ftinfo {
 typedef struct {
 	char	*name;		/* external name */
 	u_char	offset,		/* where in header */
-		numbytes,	/* length of field */
-		mask,		/* mask for data */
+		firstbit,	/* where the first bit is (0 == MSB) */
+		numbits,	/* number of bits */
 		fmt;		/* format for output (see below) */
 } atoft_t, *atoft_p;
 
@@ -289,11 +287,12 @@ typedef struct {
 #define	FMT_HEX		2	/* 0x2a */
 
 atoft_t atoft[] = {
-	{ "ihv", 0, 1, 0xf0 }, { "ihl", 0, 1, 0x0f }, { "tos", 1, 1 },
-	{ "len", 2, 2 }, { "id", 4, 2 }, { "foff", 6, 2}, { "ttl", 8, 1},
-	{ "prot", 9, 1}, { "sum", 10, 2},
-	{ "src", 12, 4, 0, FMT_DOTTED}, { "dst", 16, 4, 0, FMT_DOTTED},
-	{ "sport", 20, 2}, { "dport", 22, 2}
+	{ "ihv", 0, 0, 4 }, { "ihl", 0, 4, 4 }, { "tos", 1, 0, 8 },
+	{ "len", 2, 0, 16 }, { "id", 4, 0, 16 },
+	{ "df", 6, 1, 1}, { "mf", 6, 2, 1}, { "foff", 6, 3, 13},
+	{ "ttl", 8, 0, 8}, { "prot", 9, 0, 8}, { "sum", 10, 0, 16},
+	{ "src", 12, 0, 32, FMT_DOTTED}, { "dst", 16, 0, 32, FMT_DOTTED},
+	{ "sport", 20, 0, 16}, { "dport", 22, 0, 16}
 };
 
 
@@ -500,7 +499,8 @@ flow_id_to_string(ftinfo_p ft, u_char *id)
     char *sep = "", *dot, *fmt0xff, *fmt0xf;
     atoft_p xp;
     u_long decimal;
-    int i, j;
+    int i, firstbit, numbits, lastbit;
+    u_long byte;
 
     result[0] = 0;
     for (i = 0; i < ft->fti_type_indicies_len; i++) {
@@ -524,35 +524,30 @@ flow_id_to_string(ftinfo_p ft, u_char *id)
 				__FILE__, __LINE__, xp->fmt);
 	    break;
 	}
-	/* (clearly, mask 0xf0 or 0x0f is incompatible with numbytes > 1) */
-	for (j = 0; j < xp->numbytes; j++) {
-	    if ((xp->mask == 0) || (xp->mask == 0xff)) {
-		if (xp->fmt == FMT_DECIMAL) {
-		    decimal = (decimal<<8)+*id++;
-		} else {
-		    sprintf(fidp, fmt0xff, dot, *id++);
-		    fidp += strlen(fidp);
-		}
-	    } else if (xp->mask == 0xf0) {
-		if (xp->fmt == FMT_DECIMAL) {
-		    decimal = (decimal<<4)+((*id++)>>4);
-		} else {
-		    sprintf(fidp, fmt0xf, dot, (*id++)>>4);
-		    fidp += strlen(fidp);
-		}
-	    } else if (xp->mask == 0x0f) {
-		if (xp->fmt == FMT_DECIMAL) {
-		    decimal = (decimal<<4)+((*id++)&0xf);
-		} else {
-		    sprintf(fidp, fmt0xf, dot, (*id++)&0xf);
-		    fidp += strlen(fidp);
-		}
-	    } else {
-		/* unknown value for mask */
-		fprintf(stderr,
-			"%s:%d --- mask value %x of index %d of atoft bad!\n",
-				__FILE__, __LINE__, xp->mask, i);
+
+	firstbit = xp->firstbit;
+	numbits = xp->numbits;
+	while (numbits > 0) {
+	    byte = *id++;
+	    lastbit = (firstbit+numbits) > 8 ? 7 : firstbit+numbits-1;
+	    if (firstbit > 0) {
+		byte = (byte<<(firstbit+24))>>(firstbit+24);
 	    }
+	    if (lastbit < 7) {
+		byte = (byte>>(7-lastbit))<<(7-lastbit);
+	    }
+	    if (xp->fmt == FMT_DECIMAL) {
+		decimal = (decimal<<(lastbit-firstbit+1))+(byte>>(7-lastbit));
+	    } else {
+		if (firstbit < 4) {
+		    sprintf(fidp, fmt0xff, dot, byte);
+		} else {
+		    sprintf(fidp, fmt0xf, dot, byte);
+		}
+		fidp += strlen(fidp);
+	    }
+	    numbits -= (8-firstbit);
+	    firstbit = 0;
 	    if (xp->fmt == FMT_DOTTED) {
 		dot = ".";
 	    }
@@ -1380,23 +1375,34 @@ set_flow_type(Tcl_Interp *interp, int ftype, char *name, char *new_flow_upcall,
 	}
 	for (j = 0, xp = atoft; j < NUM(atoft); j++, xp++) {
 	    if (strcasecmp(xp->name, initial) == 0) {
-		int off, num, mask;
+		int off, firstbit, numbits, lastbit;
+		u_long mask;
 		off = xp->offset;
-		num = xp->numbytes;
-		mask = xp->mask ? xp->mask : 0xff;
-		while (num--) {
+		firstbit = xp->firstbit;
+		numbits = xp->numbits;
+		while (numbits > 0) {
 		    if (bandm >= (2*MAX_FLOW_ID_BYTES)) {
-			interp->result = "flow type too long";
+			interp->result = "flow type specifier too long";
 			return TCL_ERROR;
 		    }
 		    if (off > fti->fti_id_covers) {
 			fti->fti_id_covers = off;
 		    }
+		    mask = 0xff;
+		    lastbit = (firstbit+numbits) > 8 ? 7 : (firstbit+numbits-1);
+		    if (firstbit > 0) {
+			mask = (mask<<(firstbit+24))>>(firstbit+24);
+		    }
+		    if (lastbit < 7) {
+			mask = (mask>>(7-lastbit))<<(7-lastbit);
+		    }
+		    numbits -= (8-firstbit);
+		    firstbit = 0;
 		    fti->fti_bytes_and_mask[bandm++] = off++;
 		    fti->fti_bytes_and_mask[bandm++] = mask;
 		}
 		if (indicies >= NUM(fti->fti_type_indicies)) {
-		    interp->result = "too many fields in flow type";
+		    interp->result = "too many fields in flow type specifier";
 		    return TCL_ERROR;
 		}
 		fti->fti_type_indicies[indicies++] = j;
