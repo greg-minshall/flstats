@@ -4,10 +4,14 @@ LIBPATH = -L../libpcap/libpcap-0.0.6 \
 
 LIBPCAP = -lpcap
 LIBTCL = -ltcl7.4
-INCLUDES	= -I/usr/local/include
+
+INCLUDES	= -I/usr/local/include -I../include
+
 WARNINGS	= -Wall
 
 CFLAGS	= -g ${INCLUDES} ${WARNINGS}
+
+CC = gcc
 
 all:	tcpd2det fix2det flstats
 
