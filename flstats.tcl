@@ -1,18 +1,18 @@
 #
-# Tcl script as part of flowsim
+# Tcl script as part of flstats
 #
-# $Id: flowsim.tcl,v 1.36 1996/03/01 22:42:24 minshall Exp minshall $
+# $Id: flstats.tcl,v 1.37 1996/03/02 01:21:30 minshall Exp minshall $
 #
 #
 
-# XXX ./flowsim -t /var/tmp/sd.packets tcpd -b 0 -f ttl/mf -script fsim_flow_details
+# XXX ./flstats -t /var/tmp/sd.packets tcpd -b 0 -f ttl/mf -script fl_flow_details
 
 # XXX What is consequence of running -script parameter during
 # "application initialization"?
 
 
 ### The following is useful, but is also provided as an
-### example of how to use flowsim.
+### example of how to use flstats.
 
 ###############
 ### EXAMPLE ###
@@ -26,12 +26,12 @@ set CL_NONSWITCHED		3
 set CL_TO_BE_SWITCHED		4
 set CL_SWITCHED			5
 
-# when these are used, the values are set in [fsim_setft]
+# when these are used, the values are set in [fl_setft]
 set FT_UL_PORT			0
 set FT_UL_NOPORT		0
 
 proc \
-fsimswitchtime {} \
+flswitchtime {} \
 {
     return 0.300000 	; # time to switch
 }
@@ -50,13 +50,13 @@ fsimswitchtime {} \
 
 # $classifier.specifier -- return flow types used by $classifier
 proc\
-fsimclassifier.specifier {} \
+flclassifier.specifier {} \
 {
     return "prot"	; # flow specifier parts used by this classifier
 }
 
 proc\
-fsimclassifier { class flowtype flowid }\
+flclassifier { class flowtype flowid }\
 {
     global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
     global FT_UL_PORT FT_UL_NOPORT
@@ -76,12 +76,12 @@ fsimclassifier { class flowtype flowid }\
 #
 
 proc\
-fsimstarttimeout { class flowtype flowid }\
+flstarttimeout { class flowtype flowid }\
 {
     global CL_TO_BE_SWITCHED CL_NONSWITCHED
 
     if {$class == $CL_TO_BE_SWITCHED} {
-	return "$class $class $flowtype [fsimswitchtime] 2.0"
+	return "$class $class $flowtype [flswitchtime] 2.0"
     } else {
 	return "$class $class $flowtype 0.0 2.0"
     }
@@ -93,7 +93,7 @@ fsimstarttimeout { class flowtype flowid }\
 #
 
 proc\
-fsimdeleteflow {class ftype flowid time FLOW args}\
+fldeleteflow {class ftype flowid time FLOW args}\
 {
     # ahh, dr. regsub... 
     regsub -all {([a-zA-Z_]+) ([0-9.]+)} $args {[set x_\1 \2]} bar
@@ -115,7 +115,7 @@ fsimdeleteflow {class ftype flowid time FLOW args}\
 
 
 proc\
-fsimgetswitched { class flowtype flowid args}\
+flgetswitched { class flowtype flowid args}\
 {
     global CL_SWITCHED
 
@@ -125,31 +125,31 @@ fsimgetswitched { class flowtype flowid args}\
 # this doesn't need $pre, since the subst is performed at the caller...
 
 proc\
-fsimget_summary_vec {class} \
+flget_summary_vec {class} \
 {
 	# ahh, dr. regsub... 
 	regsub -all {([a-zA-Z_]+) ([0-9]+)} \
-			[fsim_class_summary $class] {[set ${pre}_\1 \2]} bar
+			[fl_class_summary $class] {[set ${pre}_\1 \2]} bar
 	return $bar
 }
 
 # this doesn't need $pre, since the subst is performed at the caller...
 #
 # the $pre_\1 variables need to have been created prior to the
-# call.  a call to fsimget_summary_vec (and subst'ing) on the same
+# call.  a call to flget_summary_vec (and subst'ing) on the same
 # class does this.
 
 proc\
-fsimget_diff_vec {class} \
+flget_diff_vec {class} \
 {
 	# ahh, dr. regsub... 
-	regsub -all {([a-zA-Z_]+) ([0-9]+)} [fsim_class_summary $class] \
+	regsub -all {([a-zA-Z_]+) ([0-9]+)} [fl_class_summary $class] \
 			{[set diff_${pre}_\1 [expr \2 - $${pre}_\1]]} bar
 	return $bar
 }
 
 proc\
-fsimll_delete {class ftype flowid time FLOW args}\
+flll_delete {class ftype flowid time FLOW args}\
 {
     # ahh, dr. regsub... 
     regsub -all {([a-zA-Z_]+) ([0-9.]+)} $args {[set x_\1 \2]} bar
@@ -171,22 +171,22 @@ fsimll_delete {class ftype flowid time FLOW args}\
 
 
 proc \
-fsim_flow_details { {fixortcpd {}} {filename {}} {binsecs {}} \
+fl_flow_details { {fixortcpd {}} {filename {}} {binsecs {}} \
 					{classifier {}} { ulflows {} }} \
 {
-    global fsim
-    fsim_setup $fixortcpd $filename $binsecs $classifier $ulflows
+    global flstats
+    fl_setup $fixortcpd $filename $binsecs $classifier $ulflows
 
-    set binsecs $fsim(binsecs)		; # make sure we have correct value
+    set binsecs $flstats(binsecs)	; # make sure we have correct value
 
     while {1} {
 	set bintime [lindex [split [time { \
-			set binno [fsim_read_one_bin $binsecs]}]] 0]
+			set binno [fl_read_one_bin $binsecs]}]] 0]
 	if {$binno == -1} {
 	    break;	# eof
 	}
-	fsim_start_enumeration
-	while { [set x [fsim_continue_enumeration]] != ""} {
+	fl_start_enumeration
+	while { [set x [fl_continue_enumeration]] != ""} {
 	    puts "$binno $x"
 	}
     }
@@ -194,13 +194,13 @@ fsim_flow_details { {fixortcpd {}} {filename {}} {binsecs {}} \
 
 
 proc \
-fsim_class_details { {fixortcpd {}} {filename {}} {binsecs {}} \
+fl_class_details { {fixortcpd {}} {filename {}} {binsecs {}} \
 					{classifier {}} { ulflows {} }}\
 {
-    global fsim
+    global flstats
     global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
 
-    fsim_setup $fixortcpd $filename $binsecs $classifier $ulflows
+    fl_setup $fixortcpd $filename $binsecs $classifier $ulflows
 
     puts "# plotvars 1 binno 2 pktsrouted 3 bytesrouted 4 pktsswitched"
     puts "# plotvars 5 bytesswitched 6 pktsdropped 7 bytesdropped"
@@ -214,42 +214,42 @@ fsim_class_details { {fixortcpd {}} {filename {}} {binsecs {}} \
 
     # preload the stats counters
     set pre non
-    subst [fsimget_summary_vec $CL_NONSWITCHED]
+    subst [flget_summary_vec $CL_NONSWITCHED]
     set pre waiting
-    subst [fsimget_summary_vec $CL_TO_BE_SWITCHED]
+    subst [flget_summary_vec $CL_TO_BE_SWITCHED]
     set pre switched
-    subst [fsimget_summary_vec $CL_SWITCHED]
+    subst [flget_summary_vec $CL_SWITCHED]
     set pre gstats
-    subst [fsimget_summary_vec 0]
+    subst [flget_summary_vec 0]
 
-    set binsecs $fsim(binsecs)		; # make sure we have correct value
+    set binsecs $flstats(binsecs)		; # make sure we have correct value
 
     while {1} {
 	set bintime [lindex [split [time { \
-			set binno [fsim_read_one_bin $binsecs]}]] 0]
+			set binno [fl_read_one_bin $binsecs]}]] 0]
 	if {$binno == -1} {
 	    break;	# eof
 	}
 
 	# get differences from previous stats counters
 	set pre non
-	subst [fsimget_diff_vec $CL_NONSWITCHED]
+	subst [flget_diff_vec $CL_NONSWITCHED]
 	set pre waiting
-	subst [fsimget_diff_vec $CL_TO_BE_SWITCHED]
+	subst [flget_diff_vec $CL_TO_BE_SWITCHED]
 	set pre switched
-	subst [fsimget_diff_vec $CL_SWITCHED]
+	subst [flget_diff_vec $CL_SWITCHED]
 	set pre gstats
-	subst [fsimget_diff_vec 0]
+	subst [flget_diff_vec 0]
 
 	# now, update the stats counters
 	set pre non
-	subst [fsimget_summary_vec $CL_NONSWITCHED]
+	subst [flget_summary_vec $CL_NONSWITCHED]
 	set pre waiting
-	subst [fsimget_summary_vec $CL_TO_BE_SWITCHED]
+	subst [flget_summary_vec $CL_TO_BE_SWITCHED]
 	set pre switched
-	subst [fsimget_summary_vec $CL_SWITCHED]
+	subst [flget_summary_vec $CL_SWITCHED]
 	set pre gstats
-	subst [fsimget_summary_vec 0]
+	subst [flget_summary_vec 0]
 	set xx [exec ps lp$pid]
 	set xx [lrange [split [join $xx]] 19 24]
 	puts [format \
@@ -311,9 +311,9 @@ fsim_class_details { {fixortcpd {}} {filename {}} {binsecs {}} \
 #
 
 proc \
-fsim_setft { {classifier {}} {ulflows {}} } \
+fl_setft { {classifier {}} {ulflows {}} } \
 {
-    global fsim
+    global flstats
 
     set ftindex 0
 
@@ -322,15 +322,15 @@ fsim_setft { {classifier {}} {ulflows {}} } \
 
 
     if {$ulflows == {}} {
-	set ulflows $fsim(ulflows)
+	set ulflows $flstats(ulflows)
     } else {
-	set fsim(ulflows) $ulflows
+	set flstats(ulflows) $ulflows
     }
 
     if {$classifier == {}} {
-	set classifier $fsim(classifier)
+	set classifier $flstats(classifier)
     } else {
-	set fsim(classifier) $classifier
+	set flstats(classifier) $classifier
     }
 
     # ok, scan thru upper layer flows, keeping track of used tags
@@ -370,11 +370,11 @@ fsim_setft { {classifier {}} {ulflows {}} } \
     set type1 [join $type1 /]
     set type2 [join $type2 /]
     puts "# flowtype $ftindex $type1 $classifier"
-    fsim_set_flow_type -f $ftindex -n $classifier -t fsimll_delete $type1
+    fl_set_flow_type -f $ftindex -n $classifier -t flll_delete $type1
     incr ftindex
     if {$portsseen != 0} {
 	puts "# flowtype $ftindex $type2 $classifier"
-	fsim_set_flow_type -f $ftindex -n $classifier -t fsimll_delete $type2
+	fl_set_flow_type -f $ftindex -n $classifier -t flll_delete $type2
 	incr ftindex
     }
 
@@ -405,46 +405,46 @@ fsim_setft { {classifier {}} {ulflows {}} } \
 	} else {
 	    set timeout "-"
 	}
-	fsim_set_flow_type -f $ftindex -n $newflow \
+	fl_set_flow_type -f $ftindex -n $newflow \
 				-r $recv -t $timeout [lindex $flow 0]
     }
 }
 
 proc \
-fsim_setup { {fixortcpd {}} {filename {}} {binsecs {}} \
+fl_setup { {fixortcpd {}} {filename {}} {binsecs {}} \
 				{classifier {}} { ulflows {} }} \
 {
-    global fsim
+    global flstats
 
     if {$fixortcpd == {}} {
-	if {![info exists fsim(tracefile.format)]} {
+	if {![info exists flstats(tracefile.format)]} {
 	    error "tracefile not specified"
 	}
-	set fixortcpd $fsim(tracefile.format)
+	set fixortcpd $flstats(tracefile.format)
     } else {
-	set fsim(tracefile.format) $fixortcpd
+	set flstats(tracefile.format) $fixortcpd
     }
 
     if {$filename == {}} {
-	if {![info exists fsim(tracefile.filename)]} {
+	if {![info exists flstats(tracefile.filename)]} {
 	    error "tracefile not specified"
 	}
-	set filename $fsim(tracefile.filename)
+	set filename $flstats(tracefile.filename)
     } else {
-	set fsim(tracefile.filename) $filename
+	set flstats(tracefile.filename) $filename
     }
 
     if {$binsecs == {}} {
-	set binsecs $fsim(binsecs)
+	set binsecs $flstats(binsecs)
     } else {
-	set fsim(binsecs) $binsecs
+	set flstats(binsecs) $binsecs
     }
 
     set fname [glob $filename]
     if [regexp -nocase fix $fixortcpd] {
-	fsim_set_fix_file $fname
+	fl_set_fix_file $fname
     } elseif [regexp -nocase tcpd $fixortcpd] {
-	fsim_set_tcpd_file $fname
+	fl_set_tcpd_file $fname
     } else {
 	puts "bad fixortcpd"
 	return
@@ -455,7 +455,7 @@ fsim_setup { {fixortcpd {}} {filename {}} {binsecs {}} \
 			$fname $filestats(size) $filestats(mtime)]
 
     puts "#"
-    fsim_setft $classifier $ulflows
+    fl_setft $classifier $ulflows
 
     puts "#"
     puts "# binsecs $binsecs"
@@ -466,27 +466,27 @@ fsim_setup { {fixortcpd {}} {filename {}} {binsecs {}} \
 
 # parse command line arguments.
 proc\
-fsim_set_parameters {argc argv}\
+fl_set_parameters {argc argv}\
 {
-    global fsim
+    global flstats
 
     # set various defaults before processing command line...
 
-    set fsim(classifier) fsimclassifier
-    set fsim(binsecs) 1
+    set flstats(classifier) flclassifier
+    set flstats(binsecs) 1
 
     # default UL flows...
-    set fsim(ulflows) { \
+    set flstats(ulflows) { \
 	{   ihv/ihl/tos/ttl/prot/src/dst \
 	    FT_UL_NOPORT \
-	    fsimstarttimeout \
+	    flstarttimeout \
 	    - \
-	    fsimdeleteflow} \
+	    fldeleteflow} \
 	{   ihv/ihl/tos/ttl/prot/src/dst/sport/dport \
 	    FT_UL_PORT \
-	    fsimstarttimeout \
+	    flstarttimeout \
 	    - \
-	    fsimdeleteflow}}
+	    fldeleteflow}}
 
 
     set arg [lindex $argv 0]
@@ -497,8 +497,8 @@ fsim_set_parameters {argc argv}\
 		error "not enough arguments for -tracefile in $argv\nlooking\
 			for '-tracefile filename { fix | tcpd }'"
 	    }
-	    set fsim(tracefile.filename) [lindex $argv 1]
-	    set fsim(tracefile.format) [lindex $argv 2]
+	    set flstats(tracefile.filename) [lindex $argv 1]
+	    set flstats(tracefile.format) [lindex $argv 2]
 	    incr argc -3
 	    set argv [lrange $argv 3 end]
 	} elseif {[string first $arg -binsecs] == 0} {
@@ -506,7 +506,7 @@ fsim_set_parameters {argc argv}\
 		error "not enough arguments for -binsecs in $argv\nlooking for\
 			    '-binsecs number'"
 	    }
-	    set fsim(binsecs) [lindex $argv 1]
+	    set flstats(binsecs) [lindex $argv 1]
 	    incr argc -2
 	    set argv [lrange $argv 2 end]
 	} elseif {[string first $arg -classifier] == 0} {
@@ -514,7 +514,7 @@ fsim_set_parameters {argc argv}\
 		error "not enough arguments for -classifier in $argv\nlooking\
 		    for '-classifier procedurename'"
 	    }
-	    set fsim(classifier) [lindex $argv 1]
+	    set flstats(classifier) [lindex $argv 1]
 	    incr argc -2
 	    set argv [lrange $argv 2 end]
 	} elseif {[string first $arg -flows] == 0} {
@@ -524,10 +524,10 @@ fsim_set_parameters {argc argv}\
 	    }
 	    switch -exact -- [lindex $argv 1] \
 	    file {
-		set fsim(ulflows) [source [lindex $argv 2]]
+		set flstats(ulflows) [source [lindex $argv 2]]
 	    } \
 	    script {
-		set fsim(ulflows) [lindex $argv 2]
+		set flstats(ulflows) [lindex $argv 2]
 	    } \
 	    default {
 		error "looking for 'file' or 'script', found [lindex $argv 1]"
@@ -551,21 +551,21 @@ fsim_set_parameters {argc argv}\
 }
 
 proc\
-fsim_startup { }\
+fl_startup { }\
 {
     global argc argv
     global tcl_RcFileName
 
-    set tcl_RcFileName "~/.flowsim.tcl"		; # only run if interactive...
+    set tcl_RcFileName "~/.flstats.tcl"		; # only run if interactive...
 
-    set ret [fsim_set_parameters $argc $argv]
+    set ret [fl_set_parameters $argc $argv]
     set argc [lindex $ret 0]
     set argv [lindex $ret 1]
 }
 
 # if {!$tcl_interactive} {
 #     if [catch {
-# 	fsim_startup
+# 	fl_startup
 #     } result] {
 # 	global errorInfo
 # 	puts stderr $result

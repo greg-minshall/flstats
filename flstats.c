@@ -8,15 +8,15 @@
  *	3.	Support for #pkts, sipg, to trigger pkt-recv
  *		callout.
  *	4.	Document: [simul_setup], [flow_details],
- *		[class_details], [fsim_read_one_bin].  Give
+ *		[class_details], [fl_read_one_bin].  Give
  *		examples of use; warn about memory consumption.
  *	7.	Verify the results of callouts (new flow, recv,
  *		timer) are valid.
  *  	8.  	Set atoft[] from Tcl code.  (Need to change "alltags"
- *		in [fsim_setft]; or delete!)
+ *		in [fl_setft]; or delete!)
  *  	9.  	Protohasports...
  *     11.  	Specify trace file/format on command line;
- *  	    	add fsim_fileinfo (returns name and format).
+ *  	    	add fl_fileinfo (returns name and format).
  *     12.  	Change atoft[] to allow spec of (SHIFT_RIGHT|IN_PLACE)
  *		(to decouple output base from shifting) and DOTTED as
  *		a flag; make fmt == char * ("%d", say)?
@@ -27,7 +27,7 @@
  *     16.	"fix" --> "fix24".
  */
 
-/* $Id: flowsim.c,v 1.59 1996/03/01 21:03:01 minshall Exp minshall $ */
+/* $Id: flstats.c,v 1.60 1996/03/01 22:51:47 minshall Exp minshall $ */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -391,8 +391,8 @@ flowentry_t timers[150];
 
 u_long binno;
 
-char fsim_tclprogram[] = 
-#include "flowsim.char"
+char fl_tclprogram[] = 
+#include "flstats.char"
 ;
 
 /*
@@ -1306,14 +1306,14 @@ process_one_packet(Tcl_Interp *interp)
  */
 
 static int
-fsim_read_one_bin(ClientData clientData, Tcl_Interp *interp,
+fl_read_one_bin(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
     int error;
     char buf[20];
 
     if (argc > 2) {
-	interp->result = "Usage: fsim_read_one_bin ?binsecs?";
+	interp->result = "Usage: fl_read_one_bin ?binsecs?";
 	return TCL_ERROR;
     } else if (argc == 2) {
 	error = Tcl_GetInt(interp, argv[1], &binsecs);
@@ -1327,11 +1327,11 @@ fsim_read_one_bin(ClientData clientData, Tcl_Interp *interp,
     binno = -1;
     if (!fileeof) {
 	if (filetype == TYPE_UNKNOWN) {
-	    interp->result = "need to call fsim_set_{tcpd,fix}_file first";
+	    interp->result = "need to call fl_set_{tcpd,fix}_file first";
 	    return TCL_ERROR;
 	}
 	if (flow_types == 0) {
-	    interp->result = "need to call fsim_set_flow_type first";
+	    interp->result = "need to call fl_set_flow_type first";
 	    return TCL_ERROR;
 	}
 
@@ -1457,7 +1457,7 @@ goodout:
  */
 
 static int
-fsim_set_flow_type(ClientData clientData, Tcl_Interp *interp,
+fl_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 					    int argc, char *argv[])
 {
     int error;
@@ -1465,7 +1465,7 @@ fsim_set_flow_type(ClientData clientData, Tcl_Interp *interp,
     char *new_flow_upcall, *recv_upcall, *timer_upcall;
     static char result[20];
     static char *usage =
-		"Usage: fsim_set_flow_type "
+		"Usage: fl_set_flow_type "
 		"?-n new_flow_command? ?-r recv_command? "
 		"?-t timer_command? ?-f flow_type? flowstring";
     int op;
@@ -1548,13 +1548,13 @@ fsim_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 }
 
 static int
-fsim_class_summary(ClientData clientData, Tcl_Interp *interp,
+fl_class_summary(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
     clstats_p clsp;
 
     if (argc != 2) {
-	interp->result = "Usage: fsim_class_summary class";
+	interp->result = "Usage: fl_class_summary class";
 	return TCL_ERROR;
     }
 
@@ -1571,11 +1571,11 @@ fsim_class_summary(ClientData clientData, Tcl_Interp *interp,
 
 
 static int
-fsim_summary(ClientData clientData, Tcl_Interp *interp,
+fl_summary(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
     if (argc != 1) {
-	interp->result = "Usage: fsim_summary";
+	interp->result = "Usage: fl_summary";
 	return TCL_ERROR;
     }
 
@@ -1589,7 +1589,7 @@ fsim_summary(ClientData clientData, Tcl_Interp *interp,
  */
 
 static int
-fsim_start_enumeration(ClientData clientData, Tcl_Interp *interp,
+fl_start_enumeration(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
     enum_state = table;
@@ -1597,7 +1597,7 @@ fsim_start_enumeration(ClientData clientData, Tcl_Interp *interp,
 }
 
 static int
-fsim_continue_enumeration(ClientData clientData, Tcl_Interp *interp,
+fl_continue_enumeration(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
     char buf[200];
@@ -1619,11 +1619,11 @@ fsim_continue_enumeration(ClientData clientData, Tcl_Interp *interp,
 
 
 static int
-fsim_set_tcpd_file(ClientData clientData, Tcl_Interp *interp,
+fl_set_tcpd_file(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
     if (argc != 2) {
-	interp->result = "Usage: fsim_set_tcpd_file filename";
+	interp->result = "Usage: fl_set_tcpd_file filename";
 	return TCL_ERROR;
     }
     newfile();
@@ -1637,11 +1637,11 @@ fsim_set_tcpd_file(ClientData clientData, Tcl_Interp *interp,
 }
 
 static int
-fsim_set_fix_file(ClientData clientData, Tcl_Interp *interp,
+fl_set_fix_file(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
     if (argc != 2) {
-	interp->result = "Usage: fsim_set_fix_file filename";
+	interp->result = "Usage: fl_set_fix_file filename";
 	return TCL_ERROR;
     }
     newfile();
@@ -1662,27 +1662,27 @@ Tcl_AppInit(Tcl_Interp *interp)
 	return TCL_ERROR;
     }
 
-    Tcl_CreateCommand(interp, "fsim_class_summary", fsim_class_summary,
+    Tcl_CreateCommand(interp, "fl_class_summary", fl_class_summary,
 								NULL, NULL);
-    Tcl_CreateCommand(interp, "fsim_continue_enumeration",
-					fsim_continue_enumeration, NULL, NULL);
-    Tcl_CreateCommand(interp, "fsim_read_one_bin", fsim_read_one_bin,
+    Tcl_CreateCommand(interp, "fl_continue_enumeration",
+					fl_continue_enumeration, NULL, NULL);
+    Tcl_CreateCommand(interp, "fl_read_one_bin", fl_read_one_bin,
 								NULL, NULL);
-    Tcl_CreateCommand(interp, "fsim_set_fix_file", fsim_set_fix_file,
+    Tcl_CreateCommand(interp, "fl_set_fix_file", fl_set_fix_file,
 								NULL, NULL);
-    Tcl_CreateCommand(interp, "fsim_set_flow_type", fsim_set_flow_type,
+    Tcl_CreateCommand(interp, "fl_set_flow_type", fl_set_flow_type,
 								NULL, NULL);
-    Tcl_CreateCommand(interp, "fsim_set_tcpd_file", fsim_set_tcpd_file,
+    Tcl_CreateCommand(interp, "fl_set_tcpd_file", fl_set_tcpd_file,
 								NULL, NULL);
-    Tcl_CreateCommand(interp, "fsim_start_enumeration", fsim_start_enumeration,
+    Tcl_CreateCommand(interp, "fl_start_enumeration", fl_start_enumeration,
 								NULL, NULL);
-    Tcl_CreateCommand(interp, "fsim_summary", fsim_summary,
+    Tcl_CreateCommand(interp, "fl_summary", fl_summary,
 								NULL, NULL);
     /* call out to Tcl to set up whatever... */
-    if (Tcl_GlobalEval(interp, fsim_tclprogram) != TCL_OK) {
+    if (Tcl_GlobalEval(interp, fl_tclprogram) != TCL_OK) {
 	return TCL_ERROR;
     }
-    return Tcl_Eval(interp, "fsim_startup");
+    return Tcl_Eval(interp, "fl_startup");
 }
 
 int
