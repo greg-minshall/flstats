@@ -13,6 +13,18 @@ set FT_UL_NOPORT	4
 
 proc switchtime {} { return 0.300000 }	; # time to switch
 
+#
+# this routine is called when a low level flow
+# is established.
+#
+# classify the incoming flow, and return the class and
+# flow type of the upper level flow corresponding to this
+# lower level flow
+#
+# additionally, start a timeout on the flow to reap it if unused
+# over some period of time
+#
+
 proc\
 classifier { class flowtype flowid }\
 {
@@ -22,12 +34,34 @@ classifier { class flowtype flowid }\
 #    6 {return "$CL_SWITCHED $FT_LL_NOPORT"}
     regexp {/prot/([^/]*)/} $flowid match prot
     switch -exact -- $prot {
-    6 {return "$CL_TO_BE_SWITCHED $FT_UL_PORT getswitched [switchtime] \
-							deleteflow 2.0 0x2"}
+    6 {return "$CL_TO_BE_SWITCHED $FT_UL_NOPORT - 0.0 deleteflow 2.0 0x2"}
     11 {return "$CL_NONSWITCHED $FT_LL_NOPORT - 0.0 deleteflow 2.0 0x2"}
     default {return "$CL_NONSWITCHED $FT_LL_NOPORT - 0.0 deleteflow 2.0 0x2"}
     }
 }
+
+#
+# this is called when a new upper level flow is established.
+# this gives us a chance to start a packet_recv and timeout
+# process
+#
+
+proc\
+starttimeout { class flowtype flowid }\
+{
+    global CL_TO_BE_SWITCHED
+
+    if {$class == $CL_TO_BE_SWITCHED} {
+	return "$class $flowtype getswitched [switchtime] deleteflow 2.0 0x2"
+    } else {
+	return "$class $flowtype - 0.0  deleteflow 2.0 0x2"
+    }
+}
+
+#
+# this runs for both upper level and lower level flows
+# to time them out.
+#
 
 proc\
 deleteflow {cookie class ftype flowid time FLOW args}\
@@ -37,7 +71,6 @@ deleteflow {cookie class ftype flowid time FLOW args}\
     subst $bar
 
     if {[expr $time - $x_last] > $cookie} {
-	puts "DELETE"		; # gone...
 	return "DELETE"		; # gone...
     }
 
@@ -46,7 +79,6 @@ deleteflow {cookie class ftype flowid time FLOW args}\
 	set time 64
     }
 
-    puts "- deleteflow $time.0 $time"
     return "- deleteflow $time.0 $time"
 }
 
@@ -114,6 +146,7 @@ proc \
 simul { fixortcpd filename {binsecs 1} } \
 {
     global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
+    global FT_LL_PORT FT_LL_NOPORT FT_UL_PORT FT_UL_NOPORT
 
     set fname [glob $filename]
     file stat $fname filestats
@@ -133,10 +166,14 @@ simul { fixortcpd filename {binsecs 1} } \
     }
 
     # set low level flow types
-    teho_set_flow_type -f 0 -s 1 -c classifier \
+    teho_set_flow_type -f $FT_LL_PORT -s 0 -c classifier \
 				ihv/ihl/tos/ttl/prot/src/dst/sport/dport
-    teho_set_flow_type -f 1 -s 2 -c classifier ihv/ihl/tos/ttl/prot/src/dst
+    teho_set_flow_type -f $FT_LL_NOPORT -s 0 -c classifier ihv/ihl/tos/ttl/prot/src/dst
     # leave *2* uninitialized (as a guard)
+    teho_set_flow_type -f $FT_UL_PORT -s $CL_TO_BE_SWITCHED \
+				-c starttimeout ihv/ihl/tos/ttl/prot/src/dst
+    teho_set_flow_type -f $FT_UL_NOPORT -s $CL_TO_BE_SWITCHED \
+				-c starttimeout ihv/ihl/tos/ttl/prot/src/dst
 
     puts "# plotvars 1 binno 2 pktsrouted 3 pktsswitched 4 newflows 5 numflows"
 
@@ -168,9 +205,9 @@ simul { fixortcpd filename {binsecs 1} } \
 			[expr [lindex $diffnon 3] + [lindex $diffwaiting 3]] \
 			[lindex $diffswitched 3] \
 			[lindex $diffwaiting 0] \
-			[lindex $waiting 0]]
+			[expr ([lindex $waiting 0] + [lindex $switched 0]) - \
+				([lindex $waiting 1] + [lindex $switched 1])]]
 	teho_run_timeouts
-	flush stdout
 	set onon $non
 	set owaiting $waiting
 	set oswitched $switched
