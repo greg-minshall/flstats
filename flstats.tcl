@@ -1,9 +1,11 @@
 #
 # Tcl script as part of flowsim
 #
-# $Id: flowsim.tcl,v 1.35 1996/03/01 22:34:28 minshall Exp minshall $
+# $Id: flowsim.tcl,v 1.36 1996/03/01 22:42:24 minshall Exp minshall $
 #
 #
+
+# XXX ./flowsim -t /var/tmp/sd.packets tcpd -b 0 -f ttl/mf -script fsim_flow_details
 
 # XXX What is consequence of running -script parameter during
 # "application initialization"?
@@ -518,7 +520,7 @@ fsim_set_parameters {argc argv}\
 	} elseif {[string first $arg -flows] == 0} {
 	    if {$argc < 3} {
 		error "not enough arguments for -flows in $argv\nlooking for\
-				'-flows {file filename|- script}'"
+				'-flows {file filename|script script}'"
 	    }
 	    switch -exact -- [lindex $argv 1] \
 	    file {
