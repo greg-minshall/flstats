@@ -54,7 +54,7 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.72 1996/03/21 02:12:40 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.73 1996/03/21 02:51:54 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -66,7 +66,7 @@ static char *rcsid =
 /* global preprocessor defines */
 #define	MAX_PACKET_SIZE		1518
 
-#define	MAX_FLOW_ID_BYTES	24	/* maximum number of bytes in flow id */
+#define	MAX_FLOW_ID_BYTES	30	/* maximum number of bytes in flow id */
 
 #define	NUM(a)	(sizeof (a)/sizeof ((a)[0]))
 #define	MIN(a,b)	((a) < (b) ? (a):(b))
@@ -119,6 +119,7 @@ static char *rcsid =
 #define	TYPE_UNKNOWN	0
 #define	TYPE_PCAP	2
 #define	TYPE_FIX24	3
+#define	TYPE_FIX44	4
 
 /* type defines */
 
@@ -340,7 +341,90 @@ atoft_t atoft[] = {
 };
 
 
-/* definition of FIX packet format */
+/* definition of FIX 44 packet format */
+
+/*
+ * The fixed sized records in the trace look like:
+ * 
+ *     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ *  0  |                    timestamp (seconds)                        | Time
+ *     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ *  1  |                  timestamp (microseconds)                     |
+ *     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ *  2  |Version|  IHL  |Type of Service|          Total Length         | IP
+ *     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ *  3  |         Identification        |Flags|      Fragment Offset    |
+ *     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ *  4  |  Time to Live |    Protocol   |         Header Checksum       |
+ *     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ *  5  |                       Source Address                          |
+ *     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ *  6  |                    Destination Address                        |
+ *     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ *  7  |          Source Port          |       Destination Port        | TCP
+ *     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ *  8  |                        Sequence Number                        |
+ *     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ *  9  |                    Acknowledgment Number                      |
+ *     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ *     |  Data |           |U|A|P|R|S|F|                               |
+ *  10 | Offset| Reserved  |R|C|S|S|Y|I|            Window             |
+ *     |       |           |G|K|H|T|N|N|                               |
+ *     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ */
+
+
+struct fix44pkt {
+    u_long  secs,
+	    usecs;
+    /* IP header */
+    struct {
+#if	(BYTE_ORDER == BIG_ENDIAN)
+	u_char  vers:4,
+		ihl:4,
+#else
+	u_char  ihl:4,
+		vers:4,
+#endif
+		tos;
+	u_short len,
+		id,
+		foff;
+	u_char  ttl,
+		prot;
+	u_short sum;
+	u_long  src,
+		dst;
+    } ip;
+    /* TCP/UDP header */
+    union {
+	struct {
+	u_short sport,
+		dport;
+	} udp;
+	struct {
+	    u_short sport,
+		    dport;
+	    u_long  seq,
+		    ack;
+	#if	(BYTE_ORDER == BIG_ENDIAN)
+	    u_char  doff:4,
+		    resv:4,
+	#else
+	    u_char  resv:4,
+		    doff:4,
+	#endif
+		    flags;
+	    u_short window;
+	} tcp;
+    } tcpudp;
+};
+
+#define	FIX44_TO_PACKET(p)  (char *)(&p->ip)
+#define	FIX44_PACKET_SIZE   36
+
+
+/* definition of FIX 24 packet format */
 
 /*
  * The input of the file looks like:
@@ -394,6 +478,7 @@ int filetype = 0;
 flowentry_p buckets[31979];
 flowentry_p onebehinds[NUM(buckets)];
 flowentry_p table;			/* list of everything */
+flowentry_p table_last;			/* last of everything */
 flowentry_p flow_enum_state;
 
 struct timeval curtime, starttime;
@@ -419,6 +504,8 @@ pcap_t *pcap_descriptor;
 char pcap_errbuf[PCAP_ERRBUF_SIZE];
 
 FILE *fix24_descriptor;
+
+FILE *fix44_descriptor;
 
 int packet_error = 0;
 
@@ -479,6 +566,13 @@ newfile(void)
 	    exit(2);
 	}
 	break;
+    case TYPE_FIX44:
+	filetype = TYPE_UNKNOWN;
+	if (fclose(fix44_descriptor) == EOF) {
+	    perror("fclose");
+	    exit(2);
+	}
+	break;
     case TYPE_UNKNOWN:
 	/* nothing to do */
 	break;
@@ -498,7 +592,7 @@ newfile(void)
 	nfe = fe->fe_next_in_table;
 	free(fe);
     }
-    table = 0;
+    table = table_last = 0;
     memset(buckets, 0, sizeof buckets);
     memset(onebehinds, 0, sizeof onebehinds);
 }
@@ -868,12 +962,14 @@ tbl_add(u_char *id, int id_len)
     fe->fe_prev_in_bucket = 0;
     *hbucket = fe;
 
-    fe->fe_next_in_table = table;
-    if (fe->fe_next_in_table) {
-	fe->fe_next_in_table->fe_prev_in_table = fe;
+    fe->fe_next_in_table = 0;
+    fe->fe_prev_in_table = table_last;
+    if (table_last) {
+	table_last->fe_next_in_table = fe;
+    } else {
+	table = fe;
     }
-    fe->fe_prev_in_table = 0;
-    table = fe;
+    table_last = fe;
 
     fe->fe_next_in_timer = fe->fe_prev_in_timer = 0;
 
@@ -917,6 +1013,8 @@ tbl_delete(flowentry_p fe)
     }
     if (fe->fe_next_in_table) {
 	fe->fe_next_in_table->fe_prev_in_table = fe->fe_prev_in_table;
+    } else {
+	table_last = fe->fe_prev_in_table;
     }
 
     free(fe);
@@ -1350,6 +1448,20 @@ receive_fix24(Tcl_Interp *interp, struct fix24pkt *pkt)
 }
 
 
+static void
+receive_fix44(Tcl_Interp *interp, struct fix44pkt *pkt)
+{
+    set_time(interp, ntohl(pkt->secs), ntohl(pkt->usecs));
+
+    /* src and dst are in ??? intel order ??? */
+    NTOHL(pkt->ip.src);
+    NTOHL(pkt->ip.dst);
+
+    packetin(interp, FIX44_TO_PACKET(pkt),
+				FIX44_PACKET_SIZE, ntohs(pkt->ip.len));
+}
+
+
 static int
 process_one_packet(Tcl_Interp *interp)
 {
@@ -1358,29 +1470,54 @@ process_one_packet(Tcl_Interp *interp)
     if (pending) {
 	packetin(interp, 0, 0, 0);
     } else {
-	if (filetype == TYPE_PCAP) {
+	switch (filetype) {
+	case TYPE_PCAP:
 	    if (pcap_dispatch(pcap_descriptor, 1,
 				receive_tcpd, (u_char *)interp) == 0) {
 		fileeof = 1;
 		filetype = TYPE_UNKNOWN;
 	    }
-	} else {	/* TYPE_FIX24 */
-	    struct fix24pkt fix24packet;
-	    int count;
+	    break;
+	case TYPE_FIX24: {
+		struct fix24pkt fix24packet;
+		int count;
 
-	    count = fread(&fix24packet, sizeof fix24packet, 1, fix24_descriptor);
-	    if (count == 0) {
-		if (feof(fix24_descriptor)) {
-		    fileeof = 1;
-		    filetype = TYPE_UNKNOWN;
-		} else {
-		    interp->result = "error on read";
-		    return TCL_ERROR;
+		count = fread(&fix24packet,
+				sizeof fix24packet, 1, fix24_descriptor);
+		if (count == 0) {
+		    if (feof(fix24_descriptor)) {
+			fileeof = 1;
+			filetype = TYPE_UNKNOWN;
+		    } else {
+			interp->result = "error on read";
+			return TCL_ERROR;
+		    }
+		} else if (ntohs(fix24packet.len) != 65535) {
+		    /* 65535 ==> not IP packet (ethertype in dport) */
+		    receive_fix24(interp, &fix24packet);
 		}
-	    } else if (ntohs(fix24packet.len) != 65535) {
-		/* 65535 ==> not IP packet (ethertype in dport) */
-		receive_fix24(interp, &fix24packet);
 	    }
+	    break;
+	case TYPE_FIX44: {
+		struct fix44pkt fix44packet;
+		int count;
+
+		count = fread(&fix44packet,
+				sizeof fix44packet, 1, fix44_descriptor);
+		if (count == 0) {
+		    if (feof(fix44_descriptor)) {
+			fileeof = 1;
+			filetype = TYPE_UNKNOWN;
+		    } else {
+			interp->result = "error on read";
+			return TCL_ERROR;
+		    }
+		} else if (ntohs(fix44packet.ip.len) != 65535) {
+		    /* 65535 ==> not IP packet (ethertype in dport) XXX */
+		    receive_fix44(interp, &fix44packet);
+		}
+	    }
+	    break;
 	}
     }
     return packet_error;
@@ -1416,7 +1553,7 @@ fl_read_one_bin(ClientData clientData, Tcl_Interp *interp,
     binno = -1;
     if (!fileeof) {
 	if (filetype == TYPE_UNKNOWN) {
-	    interp->result = "need to call fl_set_{tcpd,fix24}_file first";
+	    interp->result = "need to call fl_set_{tcpd,fix{2,4}4}_file first";
 	    return TCL_ERROR;
 	}
 	if (flow_types == 0) {
@@ -1774,10 +1911,27 @@ set_fix24_file(ClientData clientData, Tcl_Interp *interp, char *filename)
 }
 
 static int
+set_fix44_file(ClientData clientData, Tcl_Interp *interp, char *filename)
+{
+    newfile();
+    if ((filename[0] == '-') && (filename[1] == 0)) {
+	fix44_descriptor = stdin;
+    } else {
+	fix44_descriptor = fopen(filename, "r");
+	if (fix44_descriptor == 0) {
+	    interp->result = "error opening file";
+	    return TCL_ERROR;
+	}
+    }
+    filetype = TYPE_FIX44;
+    return TCL_OK;
+}
+
+static int
 fl_set_file(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
-    static char *usage = "Usage: fl_set_file filename [tcpd|fix24]";
+    static char *usage = "Usage: fl_set_file filename [tcpd|fix24|fix44]";
 
     if ((argc < 2) || (argc > 3)) {
 	interp->result = usage;
@@ -1787,6 +1941,8 @@ fl_set_file(ClientData clientData, Tcl_Interp *interp,
 	return set_tcpd_file(clientData, interp, argv[1]);
     } else if (!strcmp(argv[2], "fix24")) {
 	return set_fix24_file(clientData, interp, argv[1]);
+    } else if (!strcmp(argv[2], "fix44")) {
+	return set_fix44_file(clientData, interp, argv[1]);
     } else {
 	interp->result = usage;
 	return TCL_ERROR;
