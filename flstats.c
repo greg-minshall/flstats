@@ -45,6 +45,16 @@
 #define	NOW_AS_BINNO() (binsecs == 0 ? 0 : \
 		(TIMEDIFFSECS(&curtime, &starttime)/binsecs))
 
+#define	FLOW_ID_FROM_HDR(fid,hdr,ftip) { \
+	int i, j; \
+	for (i = 0, j = 0; j < ftip->fti_bytes_and_mask_len; i++, j += 2) { \
+	    (fid)[i] = (hdr)[ftip->fti_bytes_and_mask[j]] \
+					&ftip->fti_bytes_and_mask[j+1]; \
+	} \
+    }
+
+
+/* Types of input files to be processed */
 #define	TYPE_UNKNOWN	0
 #define	TYPE_PCAP	2
 #define	TYPE_FIX	3
@@ -185,11 +195,13 @@ struct ftinfo {
 	     *
 	     * the output flowtype is the application (upper
 	     * level) flowtype (this flowtype must already exist/have
-	     * been inialized); the class index is the index
-	     * to be used by the flow of flowtype (in case it needs
-	     * to be created); pkt_recv_cmd is the command executed
-	     * when a packet in the output flow is received
+	     * been initialized); the class index is the index to be
+	     * used by the new flow; pkt_recv_cmd is the command
+	     * executed when a packet in the new flow is received
 	     * secs.usecs after the current time in the output flow.
+	     * note that if the output flowtype and flowid map to
+	     * an existing flow, the class_index, pkt_recv, and
+	     * secs.usecs return values are not used.
 	     */
 };
 
@@ -583,6 +595,27 @@ flow_type_to_string(int ftype)
 }
 
 
+static hentry_p
+new_flow(ftinfo_p ftip, int ftype, u_char *flowid)
+{
+    hentry_p hent;
+
+    hent = tbl_add(pending_flow_id, ftip->fti_id_len);
+    if (hent == 0) {
+	return 0;
+    }
+    hent->flow_type_index = ftype;
+    hent->class_index = ftip->fti_class_index;
+    hent->packets = 0;
+    hent->created_bin = binno;
+    hent->last_bin_active = 0xffffffff;
+    hent->pkt_recv_cmd = 0;
+    hent->created = curtime;
+    hent->pkt_recv_cmd_time.tv_sec = 0;
+    hent->pkt_recv_cmd_time.tv_usec = 0;
+}
+
+
 /*
  * This is the main packet input routine, called when a packet
  * has been received.
@@ -629,12 +662,8 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	    clsp->cls_fragments++;
 	    return;
 	}
-
 	/* create flow id for this packet */
-	for (i = 0, j = 0; j < ftip->fti_bytes_and_mask_len; i++, j += 2) {
-	    pending_flow_id[i] = packet[ftip->fti_bytes_and_mask[j]]
-					    &ftip->fti_bytes_and_mask[j+1];
-	}
+	FLOW_ID_FROM_HDR(pending_flow_id, packet, ftip);
     } else {
 	pending = 0;
 	if (len) {	/* shouldn't happen! */
@@ -663,23 +692,15 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
     /* find the low level flow entry */
     hent = tbl_lookup(pending_flow_id, ftip->fti_id_len);
     if (hent == 0) {
-	hent = tbl_add(pending_flow_id, ftip->fti_id_len);
+	hent = new_flow(ftip, ftype, pending_flow_id);
 	if (hent == 0) {
-	    interp->result = "no room for more flows";
+	    interp->result = "unable to create a new flow";
 	    packet_error = TCL_ERROR;
 	    return;
 	}
-	hent->last_bin_active = 0xffffffff;
-	hent->created = curtime;
-	hent->created_bin = binno;
-	hent->flow_type_index = ftype;
-	hent->class_index = ftip->fti_class_index;
-	hent->pkt_recv_cmd_time.tv_sec = 0;
-	hent->pkt_recv_cmd_time.tv_usec = 0;
-	hent->pkt_recv_cmd = 0;
 	/*
-	 * if there is a "new flow" callout registered in this flow
-	 * type, call it.
+	 * now, if there is a "new flow" callout registered in this
+	 * flow type, call it.
 	 */
 	if (ftip->fti_new_flow_cmd) {
 	    char buf[60];
@@ -698,7 +719,6 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	    outtime.tv_usec = 0;
 	    n = sscanf(interp->result, "%d %d %s %d.%d",
 		    &outft, &outcls, buf, &outtime.tv_sec, &outtime.tv_sec);
-	    hent->class_index = atoi(interp->result);
 	    if (n >= 3) {
 		    hent->pkt_recv_cmd = strsave(buf);
 		if (n >= 4) {
@@ -707,7 +727,25 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	    }
 	    if (outft != ftype) {
 		/* sigh, need to go find/create a new flow */
+		ftip = &ftinfo[ftype];
+		if (FTI_UNUSED(ftip)) {
+		    interp->result ="attempt to map flow to unused flow type";
+		    packet_error = TCL_ERROR;
+		    return;
+		}
+		FLOW_ID_FROM_HDR(pending_flow_id, packet, ftip);
+		hent = tbl_lookup(pending_flow_id, ftip->fti_id_len);
+		if (hent == 0) {
+		    hent = new_flow(ftip, ftype, pending_flow_id);
+		    if (hent == 0) {
+			interp->result = "no more room for more flows";
+			packet_error = TCL_ERROR;
+			return;
+		    }
+		}
 	    }
+	    hent->class_index = outcls;
+	    hent->pkt_recv_cmd_time = outtime;
 	}
 	clsp = &clstats[hent->class_index];
 	clsp->cls_created++;
