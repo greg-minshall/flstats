@@ -24,10 +24,11 @@
  *     14.	Call to retrieve RCS Id.
  *     15.	set_file, takes "filename format".  make tcl
  *  	    	-tracefile parms a list.
+ *     16.	Change "low level" comments to general lattice.
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.62 1996/03/14 02:55:57 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.63 1996/03/14 05:59:28 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -121,9 +122,8 @@ struct flowentry {
 	fe_upcall_when_secs_ge,	/* recv_upcall won't run till this time */
 	fe_timer_time;	    	/* time to run timer routine */
     /* fields for hashing */
-    u_short fe_sum;		/* hash of key, speeds up searching */
-    u_char  fe_key_len,		/* length of key */
-	    fe_level;		/* "level" - to allow same key at diff */
+    u_short fe_sum;		/* hash of id, speeds up searching */
+    u_char  fe_id_len;		/* length of id */
     flowentry_p
 	    fe_next_in_bucket,
 	    fe_prev_in_bucket,
@@ -131,12 +131,8 @@ struct flowentry {
 	    fe_prev_in_table,
 	    fe_next_in_timer,
 	    fe_prev_in_timer;
-    u_char  fe_key[1];		/* variable sized (KEEP AT END!) */
+    u_char  fe_id[1];		/* variable sized (KEEP AT END!) */
 };
-
-/* we define two levels; LOWER is for the low level machinery; HIGHER is ... */
-#define	LEVEL_LOWER	0
-#define	LEVEL_UPPER	1
 
 /*
  * At the lower level, application-defined "classes" are merely
@@ -272,6 +268,12 @@ struct ftinfo {
 #define	FTI_USES_PORTS(p) ((p)->fti_id_covers > 20)
 #define	FTI_UNUSED(p)		((p)->fti_id_len == 0)
 
+typedef struct llcl {
+    int	llcl_inuse;
+    int llcl_fti;	/* flow type index */
+} llcl_t, *llcl_p;
+
+#define	LLCL_UNUSED(p)		((p)->llcl_inuse == 0)
 
 /*
  * This describes the IP header and relevant fields of TCP/UDP header.
@@ -371,6 +373,8 @@ int binsecs = 0;		/* number of seconds in a bin */
 
 ftinfo_t ftinfo[10];		/* number of distinct flow types in use */
 
+llcl_t llclasses[NUM(ftinfo)];
+
 /*
  * application defined "classes".  Clstats[0] is special, in that
  * it gets any counts not tied to any other flow type or flow.
@@ -464,29 +468,28 @@ newfile(void)
  *
  * This is tailored to doing quite short data structures,
  * in particular, flow ids.
- *
- * The seed parameter biases things slightly.
  */
 
 static u_short
-cksum(u_char *p, int len, u_long seed)
+cksum(u_char *p, int len)
 {
     int shorts = len/2;
+    u_long sum;
 
     while (shorts > 4) {
-/* 0*/	seed += PICKUP_NETSHORT(p); p += 2; seed += PICKUP_NETSHORT(p); p += 2;
-/* 2*/	seed += PICKUP_NETSHORT(p); p += 2; seed += PICKUP_NETSHORT(p); p += 2;
+/* 0*/	sum += PICKUP_NETSHORT(p); p += 2; sum += PICKUP_NETSHORT(p); p += 2;
+/* 2*/	sum += PICKUP_NETSHORT(p); p += 2; sum += PICKUP_NETSHORT(p); p += 2;
 /* 4*/	shorts -= 4;
     }
 
     while (shorts > 0) {
-	seed += PICKUP_NETSHORT(p);
+	sum += PICKUP_NETSHORT(p);
 	p += 2;
 	shorts--;
     }
 
     if (len&1) {
-	seed += p[0]<<8;
+	sum += p[0]<<8;
     }
 
     /*
@@ -494,10 +497,10 @@ cksum(u_char *p, int len, u_long seed)
      *
      * 0xffff + 0xffff = 0x1fffe.  So, 
      */
-    seed = (seed&0xffff)+((seed>>16)&0xffff);
-    seed = (seed&0xffff)+((seed>>16)&0xffff);	/* That's enough */
+    sum = (sum&0xffff)+((sum>>16)&0xffff);
+    sum = (sum&0xffff)+((sum>>16)&0xffff);	/* That's enough */
 
-    return (u_short) (~htons(seed))&0xffff;
+    return (u_short) (~htons(sum))&0xffff;
 }
 
 
@@ -704,7 +707,7 @@ do_timers(Tcl_Interp *interp)
 	    sprintf(buf2, " %ld.%06ld ", curtime.tv_sec, curtime.tv_usec);
 	    if (Tcl_VarEval(interp,
 		    ftinfo[fe->fe_flow_type].fti_timer_upcall, buf,
-		    flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_key),
+		    flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_id),
 		    buf2, " FLOW ", flow_statistics(fe), 0) != TCL_OK) {
 		packet_error = TCL_ERROR;
 		return;
@@ -754,21 +757,23 @@ set_time(Tcl_Interp *interp, u_long secs, u_long usecs)
 /* table lookup */
 
 static flowentry_p
-tbl_lookup(u_char *key, int key_len, int level)
+tbl_lookup(u_char *id, ftinfo_p ft)
 {
-    u_short sum = cksum(key, key_len, level);
+    int id_len = ft->fti_id_len;
+    int type_index = ft-ftinfo;
+    u_short sum = cksum(id, id_len);
     flowentry_p fe = buckets[sum%NUM(buckets)];
     flowentry_p onebehind = onebehinds[sum%NUM(onebehinds)];
-#define MATCH(key,len,sum,level,p) \
-	((sum == (p)->fe_sum) && (level == (p)->fe_level) && \
-		(len == (p)->fe_key_len) && !memcmp(key, (p)->fe_key, len))
+#define MATCH(id,len,sum,type_index,p) \
+	((sum == (p)->fe_sum) && (type_index == (p)->fe_flow_type) && \
+		(len == (p)->fe_id_len) && !memcmp(id, (p)->fe_id, len))
 
-    if (onebehind && MATCH(key, key_len, sum, level, onebehind)) {
+    if (onebehind && MATCH(id, id_len, sum, type_index, onebehind)) {
 	return onebehind;
     }
 
     while (fe) {
-	if (MATCH(key, key_len, sum, level, fe)) {
+	if (MATCH(id, id_len, sum, type_index, fe)) {
 	    onebehinds[sum%NUM(onebehinds)] = fe;
 	    break;
 	}
@@ -778,20 +783,19 @@ tbl_lookup(u_char *key, int key_len, int level)
 }
 
 static flowentry_p
-tbl_add(u_char *key, int key_len, int level)
+tbl_add(u_char *id, int id_len)
 {
-    u_short sum = cksum(key, key_len, level);
+    u_short sum = cksum(id, id_len);
     flowentry_p *hbucket = &buckets[sum%NUM(buckets)];
     flowentry_p fe;
 
-    fe = (flowentry_p) malloc(sizeof *fe+key_len-1);
+    fe = (flowentry_p) malloc(sizeof *fe+id_len-1);
     if (fe == 0) {
 	return 0;
     }
     fe->fe_sum = sum;
-    fe->fe_key_len = key_len;
-    fe->fe_level = level;
-    memcpy(fe->fe_key, key, key_len);
+    fe->fe_id_len = id_len;
+    memcpy(fe->fe_id, id, id_len);
 
     fe->fe_next_in_bucket = *hbucket;
     if (fe->fe_next_in_bucket) {
@@ -816,7 +820,7 @@ tbl_add(u_char *key, int key_len, int level)
 static void
 tbl_delete(flowentry_p fe)
 {
-    u_short sum = cksum(fe->fe_key, fe->fe_key_len, fe->fe_level);
+    u_short sum = cksum(fe->fe_id, fe->fe_id_len);
     flowentry_p *hbucket = &buckets[sum%NUM(buckets)];
     flowentry_p *honebehind = &onebehinds[sum%NUM(onebehinds)];
 
@@ -866,11 +870,11 @@ delete_flow(flowentry_p fe)
 
 
 static flowentry_p
-new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int level, int class)
+new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int class)
 {
     flowentry_p fe;
 
-    fe = tbl_add(flowid, ft->fti_id_len, level);
+    fe = tbl_add(flowid, ft->fti_id_len);
     if (fe == 0) {
 	return 0;
     }
@@ -902,7 +906,7 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int level, int class)
 
 	sprintf(buf, " %d %d ", fe->fe_class, ft-ftinfo);
 	if (Tcl_VarEval(interp, ft->fti_new_flow_upcall,
-		buf, flow_id_to_string(ft, fe->fe_key), 0) != TCL_OK) {
+		buf, flow_id_to_string(ft, fe->fe_id), 0) != TCL_OK) {
 	    packet_error = TCL_ERROR;
 	    return 0;
 	}
@@ -1020,7 +1024,7 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
 	sprintf(buf, " %d %d ", fe->fe_class, fe->fe_flow_type);
 
 	if (Tcl_VarEval(interp, ftinfo[fe->fe_flow_type].fti_recv_upcall, buf,
-		    flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_key),
+		    flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_id),
 				" FLOW ", flow_statistics(fe), 0) != TCL_OK) {
 	    packet_error = TCL_ERROR;
 	    return;
@@ -1063,6 +1067,7 @@ static void
 packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
 {
     u_char llfid[MAX_FLOW_ID_BYTES], ulfid[MAX_FLOW_ID_BYTES];
+    int llclindex;
     int pktprotohasports, pktbigenough, capbigenough, fragmented;
     flowentry_p llfe, ulfe;	/* lower and upper level flow entries */
     ftinfo_p llft, ulft;	/* lower and upper level flow types */
@@ -1095,8 +1100,10 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
     pktbigenough = 0;
     capbigenough = 0;
     fragmented = 0;
-    for (llft = ftinfo; (llft < &ftinfo[NUM(ftinfo)]) && !FTI_UNUSED(llft);
-								    llft++) {
+    for (llclindex = 0;
+	    llclindex < NUM(llclasses) && !LLCL_UNUSED(&llclasses[llclindex]);
+								  llclindex++) {
+	llft = &ftinfo[llclasses[llclindex].llcl_fti];
 	if (pktlen >= llft->fti_id_covers) {
 	    pktbigenough = 1;		/* packet was big enough */
 	    if (caplen >= llft->fti_id_covers) {
@@ -1118,7 +1125,7 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
 	}
     }
 
-    if (llft >= &ftinfo[NUM(ftinfo)]) {
+    if (llclindex >= NUM(llclasses)) {
 	clstats[0].cls_pkts++;
 	clstats[0].cls_bytes += pktlen;
 	if (pktbigenough) {	/* packet was big enough, but... */
@@ -1151,11 +1158,11 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
     FLOW_ID_FROM_HDR(llfid, packet, llft);
 
     /* find the lower level flow entry */
-    llfe = tbl_lookup(llfid, llft->fti_id_len, LEVEL_LOWER);
+    llfe = tbl_lookup(llfid, llft);
 
     if (llfe == 0) {
 	/* the lower level flow doesn't exist, so will need to be created */
-	llfe = new_flow(interp, llft, llfid, LEVEL_LOWER, llft->fti_class);
+	llfe = new_flow(interp, llft, llfid, llft->fti_class);
 	if (llfe == 0) {
 	    if (packet_error == 0) {
 		interp->result = "unable to create a new lower level flow";
@@ -1165,21 +1172,24 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
 	}
     }
 
+    /* track packet stats */
+    packetinflow(interp, llfe, pktlen);
+
     /* now, need to find ulfe from llfe */
 
-    if (llfe->fe_parent_ftype != 0) {
+    while ((llfe->fe_parent_ftype != 0) &&
+			(llfe->fe_parent_ftype != llfe->fe_flow_type)) {
 	ulft = &ftinfo[llfe->fe_parent_ftype];	/* get ll's parent flow type */
 
 	/* create the ulfid */
 	FLOW_ID_FROM_HDR(ulfid, packet, ulft);
 
 	/* lookup the upper level flow entry */
-	ulfe = tbl_lookup(ulfid, ulft->fti_id_len, LEVEL_UPPER);
+	ulfe = tbl_lookup(ulfid, ulft);
 
 	if (ulfe == 0) {
 	    /* the upper level flow doesn't exist -- create it */
-	    ulfe = new_flow(interp, ulft, ulfid, LEVEL_UPPER,
-					    llfe->fe_parent_class);
+	    ulfe = new_flow(interp, ulft, ulfid, llfe->fe_parent_class);
 	    if (ulfe == 0) {
 		if (packet_error == 0) {
 		    interp->result = "unable to create a new upper level flow";
@@ -1212,11 +1222,12 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
 	    clstats[ulfe->fe_class].cls_added++;
 	}
 
-	/* now, track packets in both the lower and upper flows */
-	/* (notice this doesn't happen if any error above occurs...) */
+	/* track packet stats */
 	packetinflow(interp, ulfe, pktlen);
+
+	/* OK, old ulfe is new llfe, and loop... */
+	llfe = ulfe;
     }
-    packetinflow(interp, llfe, pktlen);
 }
 
 static void
@@ -1616,11 +1627,11 @@ fl_continue_enumeration(ClientData clientData, Tcl_Interp *interp,
 
     if (enum_state) {
 	Tcl_ResetResult(interp);
-	sprintf(buf, "type %d class %d level %d id ", enum_state->fe_flow_type,
-		enum_state->fe_class, enum_state->fe_level);
+	sprintf(buf, "type %d class %d id ",
+			    enum_state->fe_flow_type, enum_state->fe_class);
 	Tcl_AppendResult(interp, buf,
 		flow_id_to_string(&ftinfo[enum_state->fe_flow_type],
-						enum_state->fe_key),
+						enum_state->fe_id),
 		" ", flow_statistics(enum_state), 0);
 	enum_state = enum_state->fe_next_in_table;
     } else {
@@ -1677,6 +1688,37 @@ fl_set_file(ClientData clientData, Tcl_Interp *interp,
 }
 
 static int
+fl_set_ll_classifier(ClientData clientData, Tcl_Interp *interp,
+		int argc, char *argv[])
+{
+    llcl_p llcl;
+
+    if ((argc < 2) || (argc > 3)) {
+	interp->result = "Usage: fl_set_ll_classifier ll_classifier_index "
+			    "[associated_flow_type_index]";
+	return TCL_ERROR;
+    }
+    llcl = &llclasses[atoi(argv[1])];
+    if (llcl >= &llclasses[NUM(llclasses)]) {
+	interp->result = "fl_set_ll_classifier ll_classifier_index too high";
+	return TCL_ERROR;
+    }
+    if (argc == 3) {
+	llcl->llcl_inuse = 1;
+	llcl->llcl_fti = atoi(argv[2]);
+	if (llcl->llcl_fti > NUM(ftinfo)) {
+	    llcl->llcl_inuse = 0;
+	    interp->result =
+		    "fl_set_ll_classifier associated_flow_type_index too high";
+	    return TCL_ERROR;
+	}
+    } else {
+	llcl->llcl_inuse = 0;
+    }
+    return TCL_OK;
+}
+
+static int
 fl_tcl_code(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
@@ -1711,17 +1753,19 @@ Tcl_AppInit(Tcl_Interp *interp)
 								NULL, NULL);
     Tcl_CreateCommand(interp, "fl_continue_enumeration",
 					fl_continue_enumeration, NULL, NULL);
-    Tcl_CreateCommand(interp, "fl_tcl_code", fl_tcl_code,
-								NULL, NULL);
     Tcl_CreateCommand(interp, "fl_read_one_bin", fl_read_one_bin,
 								NULL, NULL);
     Tcl_CreateCommand(interp, "fl_set_file", fl_set_file,
 								NULL, NULL);
     Tcl_CreateCommand(interp, "fl_set_flow_type", fl_set_flow_type,
 								NULL, NULL);
+    Tcl_CreateCommand(interp, "fl_set_ll_classifier", fl_set_ll_classifier,
+								NULL, NULL);
     Tcl_CreateCommand(interp, "fl_start_enumeration", fl_start_enumeration,
 								NULL, NULL);
     Tcl_CreateCommand(interp, "fl_summary", fl_summary,
+								NULL, NULL);
+    Tcl_CreateCommand(interp, "fl_tcl_code", fl_tcl_code,
 								NULL, NULL);
     Tcl_CreateCommand(interp, "fl_version", fl_version,
 								NULL, NULL);

@@ -1,7 +1,7 @@
 #
 # Tcl script as part of flstats
 #
-# $Id: flstats.tcl,v 1.39 1996/03/14 02:55:57 minshall Exp minshall $
+# $Id: flstats.tcl,v 1.40 1996/03/14 05:59:28 minshall Exp minshall $
 #
 #
 
@@ -172,10 +172,10 @@ flll_delete {class ftype flowid time FLOW args}\
 
 proc \
 fl_flow_details { {filename {}} {binsecs {}} \
-					{classifier {}} { ulflows {} }} \
+					{classifier {}} { flowtypes {} }} \
 {
     global flstats
-    fl_setup $filename $binsecs $classifier $ulflows
+    fl_setup $filename $binsecs $classifier $flowtypes
 
     set binsecs $flstats(binsecs)	; # make sure we have correct value
 
@@ -195,12 +195,12 @@ fl_flow_details { {filename {}} {binsecs {}} \
 
 proc \
 fl_class_details { {filename {}} {binsecs {}} \
-					{classifier {}} { ulflows {} }}\
+					{classifier {}} { flowtypes {} }}\
 {
     global flstats
     global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
 
-    fl_setup $filename $binsecs $classifier $ulflows
+    fl_setup $filename $binsecs $classifier $flowtypes
 
     puts "# plotvars 1 binno 2 pktsrouted 3 bytesrouted 4 pktsswitched"
     puts "# plotvars 5 bytesswitched 6 pktsdropped 7 bytesdropped"
@@ -290,28 +290,40 @@ fl_class_details { {filename {}} {binsecs {}} \
 ######################
 
 #
-# set up the flow types, using the upper level flows.
+# set up the flow types, using the flowtype argument.
 #
-# we create either one or two low level flows.  one is
-# the "merge" of all the fields used in the upper level
-# flows.  the second is only created if one or more of the
-# upper level flows use ports, and it is the first minus
-# the ports.
+# if the classifier is supplied, we call it to find out if
+# there are any extra tags it needs to do its job.
+#
+# if none of the flowtypes is equal to the "merge" of
+# all the flowtypes, we need one "low level"
+# flow type to act as the merge.
+#
+# if the "merge" (low level or passed in) includes
+# port numbers, then if none of the flowtypes is equal
+# to the "merge" of the flowtypes that have no port
+# numbers, we need a "low level" flow type to act as the
+# merge_no_ports.  (note that we need this if, for example,
+# all of the flowtypes use ports.)
+#
+# we first create merge, then merge_no_ports (if needed, i.e.,
+# if merge includes ports).
 #
 # classifier is the classifier to be used when new low level
 # flows arrive and need to be correlated with an upper level
-# flow.
+# flow.  it is associated *only* with merge and merge_no_ports.
 #
-# ulflows is a list of lists.  the inner list has the form:
+# flowtypes is a list of lists.  the inner list has the form:
 #
-#    flow-type-string flow-type-index-variable newflow_cmd recv_cmd timeout_cmd
+#    specifier newflow_cmd recv_cmd timeout_cmd
 #
-# where a flow of type flow-type-string is set up with classifier
-# the index is placed in the variable flow-type-index-variable.
+# non-supplied trailing parms can be left out; non-supplied non-
+# trailing parms can be specified as "-"; "spec1 spec2" works,
+# meaning that the *_cmd parameters are not supplied.
 #
 
 proc \
-fl_setft { {classifier {}} {ulflows {}} } \
+fl_setft { {classifier {}} {flowtypes {}} } \
 {
     global flstats
 
@@ -320,23 +332,27 @@ fl_setft { {classifier {}} {ulflows {}} } \
     # the following is like atoft in the .c file:
     set alltags {}
 
-
-    if {$ulflows == {}} {
-	set ulflows $flstats(ulflows)
+    if {$flowtypes == {}} {
+	set flowtypes $flstats(flowtypes)
     } else {
-	set flstats(ulflows) $ulflows
+	set flstats(flowtypes) $flowtypes
     }
 
     if {$classifier == {}} {
 	set classifier $flstats(classifier)
+	if {$classifier == {}} {
+	    set classifier "-"
+	}
     } else {
 	set flstats(classifier) $classifier
     }
 
+    set user_flow_type_len [llength $flowtypes]
+
     # ok, scan thru upper layer flows, keeping track of used tags
-    for {set whichflow 0} {$whichflow < [llength $ulflows]} \
+    for {set whichflow 0} {$whichflow < [llength $flowtypes]} \
 						{ incr whichflow} {
-	set type [lindex [lindex $ulflows $whichflow] 0]
+	set type [lindex [lindex $flowtypes $whichflow] 0]
 	set types [split $type /]
 	foreach type $types {
 	    if {[lsearch -exact $alltags $type] == -1} {
@@ -345,7 +361,7 @@ fl_setft { {classifier {}} {ulflows {}} } \
 	}
     }
 
-    if {$classifier != ""} {
+    if {$classifier != "-"} {
 	# now, make sure we get all the stuff the classifier needs
 	# (the point being to produce the union of everything)
 	set classifiertype [split [$classifier.specifier] /]
@@ -357,78 +373,128 @@ fl_setft { {classifier {}} {ulflows {}} } \
     }
 
     # now, know all the tags, build the flow type(s)
-    set type1 {}
-    set type2 {}
+    set merge {}
+    set merge_no_ports {}
     set portsseen 0			; # have we seen any ports?
     foreach tag $alltags {
-	lappend type1 $tag
+	lappend merge $tag
 	if {($tag == "sport") || ($tag == "dport")} {
-	    # don't put ports in type2
+	    # don't put ports in merge_no_ports
 	    set portsseen 1
 	} else {
-	    lappend type2 $tag
-	}
-    }
-    set type1 [join $type1 /]
-    set type2 [join $type2 /]
-    if {$classifier != ""} {
-	puts "# flowtype $ftindex $type1 $classifier"
-	fl_set_flow_type -f $ftindex -n $classifier -t flll_delete $type1
-	incr ftindex
-	if {$portsseen != 0} {
-	    puts "# flowtype $ftindex $type2 $classifier"
-	    fl_set_flow_type -f $ftindex -n $classifier -t flll_delete $type2
-	    incr ftindex
-	}
-    } else {
-	puts "# flowtype $ftindex $type1"
-	fl_set_flow_type -f $ftindex -t flll_delete $type1
-	incr ftindex
-	if {$portsseen != 0} {
-	    puts "# flowtype $ftindex $type2"
-	    fl_set_flow_type -f $ftindex -t flll_delete $type2
-	    incr ftindex
+	    lappend merge_no_ports $tag
 	}
     }
 
-    incr ftindex			; # leave a gap between LL and UL
-
-    # do UL flows (but, only if there is a classifier!)
-    if {$classifier != ""} {
-	# now, scan thru the input list again, setting upper level flows...
-	for {set whichflow 0} {$whichflow < [llength $ulflows]} \
-					    { incr whichflow; incr ftindex } {
-	    set flow [lindex $ulflows $whichflow]
-	    puts "# flowtype $ftindex $flow"
-	    set len [llength $flow]
-	    if {$len >= 2} {
-		global [lindex $flow 1]
-		set [lindex $flow 1] $ftindex
+    # now, see if we have merge and merge_no_ports in flowtypes
+    # (looks like for loop above, but note difference!)
+    set notfound 1
+    for {set whichflow 0} {$whichflow < [llength $flowtypes]} \
+						{ incr whichflow} {
+	set type [lindex [lindex $flowtypes $whichflow] 0]
+	set types [split $type /]
+	set notthis 0	    	    	    	; # hopeful
+	foreach type $merge {
+	    if {[lsearch -exact $types $type] == -1} {
+		set notthis 1
+		break
 	    }
-	    if {$len >= 3} {
-		set newflow "-n [lindex $flow 2]"
-	    } else {
-		set newflow ""
-	    }
-	    if {$len >= 4} {
-		set recv "-r [lindex $flow 3]"
-	    } else {
-		set recv ""
-	    }
-	    if {$len >= 5} {
-		set timeout "-t [lindex $flow 4]"
-	    } else {
-		set timeout ""
-	    }
-	    eval "fl_set_flow_type -f $ftindex -c $ftindex $newflow \
-					$recv $timeout [lindex $flow 0"
 	}
+	if {$notthis == 0} {
+	    set notfound 0
+	    # tell ll classifier which flow types to use.
+	    fl_set_ll_classifier 0 $whichflow
+	    break
+	}
+    }
+
+    # if we didn't find the right candidate...
+    if {$notfound} {
+	# so, create one!
+	set merge [concat [join $merge /] $classifier - flll_delete]
+	lappend flowtypes $merge
+	# tell ll classifier which flow types to use.
+	fl_set_ll_classifier 0 [llength $flowtypes]
+	puts "# flowtype [llength $flowtypes] $merge"
+    }
+
+    set flstats(lastllclassifier) 0
+
+    # now, do same for merge_no_ports, if we saw ports...
+    if {$portsseen} {
+	set notfound 1
+	for {set whichflow 0} {$whichflow < [llength $flowtypes]} \
+						    { incr whichflow} {
+	    set type [lindex [lindex $flowtypes $whichflow] 0]
+	    set types [split $type /]
+	    # don't look at flow types which include ports...
+	    if {([lsearch -exact $types "sport"] == -1) &&
+				    ([lsearch -exact $types "dport"] == -1)} {
+		set notthis 0	    	    	    	; # hopeful
+		foreach type $merge_no_ports {
+		    if {[lsearch -exact $types $type] == -1} {
+			set notthis 1
+			break
+		    }
+		}
+		if {$notthis == 0} {
+		    set notfound 0
+		    # tell ll classifier which flow types to use.
+		    fl_set_ll_classifier 1 $whichflow
+		    break
+		}
+	    }
+	}
+
+	# if we didn't find the right candidate...
+	if {$notfound} {
+	    set merge_no_ports [concat [join $merge_no_ports /] \
+					    $classifier - flll_delete]
+	    lappend flowtypes $merge_no_ports
+	    # tell ll classifier which flow types to use.
+	    fl_set_ll_classifier 1 [llength $flowtypes]
+	}
+	set flstats(lastllclassifier) 1
+    }
+
+    # last flow in use
+    set flstats(lastflow) [llength $flowtypes]
+    # last class in use
+    set flstats(lastclass) [llength $flowtypes]
+
+    # now, scan thru the input list again, setting upper level flows...
+    for {set whichflow 0} {$whichflow < [llength $flowtypes]} \
+					{ incr whichflow; incr ftindex } {
+	set flow [lindex $flowtypes $whichflow]
+	puts "# flowtype $ftindex $flow"
+	set len [llength $flow]
+	if {$len >= 2} {
+	    global [lindex $flow 1]
+	    set [lindex $flow 1] $ftindex
+	}
+	if {$len >= 3} {
+	    set newflow "-n [lindex $flow 2]"
+	} else {
+	    set newflow ""
+	}
+	if {$len >= 4} {
+	    set recv "-r [lindex $flow 3]"
+	} else {
+	    set recv ""
+	}
+	if {$len >= 5} {
+	    set timeout "-t [lindex $flow 4]"
+	} else {
+	    set timeout ""
+	}
+	eval "fl_set_flow_type -f $ftindex -c $ftindex $newflow \
+				    $recv $timeout [lindex $flow 0]"
     }
 }
 
 proc \
 fl_setup { {filename {}} {binsecs {}} \
-				{classifier {}} { ulflows {} }} \
+				{classifier {}} { flowtypes {} }} \
 {
     global flstats
 
@@ -456,7 +522,7 @@ fl_setup { {filename {}} {binsecs {}} \
 			$fname $filestats(size) $filestats(mtime)]
 
     puts "#"
-    fl_setft $classifier $ulflows
+    fl_setft $classifier $flowtypes
 
     puts "#"
     puts "# binsecs $binsecs"
@@ -505,10 +571,10 @@ fl_set_parameters {argc argv}\
 	    }
 	    switch -exact -- [lindex $argv 1] \
 	    file {
-		set flstats(ulflows) [source [lindex $argv 2]]
+		set flstats(flowtypes) [source [lindex $argv 2]]
 	    } \
 	    script {
-		set flstats(ulflows) [lindex $argv 2]
+		set flstats(flowtypes) [lindex $argv 2]
 	    } \
 	    default {
 		error "looking for 'file' or 'script', found [lindex $argv 1]"
@@ -547,10 +613,10 @@ fl_startup { }\
 # set some defaults...
 set flstats(classifier) {}
 set flstats(binsecs) 0
-# default UL flows...
-set flstats(ulflows) { \
-    {   ihv/ihl/tos/ttl/prot/src/dst - - - - } \
-    {   ihv/ihl/tos/ttl/prot/src/dst/sport/dport - - - - }}
+# default flowtypes...
+set flstats(flowtypes) { \
+	ihv/ihl/tos/ttl/prot/src/dst ihv/ihl/tos/ttl/prot/src/dst/sport/dport \
+    }
 
 # if {!$tcl_interactive} {
 #     if [catch {
