@@ -28,7 +28,7 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.64 1996/03/14 21:22:38 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.65 1996/03/14 22:03:25 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -108,6 +108,7 @@ struct flowentry {
 	fe_parent_class;	/* parent's class */
     u_long
 	fe_pkts,		/* number of packets received */
+	fe_pkts_last_enum,	/* number of packets *last* time enum done */
 	fe_bytes,		/* number of bytes received */
 	fe_sipg,		/* smoothed interpacket gap (units of 8 usec) */
 	fe_last_bin_active,	/* last bin this saw activity */
@@ -147,7 +148,9 @@ struct flowentry {
  */
 
 typedef struct clstats {
-    u_long  cls_created,		/* num flows created in this class */
+    u_long
+	    cls_last_bin_active,	/* last bin this class saw activity */
+	    cls_created,		/* num flows created in this class */
 	    cls_deleted,		/* num flows created in this class */
 	    cls_added,			/* num flows added to this class */
 	    cls_removed,		/* num flows removed from this class */
@@ -427,6 +430,7 @@ static void
 newfile(void)
 {
     flowentry_p fe, nfe;
+    clstats_p cl;
 
     fileeof = 0;
     flow_enum_state = 0;
@@ -451,6 +455,9 @@ newfile(void)
 	exit(2);
     }
     memset(&clstats[0], 0, sizeof clstats);
+    for (cl = &clstats[0]; cl < &clstats[NUM(clstats)]; cl++) {
+	cl->cls_last_bin_active = 0xffffffff;
+    }
     curtime = ZERO;
     starttime = ZERO;
     pending = 0;
@@ -610,7 +617,7 @@ flow_statistics(flowentry_p fe)
 	    flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_id),
 	    fe->fe_created.tv_sec, fe->fe_created.tv_usec,
 	    fe->fe_last_pkt_rcvd.tv_sec, fe->fe_last_pkt_rcvd.tv_usec,
-	    fe->fe_pkts, fe->fe_bytes, fe->fe_sipg>>3);
+	    fe->fe_pkts-fe->fe_pkts_last_enum, fe->fe_bytes, fe->fe_sipg>>3);
 
     return summary;
 }
@@ -867,6 +874,7 @@ static void
 delete_flow(flowentry_p fe)
 {
     clstats[fe->fe_class].cls_deleted++;
+    clstats[fe->fe_class].cls_last_bin_active = binno;
     tbl_delete(fe);
 }
 
@@ -944,6 +952,7 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int class)
 	}
     }
     clstats[fe->fe_class].cls_created++;
+    clstats[fe->fe_class].cls_last_bin_active = binno;
     return fe;
 }
 
@@ -961,6 +970,7 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
     clstats_p cl;
 
     cl = &clstats[fe->fe_class];
+    cl->cls_last_bin_active = binno;
 
     /* update statistics */
 
@@ -1039,6 +1049,7 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
 	    clstats[fe->fe_class].cls_removed++;
 	    fe->fe_class = outcls;
 	    clstats[fe->fe_class].cls_added++;
+	    clstats[fe->fe_class].cls_last_bin_active = binno;
 	}
 	if (n >= 2) {
 	    if (!TIME_EQ(&fe->fe_upcall_when_secs_ge, &ZERO)) {
@@ -1125,6 +1136,7 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
     if (llclindex >= NUM(llclasses)) {
 	clstats[0].cls_pkts++;
 	clstats[0].cls_bytes += pktlen;
+	clstats[0].cls_last_bin_active = binno;
 	if (pktbigenough) {	/* packet was big enough, but... */
 	    if (capbigenough) {
 		if (packet[6]&0x1fff) {
@@ -1215,8 +1227,10 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
 	if (llfe->fe_parent_class > ulfe->fe_class) {
 	    /* class is changing --- update statistics */
 	    clstats[ulfe->fe_class].cls_removed++;
+	    clstats[ulfe->fe_class].cls_last_bin_active = binno;
 	    ulfe->fe_class = llfe->fe_parent_class;
 	    clstats[ulfe->fe_class].cls_added++;
+	    clstats[ulfe->fe_class].cls_last_bin_active = binno;
 	}
 
 	/* track packet stats */
@@ -1379,7 +1393,7 @@ set_flow_type(Tcl_Interp *interp, int ftype, int Ftype, int class,
 
     curdesc = name;
 
-    if (strlen(name) > NUM(initial)) {
+    if (strlen(name) >= NUM(initial)) {
 	interp->result = "flow name too long";
 	return TCL_ERROR;
     }
@@ -1606,16 +1620,30 @@ static int
 fl_continue_class_enumeration(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
-    if (class_enum_state) {
-	Tcl_SetResult(interp,
-			class_statistics(class_enum_state), TCL_VOLATILE);
+    u_long sipg;
+    struct timeval last_rcvd;
+    clstats_p cl;
+
+    while (class_enum_state) {
+	cl = class_enum_state;
 	class_enum_state++;
 	if (class_enum_state >= &clstats[NUM(clstats)]) {
 	    class_enum_state = 0;
 	}
-    } else {
-	interp->result = "";
+	if (cl->cls_last_bin_active == binno) {
+	    Tcl_SetResult(interp, class_statistics(cl), TCL_VOLATILE);
+	    /* now, clear stats for next go round... */
+	    /* but, preserve sipg and last rcvd... */
+	    sipg = cl->cls_sipg;
+	    last_rcvd = cl->cls_last_pkt_rcvd;
+	    memset(cl, 0, sizeof *cl);
+	    cl->cls_last_bin_active = binno;
+	    cl->cls_sipg = sipg;
+	    cl->cls_last_pkt_rcvd = last_rcvd;
+	    return TCL_OK;
+	}
     }
+    interp->result = "";
     return TCL_OK;
 }
 
@@ -1637,12 +1665,16 @@ static int
 fl_continue_flow_enumeration(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
-    if (flow_enum_state) {
-	Tcl_SetResult(interp, flow_statistics(flow_enum_state), TCL_VOLATILE);
+    while (flow_enum_state) {
+	if (flow_enum_state->fe_last_bin_active == binno) {
+	    Tcl_SetResult(interp,
+			    flow_statistics(flow_enum_state), TCL_VOLATILE);
+	    flow_enum_state->fe_pkts_last_enum = flow_enum_state->fe_pkts;
+	    return TCL_OK;
+	}
 	flow_enum_state = flow_enum_state->fe_next_in_table;
-    } else {
-	interp->result = "";
     }
+    interp->result = "";
     return TCL_OK;
 }
 
@@ -1712,7 +1744,7 @@ fl_set_ll_classifier(ClientData clientData, Tcl_Interp *interp,
     if (argc == 3) {
 	llcl->llcl_inuse = 1;
 	llcl->llcl_fti = atoi(argv[2]);
-	if (llcl->llcl_fti > NUM(ftinfo)) {
+	if (llcl->llcl_fti >= NUM(ftinfo)) {
 	    llcl->llcl_inuse = 0;
 	    interp->result =
 		    "fl_set_ll_classifier associated_flow_type_index too high";
