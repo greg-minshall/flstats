@@ -25,6 +25,14 @@
 
 #define PICKUP_NETSHORT(p)       ((((u_char *)p)[0]<<8)|((u_char *)p)[1])
 
+#define	TIME_ADD(r,a,b)	{ \
+		(r)->tv_sec = (a)->tv_sec + (b)->tv_sec; \
+		(r)->tv_usec = (a)->tv_usec + (b)->tv_usec; \
+		if ((r)->tv_usec >= 1000000) { /* deal with carry */ \
+		    (r)->tv_sec++; \
+		    (r)->tv_usec -= 1000000; \
+		} \
+	    }
 #define	TIME_LT(a,b) \
 		(((a)->tv_sec < (b)->tv_sec) \
 			|| (((a)->tv_sec == (b)->tv_sec) && \
@@ -58,8 +66,21 @@ struct hentry {
 	packets,		/* number of packets received */
 	created_bin,
 	last_bin_active;
+
     char
 	*pkt_recv_cmd;		/* command to call when a pkt received */
+	    /*
+	     * routine:	pkt_recv_cmd
+	     * call:	"pkt_recv_cmd flowtype flowid"
+	     * result:	"pkt_recv_cmd secs.usecs" 
+	     *
+	     * if, on output, pkt_recv_cmd is null, no command will
+	     * be run.  if, on output, secs is null, zero will be used
+	     * (which means that pkt_recv_cmd will be called the next
+	     * time a packet is received on that flow, no matter how
+	     * soon it arrives).
+	     */
+
     struct timeval
 	created,		/* time created */
 	last_pkt_rcvd,		/* time most recent packet seen */
@@ -155,7 +176,21 @@ struct ftinfo {
 	    fti_type_indicies_len,
 	    fti_id_len,
 	    fti_id_covers;
+
     char    *fti_new_flow_cmd;
+	    /*
+	     * routine:	fti_new_flow_cmd
+	     * call:	"pkt_new_flow_cmd flowtype flowid"
+	     * result:	"flowtype class_index pkt_recv_cmd secs.usecs" 
+	     *
+	     * the output flowtype is the application (upper
+	     * level) flowtype (this flowtype must already exist/have
+	     * been inialized); the class index is the index
+	     * to be used by the flow of flowtype (in case it needs
+	     * to be created); pkt_recv_cmd is the command executed
+	     * when a packet in the output flow is received
+	     * secs.usecs after the current time in the output flow.
+	     */
 };
 
 #define	FTI_USES_PORTS(p) ((p)->fti_id_covers > 20)
@@ -638,23 +673,41 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	hent->created = curtime;
 	hent->created_bin = binno;
 	hent->flow_type_index = ftype;
+	hent->class_index = ftip->fti_class_index;
+	hent->pkt_recv_cmd_time.tv_sec = 0;
+	hent->pkt_recv_cmd_time.tv_usec = 0;
+	hent->pkt_recv_cmd = 0;
 	/*
 	 * if there is a "new flow" callout registered in this flow
 	 * type, call it.
 	 */
 	if (ftip->fti_new_flow_cmd) {
-	    char buf[20];
+	    char buf[60];
+	    int outft, outcls, n;
+	    struct timeval outtime;
+
 	    sprintf(buf, " %d ", ftype);
 	    if (Tcl_VarEval(interp, ftip->fti_new_flow_cmd,
 		    buf, flow_id_to_string(ftype, hent->key), 0) != TCL_OK) {
 		packet_error = TCL_ERROR;
 		return;
 	    }
-	    /* fti_new_flow_cmd returns class_index (currently) */
+	    outft = ftype;
+	    outcls = hent->class_index;
+	    outtime.tv_sec = 0;
+	    outtime.tv_usec = 0;
+	    n = sscanf(interp->result, "%d %d %s %d.%d",
+		    &outft, &outcls, buf, &outtime.tv_sec, &outtime.tv_sec);
 	    hent->class_index = atoi(interp->result);
-	} else {
-	    /* else, take default class_index */
-	    hent->class_index = ftip->fti_class_index;
+	    if (n >= 3) {
+		    hent->pkt_recv_cmd = strsave(buf);
+		if (n >= 4) {
+		    TIME_ADD(&hent->pkt_recv_cmd_time, &outtime, &curtime);
+		}
+	    }
+	    if (outft != ftype) {
+		/* sigh, need to go find/create a new flow */
+	    }
 	}
 	clsp = &clstats[hent->class_index];
 	clsp->cls_created++;
@@ -666,7 +719,10 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
     clsp->cls_packets++;
 
     if (hent->pkt_recv_cmd && TIME_LT(&curtime, &hent->pkt_recv_cmd_time)) {
-	char buf[20];
+	char buf[60];
+	int n;
+	struct timeval outtime;
+
 	sprintf(buf, " %d ", ftype);
 	/*
 	 * i can think of a few things this might be good for:
@@ -703,6 +759,17 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	    packet_error = TCL_ERROR;
 	    return;
 	}
+	outtime.tv_sec = 0;
+	outtime.tv_usec = 0;
+	n = sscanf(interp->result, "%s %d.%d",
+				buf, &outtime.tv_sec, &outtime.tv_usec);
+	free(hent->pkt_recv_cmd);
+	if (n >= 1) {
+	    hent->pkt_recv_cmd = strsave(buf);
+	} else {
+	    hent->pkt_recv_cmd = 0;
+	}
+	TIME_ADD(&hent->pkt_recv_cmd_time, &curtime, &outtime);
     }
     hent->packets++;
     hent->last_pkt_rcvd = curtime;
