@@ -25,10 +25,14 @@
  *     15.	set_file, takes "filename format".  make tcl
  *  	    	-tracefile parms a list.
  *     16.	Change "low level" comments to general lattice.
+ *     17.      make low level flows use HIGH class numbers.
+ *		(flstats(maxclass), flstats(maxflow), ...) set by .c.
+ *     18.	"df len" should be a flow type "df" that has, as its
+ *		parent, a flow type "len".
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.68 1996/03/15 00:53:49 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.69 1996/03/15 01:49:17 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
