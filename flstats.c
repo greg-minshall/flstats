@@ -39,6 +39,8 @@ typedef struct hentry hentry_t, *hentry_p;
 
 struct hentry {
     /* fields for application use */
+    u_char
+	flow_type_index;	/* which flow type is this? */
     u_long
 	packets,
 	last_pkt_sec,
@@ -149,12 +151,17 @@ struct timeval curtime, starttime;
 
 int binsecs = 0;		/* number of seconds in a bin */
 
-u_char flow_type_indicies[MAX_FLOW_ID_BYTES];
-u_char flow_bytes_and_mask[2*MAX_FLOW_ID_BYTES];
-int flow_bytes_and_mask_len,
-    flow_type_indicies_len,
-    flow_id_len,
-    flow_id_covers;
+typedef struct flow_type_info {
+    u_char  flow_type_indicies[MAX_FLOW_ID_BYTES],
+            flow_bytes_and_mask[2*MAX_FLOW_ID_BYTES];
+    int	    flow_bytes_and_mask_len,
+	    flow_type_indicies_len,
+	    flow_id_len,
+	    flow_id_covers;
+} fti_t, fti_p;
+
+fti_t fti[1];
+int flow_types = 0;
 
 pcap_t *pcap_descriptor;
 char pcap_errbuf[PCAP_ERRBUF_SIZE];
@@ -348,20 +355,19 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 
     /* if no packet pending, then process this packet */
     if (pending == 0) {
-
-	if (len < flow_id_covers) {
+	if (len < fti[0].flow_id_covers) {
 	    gstats.runts++;
 	    return;
 	}
-	if ((packet[6]&0x1fff) && (flow_id_covers > 20)) { /* XXX */
+	if ((packet[6]&0x1fff) && (fti[0].flow_id_covers > 20)) { /* XXX */
 	    gstats.fragments++;	/* can't deal with if looking at ports */
 	    return;
 	}
 
 	/* create flow id for this packet */
-	for (i = 0, j = 0; j < flow_bytes_and_mask_len; i++, j += 2) {
-	    pending_flow_id[i] = packet[flow_bytes_and_mask[j]]
-						    &flow_bytes_and_mask[j+1];
+	for (i = 0, j = 0; j < fti[0].flow_bytes_and_mask_len; i++, j += 2) {
+	    pending_flow_id[i] = packet[fti[0].flow_bytes_and_mask[j]]
+					    &fti[0].flow_bytes_and_mask[j+1];
 	}
 
     } else {
@@ -382,9 +388,9 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	pending = 0;
     }
 
-    hent = tbl_lookup(pending_flow_id, flow_id_len);
+    hent = tbl_lookup(pending_flow_id, fti[0].flow_id_len);
     if (hent == 0) {
-	hent = tbl_add(pending_flow_id, flow_id_len);
+	hent = tbl_add(pending_flow_id, fti[0].flow_id_len);
 	if (hent == 0) {
 	    interp->result = "no room for more flows";
 	    packet_error = TCL_ERROR;
@@ -395,6 +401,7 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	hent->created_sec = curtime.tv_sec;
 	hent->created_usec = curtime.tv_usec;
 	hent->created_bin = binno;
+	hent->flow_type_index = 0;
     }
     hent->packets++;
     hent->last_pkt_sec = curtime.tv_sec;
@@ -515,7 +522,7 @@ teho_read_one_bin(ClientData clientData, Tcl_Interp *interp,
 	interp->result = "need to call teho_set_{tcpd,fix}_file first";
 	return TCL_ERROR;
     }
-    if (flow_bytes_and_mask_len == 0) {
+    if (flow_types == 0) {
 	interp->result = "need to call teho_set_flow_type first";
 	return TCL_ERROR;
     }
@@ -537,7 +544,7 @@ teho_read_one_bin(ClientData clientData, Tcl_Interp *interp,
 }
 
 static char *
-flow_id_to_string(u_char *id)
+flow_id_to_string(int ft, u_char *id)
 {
     static char result[MAX_FLOW_ID_BYTES*10];
     char fidstring[30], *fidp;
@@ -547,8 +554,8 @@ flow_id_to_string(u_char *id)
     int i, j;
 
     result[0] = 0;
-    for (i = 0; i < flow_type_indicies_len; i++) {
-	xp = &atoft[flow_type_indicies[i]];
+    for (i = 0; i < fti[ft].flow_type_indicies_len; i++) {
+	xp = &atoft[fti[ft].flow_type_indicies[i]];
 	fidp = fidstring;
 	dot = "";			/* for dotted decimal */
 	decimal = 0;			/* for decimal */
@@ -606,23 +613,23 @@ flow_id_to_string(u_char *id)
 	} else {
 	    *fidp = 0;
 	}
-	sprintf(result+strlen(result), "%s%s=%s", sep, xp->name, fidstring);
+	sprintf(result+strlen(result), "%s%s/%s", sep, xp->name, fidstring);
 	sep = "/";
     }
     return result;
 }
 
 static char *
-flow_type_to_string(void)
+flow_type_to_string(int ft)
 {
     static char result[MAX_FLOW_ID_BYTES*10];
     char *sep = "";
     int i;
 
     result[0] = 0;
-    for (i = 0; i < flow_type_indicies_len; i++) {
+    for (i = 0; i < fti[ft].flow_type_indicies_len; i++) {
 	sprintf(result+strlen(result), "%s%s",
-				sep, atoft[flow_type_indicies[i]].name);
+				sep, atoft[fti[ft].flow_type_indicies[i]].name);
 	sep = "/";
     }
     return result;
@@ -630,7 +637,7 @@ flow_type_to_string(void)
 
 
 static int
-get_flow_type(Tcl_Interp *interp, char *name)
+get_flow_type(Tcl_Interp *interp, int ft, char *name)
 {
     char initial[MAX_FLOW_ID_BYTES*5], after[MAX_FLOW_ID_BYTES*5]; /* 5 rndm */
     char *curdesc;
@@ -639,9 +646,9 @@ get_flow_type(Tcl_Interp *interp, char *name)
     atoft_p xp;
 
     /* forget current file type */
-    flow_bytes_and_mask_len = 0;
-    flow_id_covers = 0;
-    flow_id_len = 0;
+    fti[ft].flow_bytes_and_mask_len = 0;
+    fti[ft].flow_id_covers = 0;
+    fti[ft].flow_id_len = 0;
 
     curdesc = name;
 
@@ -672,17 +679,17 @@ get_flow_type(Tcl_Interp *interp, char *name)
 			interp->result = "flow type too long";
 			return TCL_ERROR;
 		    }
-		    if (off > flow_id_covers) {
-			flow_id_covers = off;
+		    if (off > fti[ft].flow_id_covers) {
+			fti[ft].flow_id_covers = off;
 		    }
-		    flow_bytes_and_mask[bandm++] = off++;
-		    flow_bytes_and_mask[bandm++] = mask;
+		    fti[ft].flow_bytes_and_mask[bandm++] = off++;
+		    fti[ft].flow_bytes_and_mask[bandm++] = mask;
 		}
-		if (indicies >= NUM(flow_type_indicies)) {
+		if (indicies >= NUM(fti[ft].flow_type_indicies)) {
 		    interp->result = "too many fields in flow type";
 		    return TCL_ERROR;
 		}
-		flow_type_indicies[indicies++] = j;
+		fti[ft].flow_type_indicies[indicies++] = j;
 		break;
 	    }
 	}
@@ -696,9 +703,9 @@ get_flow_type(Tcl_Interp *interp, char *name)
 	}
     }
 goodout:
-    flow_bytes_and_mask_len = bandm;
-    flow_id_len = bandm/2;
-    flow_type_indicies_len = indicies;
+    fti[ft].flow_bytes_and_mask_len = bandm;
+    fti[ft].flow_id_len = bandm/2;
+    fti[ft].flow_type_indicies_len = indicies;
     return TCL_OK;
 }
 
@@ -707,17 +714,26 @@ teho_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
     int error;
+    int ft;
+    static char result[20];
 
     if (argc != 2) {
-	interp->result = "Usage: teho_set_flow_type flowtypedescription";
+	interp->result = "Usage: teho_set_flow_type index flowtypedescription";
 	return TCL_ERROR;
     }
 
-    error = get_flow_type(interp, argv[1]);
+    /* XXX look for next available flow type */
+    ft = 0;
+
+    error = get_flow_type(interp, ft, argv[1]);
     if (error != TCL_OK) {
 	return error;
     }
 
+    flow_types = 1;		/* got a flow type */
+
+    sprintf(result, "%d", ft);
+    interp->result = result;
     return TCL_OK;
 }
 
@@ -745,7 +761,7 @@ teho_summary(ClientData clientData, Tcl_Interp *interp,
 static char *
 one_enumeration(hentry_p hp)
 {
-    return flow_id_to_string(hp->key);
+    return flow_id_to_string(hp->flow_type_index, hp->key);
 }
 
 
