@@ -35,6 +35,7 @@ struct hentry {
 	last_pkt_usecs,
 	created_secs,
 	created_usecs,
+	created_bin,
 	last_bin_active;
     /* fields for hashing */
     u_short sum;
@@ -47,6 +48,8 @@ struct hentry {
 /* global variables */
 
 u_short IPtype = 0x800;
+
+int fileeof = 0;
 
 hentry_p buckets[3197];
 hentry_p table;			/* list of everything */
@@ -203,7 +206,7 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 
     } else {
 	if (len) {	/* shouldn't happen! */
-	    sprintf(interp->result, "invalid condition in packetin");
+	    interp->result = "invalid condition in packetin";
 	    packet_error = TCL_ERROR;
 	    return;
 	}
@@ -228,14 +231,21 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	    return;
 	}
 	numflows++;
+	flowscreated++;
+	hent->last_bin_active = 0xffffffff;
 	hent->created_secs = timesecs;
 	hent->created_usecs = timeusecs;
+	hent->created_bin = binno;
     }
     hent->packets++;
     hent->last_pkt_secs = timesecs;
     hent->last_pkt_usecs = timeusecs;
     if (hent->last_bin_active != binno) {
+	hent->last_bin_active = binno;
 	flowsactive++;
+    }
+    if (hent->created_bin == binno) {
+	packetsnewflows++;
     }
 }
 
@@ -263,13 +273,20 @@ newpacket(u_char *user, const struct pcap_pkthdr *h, const u_char *buffer)
 }
 
 
+static int
 process_one_packet(Tcl_Interp *interp)
 {
+    packet_error = TCL_OK;
+
     if (pending) {
 	packetin(interp, 0, 0);
     } else {
-	pcap_dispatch(pcap_descriptor, 1, newpacket, (u_char *)interp);
+	if (pcap_dispatch(pcap_descriptor, 1,
+				newpacket, (u_char *)interp) == 0) {
+	    fileeof = 1;
+	}
     }
+    return packet_error;
 }
 
 /*
@@ -277,14 +294,13 @@ process_one_packet(Tcl_Interp *interp)
  */
 
 static int
-read_one_bin(ClientData clientData, Tcl_Interp *interp,
+teho_read_one_bin(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
-    u_int count = 0;
     int error;
 
     if (argc > 2) {
-	interp->result = "Usage: read_one_bin ?binsecs?";
+	interp->result = "Usage: teho_read_one_bin ?binsecs?";
 	return TCL_ERROR;
     } else if (argc == 2) {
 	error = Tcl_GetInt(interp, argv[1], &binsecs);
@@ -295,23 +311,27 @@ read_one_bin(ClientData clientData, Tcl_Interp *interp,
 	;		/* use old binsecs */
     }
     if (pcap_descriptor == 0) {
-	interp->result = "need to call set_tcpd_file first";
+	interp->result = "need to call teho_set_tcpd_file first";
 	return TCL_ERROR;
     }
     if (flow_type_len == 0) {
-	interp->result = "need to call set_flow_type first";
+	interp->result = "need to call teho_set_flow_type first";
 	return TCL_ERROR;
     }
 
     binno = -1;
-    packet_error = TCL_OK;
 
-    while (((binno == -1) || (binno == TIMETOBINNO())) &&
-						(packet_error == TCL_OK)) {
-	process_one_packet(interp);
-	count++;
+    interp->result = "1";
+    while (((binno == -1) || (binno == TIMETOBINNO())) && !fileeof) {
+	error = process_one_packet(interp);
+	if (error != TCL_OK) {
+	    return error;
+	}
     }
 
+    if (fileeof) {
+	interp->result = "0";
+    }
     return TCL_OK;
 }
 
@@ -385,61 +405,54 @@ goodout:
 }
 
 static int
-set_flow_type(ClientData clientData, Tcl_Interp *interp,
+teho_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
     int error;
-    int i;
-    char *sep;
 
     if (argc != 2) {
-	interp->result = "Usage: set_flow_type flowtypedescription";
+	interp->result = "Usage: teho_set_flow_type flowtypedescription";
 	return TCL_ERROR;
     }
-    printf("argc %d, argv[0] %s, argv[1] %s\n", argc, argv[0], argv[1]);
-    if (argc == 2) {
-	error = get_flow_type(interp, argv[1]);
-	if (error != TCL_OK) {
-	    return error;
-	}
-	printf("flow type: ");
-	sep = "";
-	for (i = 0; i < flow_type_len; i += 2) {
-	    printf("%s%02x%02x", sep, flow_type[i], flow_type[i+1]);
-	    sep = ":";
-	}
-	printf("\n");
+
+    error = get_flow_type(interp, argv[1]);
+    if (error != TCL_OK) {
+	return error;
     }
+
     return TCL_OK;
 }
 
 static int
-summary(ClientData clientData, Tcl_Interp *interp,
+teho_summary(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
+    static char summary[100];
+
     if (argc != 1) {
-	interp->result = "Usage: summary";
+	interp->result = "Usage: teho_summary";
 	return TCL_ERROR;
     }
 
-    sprintf(interp->result, "%d %d %d %d %d %d %d %d",
+    sprintf(summary, "%d %d %d %d %d %d %d %d",
 				binno,
 				numflows, flowscreated, flowsactive,
 				packets, packetsnewflows,
 				runts, fragments);
+    interp->result = summary;
     return TCL_OK;
 }
 
 
 static int
-start_enum(ClientData clientData, Tcl_Interp *interp,
+teho_start_enum(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
     return TCL_OK;
 }
 
 static int
-continue_enum(ClientData clientData, Tcl_Interp *interp,
+teho_continue_enum(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
     return TCL_OK;
@@ -447,11 +460,11 @@ continue_enum(ClientData clientData, Tcl_Interp *interp,
 
 
 static int
-set_tcpd_file(ClientData clientData, Tcl_Interp *interp,
+teho_set_tcpd_file(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
     if (argc != 2) {
-	interp->result = "Usage: set_tcpd_file filename";
+	interp->result = "Usage: teho_set_tcpd_file filename";
 	return TCL_ERROR;
     }
     pcap_descriptor = pcap_open_offline(argv[1], pcap_errbuf);
@@ -459,6 +472,7 @@ set_tcpd_file(ClientData clientData, Tcl_Interp *interp,
 	sprintf(interp->result, "%s", pcap_errbuf);
 	return TCL_ERROR;
     }
+    fileeof = 0;
     return TCL_OK;
 }
 
@@ -470,12 +484,18 @@ Tcl_AppInit(Tcl_Interp *interp)
 	return TCL_ERROR;
     }
 
-    Tcl_CreateCommand(interp, "set_flow_type", set_flow_type, NULL, NULL);
-    Tcl_CreateCommand(interp, "read_one_bin", read_one_bin, NULL, NULL);
-    Tcl_CreateCommand(interp, "start_enum", start_enum, NULL, NULL);
-    Tcl_CreateCommand(interp, "continue_enum", continue_enum, NULL, NULL);
-    Tcl_CreateCommand(interp, "set_tcpd_file", set_tcpd_file, NULL, NULL);
-    Tcl_CreateCommand(interp, "summary", summary, NULL, NULL);
+    Tcl_CreateCommand(interp, "teho_set_flow_type", teho_set_flow_type,
+								NULL, NULL);
+    Tcl_CreateCommand(interp, "teho_read_one_bin", teho_read_one_bin,
+								NULL, NULL);
+    Tcl_CreateCommand(interp, "teho_start_enum", teho_start_enum,
+								NULL, NULL);
+    Tcl_CreateCommand(interp, "teho_continue_enum", teho_continue_enum,
+								NULL, NULL);
+    Tcl_CreateCommand(interp, "teho_set_tcpd_file", teho_set_tcpd_file,
+								NULL, NULL);
+    Tcl_CreateCommand(interp, "teho_summary", teho_summary,
+								NULL, NULL);
 
     tcl_RcFileName = "~/.tehone.tcl";
     return TCL_OK;
