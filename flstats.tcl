@@ -150,8 +150,9 @@ get_summary_vec {class} \
 	regsub -all {([a-zA-Z_]+) ([0-9]+)} \
 			[teho_class_summary $class] {[set ts_\1 \2]} bar
 	subst $bar
-	return [list $ts_added $ts_removed $ts_active \
-			$ts_pkts $ts_frags $ts_runts $ts_noports]
+	return [list $ts_added $ts_removed $ts_active $ts_pkts $ts_fragpkts \
+			$ts_runtpkts $ts_noportpkts $ts_fragbytes \
+			$ts_runtbytes $ts_noportbytes $ts_bytes]
 }
 
 
@@ -194,9 +195,10 @@ simul { fixortcpd filename {binsecs 1} } \
 				ihv/ihl/tos/ttl/prot/src/dst
 
 
-    puts "# plotvars 1 binno 2 pktsrouted 3 pktsswitched 4 dropped"
-    puts "# plotvars 5 created 6 deleted 7 numflows 8 totalflows"
-    puts "# plotvars 9 bintime 10 timeouttime 11 vsz 12 rsz 13 cputime"
+    puts "# plotvars 1 binno 2 pktsrouted 3 bytesrouted 4 pktsswitched"
+    puts "# plotvars 5 bytesswitched 6 pktsdropped 7 bytesdropped"
+    puts "# plotvars 8 created 9 deleted 10 numflows 11 totalflows"
+    puts "# plotvars 12 bintime 13 timeouttime 14 vsz 15 rsz 16 cputime"
 
     # we are looking at 3 classes: 3, 4, 5
     #	3	non-switched flows
@@ -204,10 +206,10 @@ simul { fixortcpd filename {binsecs 1} } \
     #	5	switched flows
 
     set pid [pid]
-    set onon [list 0 0 0 0 0 0 0]
-    set owaiting [list 0 0 0 0 0 0 0]
-    set oswitched [list 0 0 0 0 0 0 0]
-    set ogstats [list 0 0 0 0 0 0 0]
+    set onon 		[list 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
+    set owaiting 	[list 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
+    set oswitched	[list 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
+    set ogstats		[list 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
     set oflowscreated 0
     set flowscreated 0
     set oflowsdeleted 0
@@ -232,12 +234,17 @@ simul { fixortcpd filename {binsecs 1} } \
 	set diffgstats [vec_difference $gstats $ogstats]
 	set xx [exec ps lp$pid]
 	set xx [lrange [split [join $xx]] 19 24]
-	puts [format "%-7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %s" \
+	puts [format \
+	    "%-7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %s" \
 			$binno\
 			[expr [lindex $diffnon 3] + [lindex $diffwaiting 3]] \
+			[expr [lindex $diffnon 10] + [lindex $diffwaiting 10]] \
 			[lindex $diffswitched 3] \
+			[lindex $diffswitched 10] \
 			[expr [lindex $diffgstats 4] + [lindex $diffgstats 5] \
 				+ [lindex $diffgstats 6]] \
+			[expr [lindex $diffgstats 7] + [lindex $diffgstats 8] \
+				+ [lindex $diffgstats 9]] \
 			[expr $flowscreated - $oflowscreated] \
 			[expr $flowsdeleted - $oflowsdeleted] \
 			[expr ([lindex $waiting 0] + [lindex $switched 0]) - \
