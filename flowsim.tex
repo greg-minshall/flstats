@@ -32,6 +32,8 @@
 \newcommand{\NAME}{\item[NAME]}
 \newcommand{\SYNOPSIS}{\item[SYNOPSIS]}
 \newcommand{\DESCRIPTION}{\item[DESCRIPTION]}
+\newcommand{\RETURNVALUES}{\item[RETURN VALUES]}
+\newcommand{\RETURNDESC}{\item[DESCRIPTION OF RETURN VALUES]}
 \newcommand{\KEYWORDS}{\item[KEYWORDS]}
 \newcommand{\SEEALSO}{\item[SEE ALSO]}
 \newcommand{\BUGS}{\item[BUGS]}
@@ -338,9 +340,9 @@ set.
 
 \manend
 
-\man{fsim\_set\_flow\_type}
+\man{fsim\_set\_flow\_type}{set a flow type and associated attributes}
 
-\SYNOPSIS \cmdname\ ?-f flow\_type? ?-n new\_flow\_command? ?-r recv\_command? ?-t timeout\_command? flowstring
+\SYNOPSIS \cmdname\ ?-f flow\_type? ?-n new\_flow\_command? ?-r recv\_command? ?-t timerexpired\_command? flowstring
 
 \DESCRIPTION
 
@@ -385,9 +387,9 @@ flows created in this flow type.
 upcall.  See~\ref{sec:upcallpktrecvd}.  If this value is unspecified,
 no packet reception upcall will be made for packets received for flows
 in this flow type.
-\item[--t] The name of the procedure to receive the timeout upcall.
-See~\ref{sec:upcalltimeout}.  If this value is unspecified,
-no timeout upcall will be made for flows in this flow type.
+\item[--t] The name of the procedure to receive the timerexpired upcall.
+See~\ref{sec:upcalltimerexpired}.  If this value is unspecified,
+no timerexpired upcall will be made for flows in this flow type.
 \end{description}
 
 \BUGS
@@ -398,7 +400,7 @@ This \emph{only} works for IPv4; IPv6 is not (yet) supported.
 
 \manend
 
-\man{fsim\_set\_tcpd\_file}
+\man{fsim\_set\_tcpd\_file}{specify tcpdump format input file}
 
 \SYNOPSIS \cmdname\ filename
 
@@ -414,7 +416,7 @@ its input file, and that this is a file created by tcpdump(1) using the
 
 \manend
 
-\man{fsim\_start\_enumeration}
+\man{fsim\_start\_enumeration}{intialize an enumeration of flows}
 
 \SYNOPSIS \cmdname\
 
@@ -429,7 +431,7 @@ entries.
 
 \manend
 
-\man{fsim\_summary}
+\man{fsim\_summary}{retrieve class 0 statistics}
 
 \SYNOPSIS \cmdname\
 
@@ -451,7 +453,7 @@ Probably this should be removed, in favor of
 
 The following are in flowsim.tcl:
 
-\man{fsim\_startup}
+\man{fsim\_startup}{Tcl startup procedure}
 
 \SYNOPSIS \cmdname\
 
@@ -472,7 +474,8 @@ Tcl code is printed on standard output.
 
 The following are in simul.tcl:
 
-\man{fsim\_class\_details}
+\man{fsim\_class\_details}{run the simulator and generate a histogram of
+class details}
 
 \SYNOPSIS \cmdname\ fixortcpd filename ?binsecs? ?classifier?
 ?classifiertype? ?ulflows?
@@ -499,7 +502,8 @@ deleted).
 
 \manend
 
-\man{fsim\_flow\_details}
+\man{fsim\_flow\_details}{run the simluator and generate a histogram of
+flow details}
 
 \SYNOPSIS \cmdname\ fixortcpd filename ?binsecs? ?classifier?
 ?classifiertype? ?ulflows?
@@ -523,7 +527,7 @@ print out statistics for each flow.
 
 \manend
 
-\man{fsim\_setup}
+\man{fsim\_setup}{setup simulator for a run}
 
 \SYNOPSIS \cmdname\ fixortcpd filename ?binsecs? ?classifier?
 ?classifiertype? ?ulflows?
@@ -571,7 +575,65 @@ an array with components in the following order:
 \item[receive] The packet received upcall routine.
 \item[timer] The timer expired upcall routine.
 \end{description}
-There is a default set of upper level flows:
+\end{description}
+
+\SEEALSO
+
+\cmd{fsim\_set\_tcpd\_file}
+\cmd{fsim\_set\_fix\_file}
+\cmd{fsim\_setft}
+
+\manend
+
+\man{fsim\_setft}{set lower level flow types and associated attributes}
+
+\SYNOPSIS \cmdname\ classifier classifiertype ulflows
+
+\DESCRIPTION
+
+\cmdname\ looks at the flows in \cmdarg{ulflows} and the header fields
+in \cmdarg{classifiertype} to determine how to set up lower level flows
+that are fine grained enough to allow the classifier to do its work.
+\cmdname\ then sets up the lower level flow types (1 or 2, depending on
+whether the header fields in \cmdarg{ulflows} and in
+\cmdarg{classifiertype} include source or destination port numbers).
+Each of the lower level flow types is set to use \cmdarg{classifier} as
+its flow creation upcall.
+
+\item[classifier] The procedure name of the user-level classifier,
+i.e., the name of the procedure which will used for the flow creation
+upcall when new low level flows are created.  If no classifier is
+specified, the internal classifier \cmd{fsim\_classifier} is used
+(see~\ref{sec:fsimclassifier}).
+\item[classifiertype] In order for the low level flows to be of fine
+enough resolution to allow the classifier to distinguish between
+packets, classifier type is a flow type specifier
+(see~\ref{sec:fsimsetflowtype}) containing all the header fields the
+classifier needs access to.  This is a bit confusing.  The point is
+that the classifier is called when a new low level flow is created, and
+this happens when a packet arrives that doesn't match any currently
+existing low level flow.  However, if a packet arrives and \emph{does}
+match an existing low level flow, it won't be shown to the classifier.
+Thus, the classifier needs to make sure that the low level flows are
+of fine enough granularity so that two packets from what the
+\emph{classifier} thinks of as \emph{two} flows are not treated by the
+low level code as \emph{one} flow.
+\item[ulflows]  \cmdarg{ulflows} is a complex data structure (expressed
+as a string!) which describes the various upper level flows and the
+default behaviour to be associated with those flows.  \cmdarg{ulflows}
+is a Tcl array of flow descriptions.  Each flow description is, itself,
+an array with components in the following order:
+\begin{description}
+\item[flowtypespecifier] See~\ref{sec:fsimsetflowtype}.
+\item[flowtypereference] The integer used to refer to this flow type.
+\item[flowcreation] The flow creation upcall routine.
+\item[receive] The packet received upcall routine.
+\item[timer] The timer expired upcall routine.
+\end{description}
+\end{description}
+
+There is a default set of upper level flows, which is used if
+\cmdarg{ulflows} is not passed (or, is passed as the empty set):
 \begin{verbatim}
 {
     {   ihv/ihl/tos/ttl/prot/src/dst
@@ -587,27 +649,106 @@ There is a default set of upper level flows:
 	teho_deleteflow}
 }
 \end{verbatim}
-\end{description}
-
-\SEEALSO
-
-\cmd{fsim\_set\_tcpd\_file}
-\cmd{fsim\_set\_fix\_file}
-\cmd{fsim\_setft}
-
-\manend
-
-\man{fsim\_setft}
 
 \manend
 
 The following are upcalls:
 
-\man{upcall\_flow\_creation}
+\man{upcall\_flow\_creation}{new flow creation upcall}
+
+\SYNOPSIS \cmdname\ class flowtype flowid
+
+\DESCRIPTION
+
+\cmdname\ is called whenever a flow is created in a flow type that has
+this command registered with it.  Note that \cmdname\ is \emph{not}
+really the name of a command; as a flow type is created, a specific upcall
+routine may be registered to receive notification of flow creation
+events in that flow type.
+
+\begin{description}
+\item[class] The class index of the class associated with the flow type.
+\item[flowtype] The flow type index of the flow type.
+\item[flowid] The flow identifier of the new flow being created.  This
+is in the form \texttt{name/value/name/value...}, where \texttt{name}
+is the name of a header field (see~\ref{sec:fsim\_set\_flow\_type}),
+and \texttt{value} is the value of that field.  (The values are printed
+out in decimal, dotted decimal, or hexadecimal, depending on the
+field.)
+\end{description}
+
+\RETURNVALUES class parent_class parent_flow_type ?receive_time?
+?timer_value?
+
+\RETURNDESC
+The return value from this call regulates the attributes of the created
+flow entry.  The return value is a string with values in the following
+order:
+
+\begin{description}
+\item[class] The class index of the newly created flow.
+\item[upper_class] The class index of any parent flow that might be created.
+\item[upper_ftype] The flow type index of any parent flow that might be
+created.
+\item[recvtime] The number of seconds, expressed as a floating point
+number, that must pass before the packet received upcall will be made
+for a packet received on this flow.  If this value is returned as zero
+(or non-existent), the packet received upcall will never be made.
+\item[timervalue] The number of seconds, expressed as a floating point
+number, that must pass before the system will call the timer expired
+upcall for this flow entry.  If this value is returned as zero
+(or non-existent), the timer expired upcall will never be made.
+\end{description}
 
 \manend
 
-\man{upcall\_packet\_reception}
+\man{upcall\_packet\_reception}{packet received upcall}
+
+\SYNOPSIS \cmdname\ class ftype flowid FLOW flowstats
+\RETURNVALUES class ?receive\_time?
+
+\DESCRIPTION
+
+This routine, registered on a per-flow-type basis, is called when a
+packet has been received on a flow when \cmdarg{receive_time} seconds
+have passed since the previous \cmdname\ or
+\cmd{upcall\_flow\_creation} upcall on this flow entry
+(\cmdarg{receive\_time} in this sentence refers to, of course, that
+value passed in that \emph{previous} invocation).
+
+\begin{description}
+\item[class] The class index of the flow entry.
+\item[ftype] The flow type index of the flow entry.
+\item[flowid] The flow identifier of of the flow entry.
+\item[FLOW] The string "FLOW".
+\item[flowstats] The flow statistics for the flow entry.
+\begin{description}
+\item[created] The creation time, in absolute time within the time
+space of the input trace file.
+\item[last] The time at which the previous packet was received on this
+flow, in absolute time.
+\item[pkts] The number of packets received on this flow.
+\item[bytes] The number of bytes received on this flow.
+\item[sipg] The smoothed inter-packet arrival time for this flow
+(using, basically,
+the Van Jacobson code from Appendix A of his SIGCOMM 88 paper).
+\end{description}
+\end{description}
+
+The return values allow the upcall routine to change attributes of the
+flow entry.
+
+\begin{description}
+\item[class]  The new (same) class for the flow entry.
+\item[receive\_time] The offset from the current time at which to call
+the packet received upcall again.  If this return value is missing or
+is returned with a value of zero (0), no more packet received upcalls
+will be made for this flow.
+\end{description}
+
+\manend
+
+\man{upcall\_timer\_expired}{timer expired upcall}
 
 \manend
 \end{document}
