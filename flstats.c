@@ -54,7 +54,7 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.74 1996/05/18 01:25:24 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.75 1996/05/18 04:02:01 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -496,6 +496,16 @@ int flow_types = 0;
 
 pcap_t *pcap_descriptor;
 char pcap_errbuf[PCAP_ERRBUF_SIZE];
+
+
+    /* FDDI support */
+#if defined(ultrix) || defined(__alpha)
+#define FDDIPAD 3
+#else
+#define FDDIPAD 0
+#endif
+
+int fddipad = FDDIPAD;
 
 FILE *fix24_descriptor;
 
