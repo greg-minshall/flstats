@@ -20,9 +20,14 @@
  *     12.  	Change atoft[] to allow spec of (SHIFT_RIGHT|IN_PLACE)
  *		(to decouple output base from shifting) and DOTTED as
  *		a flag; make fmt == char * ("%d", say)?
+ *     13.  	"dump tcl code" command.
+ *     14.	Call to retrieve RCS Id.
+ *     15.	set_file, takes "filename format".  make tcl
+ *  	    	-tracefile parms a list.
+ *     16.	"fix" --> "fix24".
  */
 
-/* $Id$ */
+/* $Id: flowsim.c,v 1.59 1996/03/01 21:03:01 minshall Exp minshall $ */
 
 #include <stdio.h>
 #include <stdlib.h>
