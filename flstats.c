@@ -75,7 +75,8 @@ struct flowentry {
 	fe_parent_ftype,	/* parent's flow type */
 	fe_parent_class;	/* parent's class */
     u_long
-	fe_packets,		/* number of packets received */
+	fe_pkts,		/* number of packets received */
+	fe_bytes,		/* number of bytes received */
 	fe_created_bin,
 	fe_last_bin_active;
     char
@@ -143,9 +144,13 @@ typedef struct clstats {
 	    cls_removed,		/* num flows removed from this class */
 	    cls_active,			/* flows active this interval */
 	    cls_pkts,			/* packets read */
-	    cls_frags,			/* fragments seen (using ports) */
-	    cls_runts,			/* runt (too short) packets seen */
-	    cls_noports;		/* packet had no ports (but needed) */
+	    cls_bytes,			/* bytes read */
+	    cls_fragpkts,		/* fragments seen (using ports) */
+	    cls_fragbytes,		/* bytes seen in those frags */
+	    cls_runtpkts,		/* runt (too short) packets seen */
+	    cls_runtbytes,		/* bytes seen in those frags */
+	    cls_noportpkts,		/* packet had no ports (but needed) */
+	    cls_noportbytes;		/* bytes seen in those frags */
 } clstats_t, *clstats_p;
 
 
@@ -660,9 +665,10 @@ flow_statistics(flowentry_p fe)
 {
     static char summary[100];
 
-    sprintf(summary, "created %ld.%06ld last %ld.%06ld pkts %lu",
+    sprintf(summary, "created %ld.%06ld last %ld.%06ld pkts %lu bytes %lu",
 	    fe->fe_created.tv_sec, fe->fe_created.tv_usec,
-	    fe->fe_last_pkt_rcvd.tv_sec, fe->fe_last_pkt_rcvd.tv_usec, fe->fe_packets);
+	    fe->fe_last_pkt_rcvd.tv_sec, fe->fe_last_pkt_rcvd.tv_usec,
+	    fe->fe_pkts, fe->fe_bytes);
 
     return summary;
 }
@@ -674,10 +680,11 @@ class_statistics(clstats_p clsp)
     static char summary[100];
 
     sprintf(summary,
-	"added %d removed %d active %d pkts %d frags %d runts %d noports %d",
+  "added %d removed %d active %d pkts %d bytes %d fragpkts %d fragbytes %d runtpkts %d runtbytes %d noportpkts %d noportbytes %d",
 	clsp->cls_added, clsp->cls_removed, clsp->cls_active,
-	clsp->cls_pkts, clsp->cls_frags, clsp->cls_runts,
-	clsp->cls_noports);
+	clsp->cls_pkts, clsp->cls_bytes, clsp->cls_fragpkts,
+	clsp->cls_fragbytes, clsp->cls_runtpkts, clsp->cls_runtbytes,
+	clsp->cls_noportpkts, clsp->cls_noportbytes);
 
     return summary;
 }
@@ -711,7 +718,8 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int level, int class)
     fe->fe_parent_ftype = fe->fe_flow_type;	/* default */
     fe->fe_parent_class = class;		/* default */
     fe->fe_class = class;
-    fe->fe_packets = 0;
+    fe->fe_pkts = 0;
+    fe->fe_bytes = 0;
     fe->fe_created_bin = binno;
     fe->fe_last_bin_active = 0xffffffff;
     fe->fe_created = curtime;
@@ -788,7 +796,7 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int level, int class)
  */
 
 static void
-packetinflow(Tcl_Interp *interp, flowentry_p fe)
+packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
 {
     clstats_p cl;
 
@@ -867,7 +875,9 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe)
     cl = &clstats[fe->fe_class];
     /* update counters (after callout has had a chance to change things) */
     cl->cls_pkts++;
-    fe->fe_packets++;
+    cl->cls_bytes += len;
+    fe->fe_pkts++;
+    fe->fe_bytes += len;
     fe->fe_last_pkt_rcvd = curtime;
     if (fe->fe_last_bin_active != binno) {
 	fe->fe_last_bin_active = binno;
@@ -921,7 +931,11 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 								    llft++) {
 	if (len >= llft->fti_id_covers) {
 	    bigenough = 1;
-	    if (pkthasports || !FTI_USES_PORTS(llft)) {
+	    /*
+	     * if ft doesn't use ports, or this protocol has ports and we
+	     * aren't fragmented, this is fine.
+	     */
+	    if ((pkthasports && (!packet[6]&0x1fff)) || !FTI_USES_PORTS(llft)) {
 		break;
 	    }
 	}
@@ -929,18 +943,20 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 
     if (llft >= &ftinfo[NUM(ftinfo)]) {
 	clstats[0].cls_pkts++;
+	clstats[0].cls_bytes += len;
 	if (bigenough) {	/* packet was big enough, but... */
-	    clstats[0].cls_noports++;
+	    if (packet[6]&0x1fff) {
+		clstats[0].cls_fragpkts++;
+		clstats[0].cls_fragbytes += len;
+	    } else {
+		clstats[0].cls_noportpkts++;
+		clstats[0].cls_noportbytes += len;
+	    }
 	} else {
 	    /* never found a flow type into which it fit */
-	    clstats[0].cls_runts++;
+	    clstats[0].cls_runtpkts++;
+	    clstats[0].cls_runtbytes += len;
 	}
-	return;
-    }
-
-    if ((packet[6]&0x1fff) && FTI_USES_PORTS(llft)) { /* XXX */
-	clstats[0].cls_pkts++;
-	clstats[0].cls_frags++;
 	return;
     }
 
@@ -987,8 +1003,8 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 
     /* now, track packets in both the lower and upper flows */
     /* (notice this doesn't happen if any error above occurs...) */
-    packetinflow(interp, llfe);
-    packetinflow(interp, ulfe);
+    packetinflow(interp, llfe, len);
+    packetinflow(interp, ulfe, len);
 }
 
 static void
