@@ -162,6 +162,7 @@ simul_setft { llflows ulflows } \
 	for {set whichflow 0} {$whichflow < [llength $flows]} \
 					    { incr whichflow; incr ftindex } {
 	    set flow [lindex $flows $whichflow]
+	    puts "# flow $ftindex $flow"
 	    set len [llength $flow]
 	    if {$len >= 3} {
 		global [lindex $flow 2]
@@ -184,15 +185,7 @@ simul_setup { fixortcpd filename {binsecs 1} } \
 {
     global LLFLOWS ULFLOWS
 
-    simul_setft $LLFLOWS $ULFLOWS
-
     set fname [glob $filename]
-    file stat $fname filestats
-    puts [format "# file %s size %d last written %d" \
-			$fname $filestats(size) $filestats(mtime)]
-    puts "#"
-    puts "# binsecs $binsecs"
-    puts "#"
 
     if [regexp -nocase fix $fixortcpd] {
 	teho_set_fix_file $fname
@@ -202,6 +195,18 @@ simul_setup { fixortcpd filename {binsecs 1} } \
 	puts "bad fixortcpd"
 	return
     }
+
+    file stat $fname filestats
+    puts [format "# file %s size %d last written %d" \
+			$fname $filestats(size) $filestats(mtime)]
+
+    puts "#"
+    simul_setft $LLFLOWS $ULFLOWS
+
+    puts "#"
+    puts "# binsecs $binsecs"
+
+    puts "#"
 }
 
 
