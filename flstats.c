@@ -931,18 +931,18 @@ teho_read_one_bin(ClientData clientData, Tcl_Interp *interp,
     } else if (argc == 1) {
 	;		/* use old binsecs */
     }
-    if (filetype == TYPE_UNKNOWN) {
-	interp->result = "need to call teho_set_{tcpd,fix}_file first";
-	return TCL_ERROR;
-    }
-    if (flow_types == 0) {
-	interp->result = "need to call teho_set_flow_type first";
-	return TCL_ERROR;
-    }
 
     binno = -1;
-
     if (!fileeof) {
+	if (filetype == TYPE_UNKNOWN) {
+	    interp->result = "need to call teho_set_{tcpd,fix}_file first";
+	    return TCL_ERROR;
+	}
+	if (flow_types == 0) {
+	    interp->result = "need to call teho_set_flow_type first";
+	    return TCL_ERROR;
+	}
+
 	while (((binno == -1) || (binno == NOW_AS_BINNO())) && !fileeof) {
 	    error = process_one_packet(interp);
 	    if (error != TCL_OK) {
