@@ -15,7 +15,11 @@ set FT_GUARD			0
 set FT_UL_PORT			0
 set FT_UL_NOPORT		0
 
-proc switchtime {} { return 0.300000 }	; # time to switch
+proc \
+teho_switchtime {} \
+{
+    return 0.300000 	; # time to switch
+}
 
 #
 # this routine is called when a low level flow
@@ -30,7 +34,7 @@ proc switchtime {} { return 0.300000 }	; # time to switch
 #
 
 proc\
-classifier { class flowtype flowid }\
+teho_classifier { class flowtype flowid }\
 {
     global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
     global FT_UL_PORT FT_UL_NOPORT
@@ -38,11 +42,11 @@ classifier { class flowtype flowid }\
     regexp {/prot/([^/]*)/} $flowid match prot
     switch -exact -- $prot {
     6 {return "$class $CL_SWITCHED $FT_UL_NOPORT - 0.0 \
-							deleteflow 2.0 0x2"}
+						    teho_deleteflow 2.0 0x2"}
     11 {return "$class $CL_NONSWITCHED $FT_UL_NOPORT - 0.0 \
-							deleteflow 2.0 0x2"}
+						    teho_deleteflow 2.0 0x2"}
     default {return "$class $CL_NONSWITCHED $FT_UL_NOPORT - 0.0 \
-							deleteflow 2.0 0x2"}
+						    teho_deleteflow 2.0 0x2"}
     }
 }
 
@@ -53,15 +57,15 @@ classifier { class flowtype flowid }\
 #
 
 proc\
-starttimeout { class flowtype flowid }\
+teho_starttimeout { class flowtype flowid }\
 {
     global CL_TO_BE_SWITCHED CL_NONSWITCHED
 
     if {$class == $CL_TO_BE_SWITCHED} {
-	return "$class $class $flowtype getswitched [switchtime] \
-							deleteflow 2.0 0x2"
+	return "$class $class $flowtype teho_getswitched [teho_switchtime] \
+							teho_deleteflow 2.0 0x2"
     } else {
-	return "$class $class $flowtype - 0.0  deleteflow 2.0 0x2"
+	return "$class $class $flowtype - 0.0  teho_deleteflow 2.0 0x2"
     }
 }
 
@@ -71,7 +75,7 @@ starttimeout { class flowtype flowid }\
 #
 
 proc\
-deleteflow {cookie class ftype flowid time FLOW args}\
+teho_deleteflow {cookie class ftype flowid time FLOW args}\
 {
     global CL_SWITCHED CL_TO_BE_SWITCHED CL_NONSWITCHED
 
@@ -88,12 +92,12 @@ deleteflow {cookie class ftype flowid time FLOW args}\
 	set time 64
     }
 
-    return "- deleteflow $time.0 $time"
+    return "- teho_deleteflow $time.0 $time"
 }
 
 
 proc\
-getswitched { class flowtype flowid args}\
+teho_getswitched { class flowtype flowid args}\
 {
     global CL_SWITCHED
 
@@ -180,8 +184,8 @@ proc \
 teho_setft { classifier classifiertype ulflows } \
 {
     set ULFLOWS { \
-	{ ihv/ihl/tos/ttl/prot/src/dst starttimeout FT_UL_NOPORT } \
-	{ ihv/ihl/tos/ttl/prot/src/dst/sport/dport starttimeout FT_UL_PORT }}
+	{ ihv/ihl/tos/ttl/prot/src/dst teho_starttimeout FT_UL_NOPORT } \
+	{ ihv/ihl/tos/ttl/prot/src/dst/sport/dport teho_starttimeout FT_UL_PORT }}
     set ftindex 0
     # the following is like atoft in the .c file:
     set alltags { ihv ihl tos len id foff ttl prot sum src dst sport dport }
@@ -190,7 +194,7 @@ teho_setft { classifier classifiertype ulflows } \
 	set ulflows $ULFLOWS
     }
     if {$classifier == {}} {
-	set classifier classifier
+	set classifier teho_classifier
     }
 
     # ok, scan thru upper layer flows, keeping track of used tags
