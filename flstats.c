@@ -8,7 +8,7 @@
  *	3.	Support for #pkts, sipg, to trigger pkt-recv
  *		callout.
  *	4.	Document: [simul_setup], [flow_details],
- *		[class_details], [teho_read_one_bin].  Give
+ *		[class_details], [fsim_read_one_bin].  Give
  *		examples of use; warn about memory consumption.
  *	7.	Verify the results of callouts (new flow, recv,
  *		timeout) are valid.
@@ -367,8 +367,8 @@ flowentry_t timers[150];
 
 u_long binno;
 
-char teho_tclprogram[] = 
-#include "tehone.char"
+char fsim_tclprogram[] = 
+#include "flowsim.char"
 ;
 
 /*
@@ -1280,14 +1280,14 @@ process_one_packet(Tcl_Interp *interp)
  */
 
 static int
-teho_read_one_bin(ClientData clientData, Tcl_Interp *interp,
+fsim_read_one_bin(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
     int error;
     char buf[20];
 
     if (argc > 2) {
-	interp->result = "Usage: teho_read_one_bin ?binsecs?";
+	interp->result = "Usage: fsim_read_one_bin ?binsecs?";
 	return TCL_ERROR;
     } else if (argc == 2) {
 	error = Tcl_GetInt(interp, argv[1], &binsecs);
@@ -1301,11 +1301,11 @@ teho_read_one_bin(ClientData clientData, Tcl_Interp *interp,
     binno = -1;
     if (!fileeof) {
 	if (filetype == TYPE_UNKNOWN) {
-	    interp->result = "need to call teho_set_{tcpd,fix}_file first";
+	    interp->result = "need to call fsim_set_{tcpd,fix}_file first";
 	    return TCL_ERROR;
 	}
 	if (flow_types == 0) {
-	    interp->result = "need to call teho_set_flow_type first";
+	    interp->result = "need to call fsim_set_flow_type first";
 	    return TCL_ERROR;
 	}
 
@@ -1420,7 +1420,7 @@ goodout:
  */
 
 static int
-teho_set_flow_type(ClientData clientData, Tcl_Interp *interp,
+fsim_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 					    int argc, char *argv[])
 {
     int error;
@@ -1428,7 +1428,7 @@ teho_set_flow_type(ClientData clientData, Tcl_Interp *interp,
     char *new_flow_cmd, *recv_cmd, *timeout_cmd;
     static char result[20];
     static char *usage =
-		"Usage: teho_set_flow_type "
+		"Usage: fsim_set_flow_type "
 		"?-n new_flow_command? ?-r recv_command? "
 		"?-t timeout_command? ?-f flow_type? flowstring";
     int op;
@@ -1511,13 +1511,13 @@ teho_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 }
 
 static int
-teho_class_summary(ClientData clientData, Tcl_Interp *interp,
+fsim_class_summary(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
     clstats_p clsp;
 
     if (argc != 2) {
-	interp->result = "Usage: teho_class_summary class";
+	interp->result = "Usage: fsim_class_summary class";
 	return TCL_ERROR;
     }
 
@@ -1534,11 +1534,11 @@ teho_class_summary(ClientData clientData, Tcl_Interp *interp,
 
 
 static int
-teho_summary(ClientData clientData, Tcl_Interp *interp,
+fsim_summary(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
     if (argc != 1) {
-	interp->result = "Usage: teho_summary";
+	interp->result = "Usage: fsim_summary";
 	return TCL_ERROR;
     }
 
@@ -1552,7 +1552,7 @@ teho_summary(ClientData clientData, Tcl_Interp *interp,
  */
 
 static int
-teho_start_enumeration(ClientData clientData, Tcl_Interp *interp,
+fsim_start_enumeration(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
     enum_state = table;
@@ -1560,7 +1560,7 @@ teho_start_enumeration(ClientData clientData, Tcl_Interp *interp,
 }
 
 static int
-teho_continue_enumeration(ClientData clientData, Tcl_Interp *interp,
+fsim_continue_enumeration(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
     char buf[200];
@@ -1582,11 +1582,11 @@ teho_continue_enumeration(ClientData clientData, Tcl_Interp *interp,
 
 
 static int
-teho_set_tcpd_file(ClientData clientData, Tcl_Interp *interp,
+fsim_set_tcpd_file(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
     if (argc != 2) {
-	interp->result = "Usage: teho_set_tcpd_file filename";
+	interp->result = "Usage: fsim_set_tcpd_file filename";
 	return TCL_ERROR;
     }
     newfile();
@@ -1600,11 +1600,11 @@ teho_set_tcpd_file(ClientData clientData, Tcl_Interp *interp,
 }
 
 static int
-teho_set_fix_file(ClientData clientData, Tcl_Interp *interp,
+fsim_set_fix_file(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
     if (argc != 2) {
-	interp->result = "Usage: teho_set_fix_file filename";
+	interp->result = "Usage: fsim_set_fix_file filename";
 	return TCL_ERROR;
     }
     newfile();
@@ -1625,27 +1625,27 @@ Tcl_AppInit(Tcl_Interp *interp)
 	return TCL_ERROR;
     }
 
-    Tcl_CreateCommand(interp, "teho_class_summary", teho_class_summary,
+    Tcl_CreateCommand(interp, "fsim_class_summary", fsim_class_summary,
 								NULL, NULL);
-    Tcl_CreateCommand(interp, "teho_continue_enumeration",
-					teho_continue_enumeration, NULL, NULL);
-    Tcl_CreateCommand(interp, "teho_read_one_bin", teho_read_one_bin,
+    Tcl_CreateCommand(interp, "fsim_continue_enumeration",
+					fsim_continue_enumeration, NULL, NULL);
+    Tcl_CreateCommand(interp, "fsim_read_one_bin", fsim_read_one_bin,
 								NULL, NULL);
-    Tcl_CreateCommand(interp, "teho_set_fix_file", teho_set_fix_file,
+    Tcl_CreateCommand(interp, "fsim_set_fix_file", fsim_set_fix_file,
 								NULL, NULL);
-    Tcl_CreateCommand(interp, "teho_set_flow_type", teho_set_flow_type,
+    Tcl_CreateCommand(interp, "fsim_set_flow_type", fsim_set_flow_type,
 								NULL, NULL);
-    Tcl_CreateCommand(interp, "teho_set_tcpd_file", teho_set_tcpd_file,
+    Tcl_CreateCommand(interp, "fsim_set_tcpd_file", fsim_set_tcpd_file,
 								NULL, NULL);
-    Tcl_CreateCommand(interp, "teho_start_enumeration", teho_start_enumeration,
+    Tcl_CreateCommand(interp, "fsim_start_enumeration", fsim_start_enumeration,
 								NULL, NULL);
-    Tcl_CreateCommand(interp, "teho_summary", teho_summary,
+    Tcl_CreateCommand(interp, "fsim_summary", fsim_summary,
 								NULL, NULL);
     /* call out to Tcl to set up whatever... */
-    if (Tcl_GlobalEval(interp, teho_tclprogram) != TCL_OK) {
+    if (Tcl_GlobalEval(interp, fsim_tclprogram) != TCL_OK) {
 	return TCL_ERROR;
     }
-    return Tcl_Eval(interp, "teho_startup");
+    return Tcl_Eval(interp, "fsim_startup");
 }
 
 int

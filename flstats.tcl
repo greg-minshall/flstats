@@ -8,7 +8,7 @@ set CL_NONSWITCHED		3
 set CL_TO_BE_SWITCHED		4
 set CL_SWITCHED			5
 
-# when these are used, the values are set in [teho_setft]
+# when these are used, the values are set in [fsim_setft]
 set FT_LL_PORT			0
 set FT_LL_NOPORT		0
 set FT_GUARD			0
@@ -16,7 +16,7 @@ set FT_UL_PORT			0
 set FT_UL_NOPORT		0
 
 proc \
-teho_switchtime {} \
+fsim_switchtime {} \
 {
     return 0.300000 	; # time to switch
 }
@@ -34,7 +34,7 @@ teho_switchtime {} \
 #
 
 proc\
-teho_classifier { class flowtype flowid }\
+fsim_classifier { class flowtype flowid }\
 {
     global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
     global FT_UL_PORT FT_UL_NOPORT
@@ -54,12 +54,12 @@ teho_classifier { class flowtype flowid }\
 #
 
 proc\
-teho_starttimeout { class flowtype flowid }\
+fsim_starttimeout { class flowtype flowid }\
 {
     global CL_TO_BE_SWITCHED CL_NONSWITCHED
 
     if {$class == $CL_TO_BE_SWITCHED} {
-	return "$class $class $flowtype [teho_switchtime] 2.0"
+	return "$class $class $flowtype [fsim_switchtime] 2.0"
     } else {
 	return "$class $class $flowtype 0.0 2.0"
     }
@@ -71,7 +71,7 @@ teho_starttimeout { class flowtype flowid }\
 #
 
 proc\
-teho_deleteflow {class ftype flowid time FLOW args}\
+fsim_deleteflow {class ftype flowid time FLOW args}\
 {
     # ahh, dr. regsub... 
     regsub -all {([a-zA-Z_]+) ([0-9.]+)} $args {[set x_\1 \2]} bar
@@ -93,7 +93,7 @@ teho_deleteflow {class ftype flowid time FLOW args}\
 
 
 proc\
-teho_getswitched { class flowtype flowid args}\
+fsim_getswitched { class flowtype flowid args}\
 {
     global CL_SWITCHED
 
@@ -106,31 +106,31 @@ teho_getswitched { class flowtype flowid args}\
 # this doesn't need $pre, since the subst is performed at the caller...
 
 proc\
-teho_get_summary_vec {class} \
+fsim_get_summary_vec {class} \
 {
 	# ahh, dr. regsub... 
 	regsub -all {([a-zA-Z_]+) ([0-9]+)} \
-			[teho_class_summary $class] {[set ${pre}_\1 \2]} bar
+			[fsim_class_summary $class] {[set ${pre}_\1 \2]} bar
 	return $bar
 }
 
 # this doesn't need $pre, since the subst is performed at the caller...
 #
 # the $pre_\1 variables need to have been created prior to the
-# call.  a call to teho_get_summary_vec (and subst'ing) on the same
+# call.  a call to fsim_get_summary_vec (and subst'ing) on the same
 # class does this.
 
 proc\
-teho_get_diff_vec {class} \
+fsim_get_diff_vec {class} \
 {
 	# ahh, dr. regsub... 
-	regsub -all {([a-zA-Z_]+) ([0-9]+)} [teho_class_summary $class] \
+	regsub -all {([a-zA-Z_]+) ([0-9]+)} [fsim_class_summary $class] \
 			{[set diff_${pre}_\1 [expr \2 - $${pre}_\1]]} bar
 	return $bar
 }
 
 proc\
-teho_ll_delete {class ftype flowid time FLOW args}\
+fsim_ll_delete {class ftype flowid time FLOW args}\
 {
     # ahh, dr. regsub... 
     regsub -all {([a-zA-Z_]+) ([0-9.]+)} $args {[set x_\1 \2]} bar
@@ -177,21 +177,21 @@ teho_ll_delete {class ftype flowid time FLOW args}\
 #
 
 proc \
-teho_setft { classifier classifiertype ulflows } \
+fsim_setft { classifier classifiertype ulflows } \
 {
 
     # default UL flows...
     set ULFLOWS { \
 	{   ihv/ihl/tos/ttl/prot/src/dst \
 	    FT_UL_NOPORT \
-	    teho_starttimeout \
+	    fsim_starttimeout \
 	    - \
-	    teho_deleteflow} \
+	    fsim_deleteflow} \
 	{   ihv/ihl/tos/ttl/prot/src/dst/sport/dport \
 	    FT_UL_PORT \
-	    teho_starttimeout \
+	    fsim_starttimeout \
 	    - \
-	    teho_deleteflow}}
+	    fsim_deleteflow}}
 
     set ftindex 0
 
@@ -203,7 +203,7 @@ teho_setft { classifier classifiertype ulflows } \
 	set ulflows $ULFLOWS
     }
     if {$classifier == {}} {
-	set classifier teho_classifier
+	set classifier fsim_classifier
     }
 
     # ok, scan thru upper layer flows, keeping track of used tags
@@ -247,12 +247,12 @@ teho_setft { classifier classifiertype ulflows } \
     set type1 [join $type1 /]
     set type2 [join $type2 /]
     puts "# flowtype $ftindex $type1 $classifier"
-    puts "teho_set_flow_type -f $ftindex -n $classifier -t teho_ll_delete $type1"
-    teho_set_flow_type -f $ftindex -n $classifier -t teho_ll_delete $type1
+    puts "fsim_set_flow_type -f $ftindex -n $classifier -t fsim_ll_delete $type1"
+    fsim_set_flow_type -f $ftindex -n $classifier -t fsim_ll_delete $type1
     incr ftindex
     if {$portsseen != 0} {
 	puts "# flowtype $ftindex $type2 $classifier"
-	teho_set_flow_type -f $ftindex -n $classifier -t teho_ll_delete $type2
+	fsim_set_flow_type -f $ftindex -n $classifier -t fsim_ll_delete $type2
 	incr ftindex
     }
 
@@ -283,23 +283,23 @@ teho_setft { classifier classifiertype ulflows } \
 	} else {
 	    set timeout "-"
 	}
-	puts "teho_set_flow_type -f $ftindex -n $newflow \
+	puts "fsim_set_flow_type -f $ftindex -n $newflow \
 				-r $recv -t $timeout [lindex $flow 0]"
-	teho_set_flow_type -f $ftindex -n $newflow \
+	fsim_set_flow_type -f $ftindex -n $newflow \
 				-r $recv -t $timeout [lindex $flow 0]
     }
 }
 
 proc \
-teho_setup { fixortcpd filename {binsecs 1} {classifier {}} \
+fsim_setup { fixortcpd filename {binsecs 1} {classifier {}} \
 				{classifiertype {}} { ulflows {} }} \
 {
     set fname [glob $filename]
 
     if [regexp -nocase fix $fixortcpd] {
-	teho_set_fix_file $fname
+	fsim_set_fix_file $fname
     } elseif [regexp -nocase tcpd $fixortcpd] {
-	teho_set_tcpd_file $fname
+	fsim_set_tcpd_file $fname
     } else {
 	puts "bad fixortcpd"
 	return
@@ -310,7 +310,7 @@ teho_setup { fixortcpd filename {binsecs 1} {classifier {}} \
 			$fname $filestats(size) $filestats(mtime)]
 
     puts "#"
-    teho_setft $classifier $classifiertype $ulflows
+    fsim_setft $classifier $classifiertype $ulflows
 
     puts "#"
     puts "# binsecs $binsecs"
@@ -320,23 +320,23 @@ teho_setup { fixortcpd filename {binsecs 1} {classifier {}} \
 
 
 proc \
-teho_flow_details { fixortcpd filename {binsecs 1} {classifier {}} \
+fsim_flow_details { fixortcpd filename {binsecs 1} {classifier {}} \
 					{classifiertype {}} { ulflows {} }} \
 {
     global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
     global FT_LL_PORT FT_LL_NOPORT FT_UL_PORT FT_UL_NOPORT
 
-    teho_setup $fixortcpd $filename $binsecs $classifier \
+    fsim_setup $fixortcpd $filename $binsecs $classifier \
 					$classifiertype $ulflows
 
     while {1} {
 	set bintime [lindex [split [time { \
-			set binno [teho_read_one_bin $binsecs]}]] 0]
+			set binno [fsim_read_one_bin $binsecs]}]] 0]
 	if {$binno == -1} {
 	    break;	# eof
 	}
-	teho_start_enumeration
-	while { [set x [teho_continue_enumeration]] != ""} {
+	fsim_start_enumeration
+	while { [set x [fsim_continue_enumeration]] != ""} {
 	    puts "$binno $x"
 	}
     }
@@ -344,13 +344,13 @@ teho_flow_details { fixortcpd filename {binsecs 1} {classifier {}} \
 
 
 proc \
-teho_class_details { fixortcpd filename {binsecs 1} {classifier {}} \
+fsim_class_details { fixortcpd filename {binsecs 1} {classifier {}} \
 					{classifiertype {}} { ulflows {} }}\
 {
     global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
     global FT_LL_PORT FT_LL_NOPORT FT_UL_PORT FT_UL_NOPORT
 
-    teho_setup $fixortcpd $filename $binsecs $classifier \
+    fsim_setup $fixortcpd $filename $binsecs $classifier \
 					$classifiertype $ulflows
 
     puts "# plotvars 1 binno 2 pktsrouted 3 bytesrouted 4 pktsswitched"
@@ -365,40 +365,40 @@ teho_class_details { fixortcpd filename {binsecs 1} {classifier {}} \
 
     # preload the stats counters
     set pre non
-    subst [teho_get_summary_vec $CL_NONSWITCHED]
+    subst [fsim_get_summary_vec $CL_NONSWITCHED]
     set pre waiting
-    subst [teho_get_summary_vec $CL_TO_BE_SWITCHED]
+    subst [fsim_get_summary_vec $CL_TO_BE_SWITCHED]
     set pre switched
-    subst [teho_get_summary_vec $CL_SWITCHED]
+    subst [fsim_get_summary_vec $CL_SWITCHED]
     set pre gstats
-    subst [teho_get_summary_vec 0]
+    subst [fsim_get_summary_vec 0]
 
     while {1} {
 	set bintime [lindex [split [time { \
-			set binno [teho_read_one_bin $binsecs]}]] 0]
+			set binno [fsim_read_one_bin $binsecs]}]] 0]
 	if {$binno == -1} {
 	    break;	# eof
 	}
 
 	# get differences from previous stats counters
 	set pre non
-	subst [teho_get_diff_vec $CL_NONSWITCHED]
+	subst [fsim_get_diff_vec $CL_NONSWITCHED]
 	set pre waiting
-	subst [teho_get_diff_vec $CL_TO_BE_SWITCHED]
+	subst [fsim_get_diff_vec $CL_TO_BE_SWITCHED]
 	set pre switched
-	subst [teho_get_diff_vec $CL_SWITCHED]
+	subst [fsim_get_diff_vec $CL_SWITCHED]
 	set pre gstats
-	subst [teho_get_diff_vec 0]
+	subst [fsim_get_diff_vec 0]
 
 	# now, update the stats counters
 	set pre non
-	subst [teho_get_summary_vec $CL_NONSWITCHED]
+	subst [fsim_get_summary_vec $CL_NONSWITCHED]
 	set pre waiting
-	subst [teho_get_summary_vec $CL_TO_BE_SWITCHED]
+	subst [fsim_get_summary_vec $CL_TO_BE_SWITCHED]
 	set pre switched
-	subst [teho_get_summary_vec $CL_SWITCHED]
+	subst [fsim_get_summary_vec $CL_SWITCHED]
 	set pre gstats
-	subst [teho_get_summary_vec 0]
+	subst [fsim_get_summary_vec 0]
 	set xx [exec ps lp$pid]
 	set xx [lrange [split [join $xx]] 19 24]
 	puts [format \
@@ -433,6 +433,6 @@ proc \
 simul { fixortcpd filename {binsecs 1} {classifier {}} \
 				{classifiertype {}} { ulflows {} }} \
 {
-    teho_class_details $fixortcpd $filename \
+    fsim_class_details $fixortcpd $filename \
 			$binsecs $classifier $classifiertype $ulflows
 }

@@ -9,7 +9,7 @@ WARNINGS	= -Wall
 
 CFLAGS	= -g ${INCLUDES} ${WARNINGS}
 
-all:	tcpd2det fix2det tehone
+all:	tcpd2det fix2det flowsim
 
 tcpd2det:	tcpd2det.o
 	${CC} ${CFLAGS} -o tcpd2det ${LDFLAGS} tcpd2det.o ${LIBPATH} ${LIBPCAP}
@@ -17,12 +17,12 @@ tcpd2det:	tcpd2det.o
 fix2det:	fix2det.o
 	${CC} ${CFLAGS} -o fix2det ${LDFLAGS} fix2det.o
 
-tehone:		tehone.o
-	${CC} ${CFLAGS} -o tehone ${LDFLAGS} tehone.o \
+flowsim:		flowsim.o
+	${CC} ${CFLAGS} -o flowsim ${LDFLAGS} flowsim.o \
 						${LIBPATH} ${LIBTCL} ${LIBPCAP} -lm
 
-tehone.o:	tehone.char tehone.c
+flowsim.o:	flowsim.char flowsim.c
 
-tehone.char:	tehone.tcl
-	sed 's/\\/\\\\/g' < tehone.tcl | sed 's/"/\\"/g' | \
-				sed 's/^/"/' | sed 's/$$/\\n"/' > tehone.char
+flowsim.char:	flowsim.tcl
+	sed 's/\\/\\\\/g' < flowsim.tcl | sed 's/"/\\"/g' | \
+				sed 's/^/"/' | sed 's/$$/\\n"/' > flowsim.char
