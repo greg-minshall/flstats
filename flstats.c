@@ -84,6 +84,7 @@ struct ftinfo {
 	    fti_type_indicies_len,
 	    fti_id_len,
 	    fti_id_covers;
+    char    *fti_new_flow_cmd;
 };
 
 #define	FTI_USES_PORTS(p) ((p)->fti_id_covers > 20)
@@ -357,6 +358,101 @@ set_time(u_long secs, u_long usecs)
 }
 
 
+static char *
+flow_id_to_string(int ft, u_char *id)
+{
+    static char result[MAX_FLOW_ID_BYTES*10];
+    char fidstring[30], *fidp;
+    char *sep = "", *dot, *fmt0xff, *fmt0xf;
+    atoft_p xp;
+    u_long decimal;
+    int i, j;
+
+    result[0] = 0;
+    for (i = 0; i < ftinfo[ft].fti_type_indicies_len; i++) {
+	xp = &atoft[ftinfo[ft].fti_type_indicies[i]];
+	fidp = fidstring;
+	dot = "";			/* for dotted decimal */
+	decimal = 0;			/* for decimal */
+	switch (xp->fmt) {
+	case FMT_DECIMAL:
+	    break;			/* done in for loop (sigh) */
+	case FMT_DOTTED:
+	    fmt0xff = "%s%d";
+	    fmt0xf = "%s%d";
+	    break;
+	case FMT_HEX:
+	    fmt0xff = "%s%02x";
+	    fmt0xf = "%s%x";
+	    break;
+	default:
+	    fprintf(stderr, "%s:%d:  %d is bad fmt\n",
+				__FILE__, __LINE__, xp->fmt);
+	    break;
+	}
+	/* (clearly, mask 0xf0 or 0x0f is incompatible with numbytes > 1) */
+	for (j = 0; j < xp->numbytes; j++) {
+	    if ((xp->mask == 0) || (xp->mask == 0xff)) {
+		if (xp->fmt == FMT_DECIMAL) {
+		    decimal = (decimal<<8)+*id++;
+		} else {
+		    sprintf(fidp, fmt0xff, dot, *id++);
+		    fidp += strlen(fidp);
+		}
+	    } else if (xp->mask == 0xf0) {
+		if (xp->fmt == FMT_DECIMAL) {
+		    decimal = (decimal<<4)+(*id++)>>4;
+		} else {
+		    sprintf(fidp, fmt0xf, dot, (*id++)>>4);
+		    fidp += strlen(fidp);
+		}
+	    } else if (xp->mask == 0x0f) {
+		if (xp->fmt == FMT_DECIMAL) {
+		    decimal = (decimal<<4)+(*id++)&0xf;
+		} else {
+		    sprintf(fidp, fmt0xf, dot, (*id++)&0xf);
+		    fidp += strlen(fidp);
+		}
+	    } else {
+		/* unknown value for mask */
+		fprintf(stderr,
+			"%s:%d --- mask value %x of index %d of atoft bad!\n",
+				__FILE__, __LINE__, xp->mask, i);
+	    }
+	    if (xp->fmt == FMT_DOTTED) {
+		dot = ".";
+	    }
+	}
+	if (xp->fmt == FMT_DECIMAL) {
+	    sprintf(fidstring, "%ld", decimal);
+	} else {
+	    *fidp = 0;
+	}
+	/*sprintf(result+strlen(result), "%s%s/%s", sep, xp->name, fidstring);*/
+	sprintf(result+strlen(result), "%s%s", sep, fidstring);
+	sep = "/";
+    }
+    return result;
+}
+
+
+static char *
+flow_type_to_string(int ft)
+{
+    static char result[MAX_FLOW_ID_BYTES*10];
+    char *sep = "";
+    int i;
+
+    result[0] = 0;
+    for (i = 0; i < ftinfo[ft].fti_type_indicies_len; i++) {
+	sprintf(result+strlen(result), "%s%s",
+			    sep, atoft[ftinfo[ft].fti_type_indicies[i]].name);
+	sep = "/";
+    }
+    return result;
+}
+
+
 static void
 packetin(Tcl_Interp *interp, const u_char *packet, int len)
 {
@@ -420,9 +516,9 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	return;
     }
 
-    hent = tbl_lookup(pending_flow_id, ftinfo[ft].fti_id_len);
+    hent = tbl_lookup(pending_flow_id, ftip->fti_id_len);
     if (hent == 0) {
-	hent = tbl_add(pending_flow_id, ftinfo[ft].fti_id_len);
+	hent = tbl_add(pending_flow_id, ftip->fti_id_len);
 	if (hent == 0) {
 	    interp->result = "no room for more flows";
 	    packet_error = TCL_ERROR;
@@ -433,7 +529,10 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	hent->created_usec = curtime.tv_usec;
 	hent->created_bin = binno;
 	hent->flow_type_index = ft;
-	hent->stats_group_index = ftip->fti_stats_group_index; /* XXX */
+	if (ftip->fti_new_flow_cmd) {
+	} else {
+	    hent->stats_group_index = ftip->fti_stats_group_index; /* XXX */
+	}
 	ftsp = &ftstats[hent->stats_group_index];
 	ftsp->fts_created++;
     }
@@ -586,102 +685,9 @@ teho_read_one_bin(ClientData clientData, Tcl_Interp *interp,
     return TCL_OK;
 }
 
-static char *
-flow_id_to_string(int ft, u_char *id)
-{
-    static char result[MAX_FLOW_ID_BYTES*10];
-    char fidstring[30], *fidp;
-    char *sep = "", *dot, *fmt0xff, *fmt0xf;
-    atoft_p xp;
-    u_long decimal;
-    int i, j;
-
-    result[0] = 0;
-    for (i = 0; i < ftinfo[ft].fti_type_indicies_len; i++) {
-	xp = &atoft[ftinfo[ft].fti_type_indicies[i]];
-	fidp = fidstring;
-	dot = "";			/* for dotted decimal */
-	decimal = 0;			/* for decimal */
-	switch (xp->fmt) {
-	case FMT_DECIMAL:
-	    break;			/* done in for loop (sigh) */
-	case FMT_DOTTED:
-	    fmt0xff = "%s%d";
-	    fmt0xf = "%s%d";
-	    break;
-	case FMT_HEX:
-	    fmt0xff = "%s%02x";
-	    fmt0xf = "%s%x";
-	    break;
-	default:
-	    fprintf(stderr, "%s:%d:  %d is bad fmt\n",
-				__FILE__, __LINE__, xp->fmt);
-	    break;
-	}
-	/* (clearly, mask 0xf0 or 0x0f is incompatible with numbytes > 1) */
-	for (j = 0; j < xp->numbytes; j++) {
-	    if ((xp->mask == 0) || (xp->mask == 0xff)) {
-		if (xp->fmt == FMT_DECIMAL) {
-		    decimal = (decimal<<8)+*id++;
-		} else {
-		    sprintf(fidp, fmt0xff, dot, *id++);
-		    fidp += strlen(fidp);
-		}
-	    } else if (xp->mask == 0xf0) {
-		if (xp->fmt == FMT_DECIMAL) {
-		    decimal = (decimal<<4)+(*id++)>>4;
-		} else {
-		    sprintf(fidp, fmt0xf, dot, (*id++)>>4);
-		    fidp += strlen(fidp);
-		}
-	    } else if (xp->mask == 0x0f) {
-		if (xp->fmt == FMT_DECIMAL) {
-		    decimal = (decimal<<4)+(*id++)&0xf;
-		} else {
-		    sprintf(fidp, fmt0xf, dot, (*id++)&0xf);
-		    fidp += strlen(fidp);
-		}
-	    } else {
-		/* unknown value for mask */
-		fprintf(stderr,
-			"%s:%d --- mask value %x of index %d of atoft bad!\n",
-				__FILE__, __LINE__, xp->mask, i);
-	    }
-	    if (xp->fmt == FMT_DOTTED) {
-		dot = ".";
-	    }
-	}
-	if (xp->fmt == FMT_DECIMAL) {
-	    sprintf(fidstring, "%ld", decimal);
-	} else {
-	    *fidp = 0;
-	}
-	/*sprintf(result+strlen(result), "%s%s/%s", sep, xp->name, fidstring);*/
-	sprintf(result+strlen(result), "%s%s", sep, fidstring);
-	sep = "/";
-    }
-    return result;
-}
-
-static char *
-flow_type_to_string(int ft)
-{
-    static char result[MAX_FLOW_ID_BYTES*10];
-    char *sep = "";
-    int i;
-
-    result[0] = 0;
-    for (i = 0; i < ftinfo[ft].fti_type_indicies_len; i++) {
-	sprintf(result+strlen(result), "%s%s",
-			    sep, atoft[ftinfo[ft].fti_type_indicies[i]].name);
-	sep = "/";
-    }
-    return result;
-}
-
-
 static int
-set_flow_type(Tcl_Interp *interp, int ft, char *name, int sgi)
+set_flow_type(Tcl_Interp *interp, int ft, char *name,
+					int sgi, char *new_flow_cmd)
 {
     char initial[MAX_FLOW_ID_BYTES*5], after[MAX_FLOW_ID_BYTES*5]; /* 5 rndm */
     char *curdesc;
@@ -751,6 +757,7 @@ goodout:
     ftinfo[ft].fti_id_len = bandm/2;
     ftinfo[ft].fti_type_indicies_len = indicies;
     ftinfo[ft].fti_stats_group_index = sgi;
+    ftinfo[ft].fti_new_flow_cmd = new_flow_cmd;
     return TCL_OK;
 }
 
@@ -770,11 +777,12 @@ teho_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 {
     int error;
     int ft, sgi;
+    char *new_flow_cmd;
     static char result[20];
 
-    if ((argc < 3) || (argc > 4)) {
+    if ((argc < 3) || (argc > 5)) {
 	interp->result =
-		"Usage: teho_set_flow_type flow_type_index string ?statistics_group_index?";
+		"Usage: teho_set_flow_type flow_type_index string ?statistics_group_index? ?new_flow_command?";
 	return TCL_ERROR;
     }
 
@@ -785,10 +793,16 @@ teho_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 	return TCL_ERROR;
     }
 
-    if (argc == 4) {
+    if (argc >= 4) {
 	sgi = atoi(argv[3]);
     } else {
 	sgi = 0;
+    }
+
+    if (argc >= 5) {
+	new_flow_cmd = argv[4];
+    } else {
+	new_flow_cmd = 0;
     }
 
     if (sgi >= NUM(ftstats)) {
@@ -796,7 +810,7 @@ teho_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 	return TCL_ERROR;
     }
 
-    error = set_flow_type(interp, ft, argv[2], sgi);
+    error = set_flow_type(interp, ft, argv[2], sgi, new_flow_cmd);
     if (error != TCL_OK) {
 	return error;
     }
