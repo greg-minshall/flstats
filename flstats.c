@@ -71,7 +71,7 @@ struct flowentry {
     /* fields for application use */
     u_short
 	fe_flow_type,		/* which flow type is this? */
-	fe_class;		/* class of this flow */
+	fe_class,		/* class of this flow */
 	fe_parent_ftype,	/* parent's flow type */
 	fe_parent_class;	/* parent's class */
     u_long
@@ -200,8 +200,7 @@ typedef struct ftinfo ftinfo_t, *ftinfo_p;
 
 struct ftinfo {
     u_char  fti_type_indicies[MAX_FLOW_ID_BYTES],
-            fti_bytes_and_mask[2*MAX_FLOW_ID_BYTES],
-	    fti_class;		/* default class for flows of this type */
+            fti_bytes_and_mask[2*MAX_FLOW_ID_BYTES];
     int	    fti_bytes_and_mask_len,
 	    fti_type_indicies_len,
 	    fti_id_len,		/* length of a flow id for this type */
@@ -210,12 +209,12 @@ struct ftinfo {
 	    /*
 	     * routine:	fti_new_flow_cmd
 	     * call:	"fti_new_flow_cmd class flowtype flowid"
-	     * result:	"class parent_ftype pkt_recv_cmd secs.usecs" 
+	     * result:	"class upper_class upper_ftype pkt_recv_cmd secs.usecs" 
 	     *
-	     * the output flowtype is the application (upper
-	     * level) flowtype (this flowtype must already exist/have
-	     * been initialized); the class index is the index to be
-	     * used by the new flow; pkt_recv_cmd is the command
+	     * 'class' is the class of the new flow.  'upper_class'
+	     * is the class for any parent flow that might be created.
+	     * 'upper_ftype' is the flow type for a created parent flow.
+	     * pkt_recv_cmd is the command
 	     * executed when a packet in the new flow is received
 	     * secs.usecs after the current time in the output flow.
 	     * note that if the output flowtype and flowid map to
@@ -700,7 +699,7 @@ delete_flow(flowentry_p fe)
 
 
 static flowentry_p
-new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int level)
+new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int level, int class)
 {
     flowentry_p fe;
 
@@ -710,7 +709,8 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int level)
     }
     fe->fe_flow_type = ft-ftinfo;
     fe->fe_parent_ftype = fe->fe_flow_type;	/* default */
-    fe->fe_class = ft->fti_class;
+    fe->fe_parent_class = class;		/* default */
+    fe->fe_class = class;
     fe->fe_packets = 0;
     fe->fe_created_bin = binno;
     fe->fe_last_bin_active = 0xffffffff;
@@ -745,9 +745,9 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int level)
 	fe->fe_timeout_time.tv_usec = 0;
 	fe->fe_timeout_cookie = 0;
 
-	n = sscanf(interp->result, "%hd %hd %s %ld.%ld %s %ld.%ld %p",
-		&fe->fe_class, &fe->fe_parent_ftype, buf,
-			    &fe->fe_pkt_recv_cmd_time.tv_sec,
+	n = sscanf(interp->result, "%hd %hd %hd %s %ld.%ld %s %ld.%ld %p",
+		&fe->fe_class, &fe->fe_parent_class, &fe->fe_parent_ftype,
+			    buf, &fe->fe_pkt_recv_cmd_time.tv_sec,
 			    &fe->fe_pkt_recv_cmd_time.tv_usec,
 			    buf2, &fe->fe_timeout_time.tv_sec,
 			    &fe->fe_timeout_time.tv_usec,
@@ -894,7 +894,6 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
     int pkthasports, bigenough;
     flowentry_p llfe, ulfe;	/* lower and upper level flow entries */
     ftinfo_p llft, ulft;	/* lower and upper level flow types */
-    clstats_p llcl;		/* lower level class */
 
     /* check for a pending packet */
     if (pending) {
@@ -939,10 +938,9 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	return;
     }
 
-    llcl = &clstats[llft->fti_class];
     if ((packet[6]&0x1fff) && FTI_USES_PORTS(llft)) { /* XXX */
-	llcl->cls_pkts++;
-	llcl->cls_frags++;
+	clstats[0].cls_pkts++;
+	clstats[0].cls_frags++;
 	return;
     }
 
@@ -954,7 +952,7 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 
     if (llfe == 0) {
 	/* the lower level flow doesn't exist, so will need to be created */
-	llfe = new_flow(interp, llft, llfid, LEVEL_LOWER);
+	llfe = new_flow(interp, llft, llfid, LEVEL_LOWER, 0);
 	if (llfe == 0) {
 	    if (packet_error == 0) {
 		interp->result = "unable to create a new lower level flow";
@@ -976,7 +974,8 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 
     if (ulfe == 0) {
 	/* the upper level flow doesn't exist -- create it */
-	ulfe = new_flow(interp, ulft, ulfid, LEVEL_UPPER);
+	ulfe = new_flow(interp, ulft, ulfid, LEVEL_UPPER,
+					llfe->fe_parent_class);
 	if (ulfe == 0) {
 	    if (packet_error == 0) {
 		interp->result = "unable to create a new upper level flow";
@@ -1124,8 +1123,7 @@ teho_read_one_bin(ClientData clientData, Tcl_Interp *interp,
 }
 
 static int
-set_flow_type(Tcl_Interp *interp, int ftype, char *name,
-					int class, char *new_flow_cmd)
+set_flow_type(Tcl_Interp *interp, int ftype, char *name, char *new_flow_cmd)
 {
     char initial[MAX_FLOW_ID_BYTES*5], after[MAX_FLOW_ID_BYTES*5]; /* 5 rndm */
     char *curdesc;
@@ -1194,7 +1192,6 @@ goodout:
     ftinfo[ftype].fti_bytes_and_mask_len = bandm;
     ftinfo[ftype].fti_id_len = bandm/2;
     ftinfo[ftype].fti_type_indicies_len = indicies;
-    ftinfo[ftype].fti_class = class;
     ftinfo[ftype].fti_new_flow_cmd = new_flow_cmd;
     return TCL_OK;
 }
@@ -1214,29 +1211,25 @@ teho_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 					    int argc, char *argv[])
 {
     int error;
-    int ftype, class;
+    int ftype;
     char *new_flow_cmd;
     static char result[20];
     static char *usage =
-		"Usage: teho_set_flow_type ?-s class?"
-			" ?-c new_flow_command? ?-f flow_type string";
+		"Usage: teho_set_flow_type "
+			"?-c new_flow_command? ?-f flow_type string";
     int op;
     extern char *optarg;
     extern int optind, opterr, optreset;
 
     ftype = 0;
-    class = 0;
     new_flow_cmd = 0;
     opterr = 0;
     optreset = 1;
     optind = 1;
-    while ((op = getopt(argc, argv, "f:s:c:")) != EOF) {
+    while ((op = getopt(argc, argv, "f:c:")) != EOF) {
 	switch (op) {
 	    case 'f':
 		    ftype = atoi(optarg);
-		    break;
-	    case 's':
-		    class = atoi(optarg);
 		    break;
 	    case 'c':
 		    new_flow_cmd = strsave(optarg);
@@ -1265,12 +1258,7 @@ teho_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 	return TCL_ERROR;
     }
 
-    if (class >= NUM(clstats)) {
-	interp->result = "no room in ftinfo table";
-	return TCL_ERROR;
-    }
-
-    error = set_flow_type(interp, ftype, argv[0], class, new_flow_cmd);
+    error = set_flow_type(interp, ftype, argv[0], new_flow_cmd);
     if (error != TCL_OK) {
 	return error;
     }
