@@ -1,7 +1,7 @@
 #
 # Tcl script as part of flstats
 #
-# $Id: flstats.tcl,v 1.40 1996/03/14 05:59:28 minshall Exp minshall $
+# $Id: flstats.tcl,v 1.41 1996/03/14 21:22:38 minshall Exp minshall $
 #
 #
 
@@ -175,18 +175,18 @@ fl_flow_details { {filename {}} {binsecs {}} \
 					{classifier {}} { flowtypes {} }} \
 {
     global flstats
+
     fl_setup $filename $binsecs $classifier $flowtypes
 
     set binsecs $flstats(binsecs)	; # make sure we have correct value
 
     while {1} {
-	set bintime [lindex [split [time { \
-			set binno [fl_read_one_bin $binsecs]}]] 0]
+	set binno [fl_read_one_bin $binsecs]
 	if {$binno == -1} {
 	    break;	# eof
 	}
-	fl_start_enumeration
-	while { [set x [fl_continue_enumeration]] != ""} {
+	fl_start_flow_enumeration
+	while { [set x [fl_continue_flow_enumeration]] != ""} {
 	    puts "$binno $x"
 	}
     }
@@ -195,6 +195,29 @@ fl_flow_details { {filename {}} {binsecs {}} \
 
 proc \
 fl_class_details { {filename {}} {binsecs {}} \
+					{classifier {}} { flowtypes {} }}\
+{
+    global flstats
+
+    fl_setup $filename $binsecs $classifier $flowtypes
+
+    set binsecs $flstats(binsecs)
+
+    while {1} {
+	set binno [fl_read_one_bin $binsecs]
+	if {$binno == -1} {
+	    break	; # eof
+	}
+	fl_start_class_enumeration
+	while {[set x [fl_continue_class_enumeration]] != ""} {
+	    puts "$binno $x"
+	}
+    }
+}
+
+
+proc \
+old_fl_class_details { {filename {}} {binsecs {}} \
 					{classifier {}} { flowtypes {} }}\
 {
     global flstats
