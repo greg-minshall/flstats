@@ -1,6 +1,6 @@
-LIBPATH = -L ../libpcap/libpcap-0.0.6 \
-			-L /home1/minshall/src/libpcap/libpcap-0.0.6 \
-			-L /usr/local/lib
+LIBPATH = -L../libpcap/libpcap-0.0.6 \
+			-L../lib_`uname -m` \
+			-L/usr/local/lib
 
 LIBPCAP = -lpcap
 LIBTCL = -ltcl7.4
