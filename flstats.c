@@ -34,12 +34,9 @@
  * output flow statistics from a tcpdump file.
  *
  * TODO:
- *	1.	Make non-ethernet specific!
  *	4.	Document: [simul_setup], [flow_details],
  *		[class_details], [fl_read_one_bin].  Give
  *		examples of use; warn about memory consumption.
- *	7.	Verify the results of callouts (new flow, recv,
- *		timer) are valid.
  *  	8.  	Set atoft[] from Tcl code.  (Need to change "alltags"
  *		in [fl_setft]; or delete!)
  *  	9.  	Protohasports...
@@ -51,10 +48,11 @@
  *		(flstats(maxclass), flstats(maxflow), ...) set by .c.
  *     18.	"df len" should be a flow type "df" that has, as its
  *		parent, a flow type "len".
+ *     19.  	Allow a "name" to be given to a class [fl_set_class_name].
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.79 1996/10/08 03:19:12 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.80 1996/11/10 00:06:09 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
