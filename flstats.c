@@ -135,6 +135,8 @@ struct fixpkt {
 
 /* global variables */
 
+u_char protohasports[256];
+
 u_short IPtype = 0x800;
 
 int fileeof = 0;
@@ -158,9 +160,11 @@ typedef struct flow_type_info {
 	    flow_type_indicies_len,
 	    flow_id_len,
 	    flow_id_covers;
-} fti_t, fti_p;
+} fti_t, *fti_p;
 
-fti_t fti[1];
+#define	FTI_USES_PORTS(p) ((p)->flow_id_covers > 20)
+
+fti_t fti[2];
 int flow_types = 0;
 
 pcap_t *pcap_descriptor;
@@ -169,7 +173,7 @@ char pcap_errbuf[PCAP_ERRBUF_SIZE];
 FILE *fix_descriptor;
 
 u_char pending_flow_id[MAX_FLOW_ID_BYTES];
-int pending;
+int pending, pending_flow_type;
 int packet_error = 0;
 
 u_long binno;
@@ -181,10 +185,11 @@ struct {
 	flowscreated,	/* flows created */
 	flowsdeleted,	/* flows deleted */
 	flowsactive,	/* flows active */
-	packets,		/* number of packets read */
-	packetsnewflows,	/* packets arriving for flows just created */
+	packets,	/* number of packets read */
+	packetsnewflows,/* packets arriving for flows just created */
 	runts,		/* runt (too short) packets seen */
-	fragments;		/* fragments seen (when using ports) */
+	fragments,	/* fragments seen (when using ports) */
+	noports;	/* packet had no ports, but flow type needed ports */
 } gstats;
 
 
@@ -348,34 +353,51 @@ static void
 packetin(Tcl_Interp *interp, const u_char *packet, int len)
 {
     u_char flow_id[MAX_FLOW_ID_BYTES];
-    int i, j;
+    int i, j, ft, pkthasports, bigenough;
     hentry_p hent;
+    fti_p ftp;
 
     gstats.packets++;
 
     /* if no packet pending, then process this packet */
     if (pending == 0) {
-	if (len < fti[0].flow_id_covers) {
-	    gstats.runts++;
+	pkthasports = protohasports[packet[9]];
+	bigenough = 0;
+	for (ft = 0; ft < NUM(fti); ft++) {
+	    if (len >= fti[ft].flow_id_covers) {
+		bigenough = 1;
+		if (pkthasports || !FTI_USES_PORTS(&fti[ft])) {
+		    break;
+		}
+	    }
+	}
+	if (ft >= NUM(fti)) {
+	    if (bigenough) {	/* packet was big enough, but... */
+		gstats.noports++;
+	    } else {
+		gstats.runts++;
+	    }
 	    return;
 	}
-	if ((packet[6]&0x1fff) && (fti[0].flow_id_covers > 20)) { /* XXX */
+	ftp = &fti[ft];
+	if ((packet[6]&0x1fff) && FTI_USES_PORTS(ftp)) { /* XXX */
 	    gstats.fragments++;	/* can't deal with if looking at ports */
 	    return;
 	}
 
 	/* create flow id for this packet */
-	for (i = 0, j = 0; j < fti[0].flow_bytes_and_mask_len; i++, j += 2) {
-	    pending_flow_id[i] = packet[fti[0].flow_bytes_and_mask[j]]
-					    &fti[0].flow_bytes_and_mask[j+1];
+	for (i = 0, j = 0; j < ftp->flow_bytes_and_mask_len; i++, j += 2) {
+	    pending_flow_id[i] = packet[ftp->flow_bytes_and_mask[j]]
+					    &ftp->flow_bytes_and_mask[j+1];
 	}
-
     } else {
+	pending = 0;
 	if (len) {	/* shouldn't happen! */
 	    interp->result = "invalid condition in packetin";
 	    packet_error = TCL_ERROR;
 	    return;
 	}
+	ftp = &fti[pending_flow_type];
 	binno = NOWASBINNO();
     }
 
@@ -383,14 +405,13 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
     if (binno != NOWASBINNO()) {
 	gstats.packets--;	/* undone by pending call packets++ above */
 	pending = 1;
+	pending_flow_type = ft;
 	return;
-    } else {
-	pending = 0;
     }
 
-    hent = tbl_lookup(pending_flow_id, fti[0].flow_id_len);
+    hent = tbl_lookup(pending_flow_id, fti[ft].flow_id_len);
     if (hent == 0) {
-	hent = tbl_add(pending_flow_id, fti[0].flow_id_len);
+	hent = tbl_add(pending_flow_id, fti[ft].flow_id_len);
 	if (hent == 0) {
 	    interp->result = "no room for more flows";
 	    packet_error = TCL_ERROR;
@@ -637,7 +658,7 @@ flow_type_to_string(int ft)
 
 
 static int
-get_flow_type(Tcl_Interp *interp, int ft, char *name)
+set_flow_type(Tcl_Interp *interp, int ft, char *name)
 {
     char initial[MAX_FLOW_ID_BYTES*5], after[MAX_FLOW_ID_BYTES*5]; /* 5 rndm */
     char *curdesc;
@@ -723,9 +744,18 @@ teho_set_flow_type(ClientData clientData, Tcl_Interp *interp,
     }
 
     /* XXX look for next available flow type */
-    ft = 0;
+    for (ft = 0; ft < NUM(fti); ft++) {
+	if (fti[ft].flow_id_len == 0) {
+	    break;
+	}
+    }
 
-    error = get_flow_type(interp, ft, argv[1]);
+    if (ft >= NUM(fti)) {
+	interp->result = "no room in flow_type_info table";
+	return TCL_ERROR;
+    }
+
+    error = set_flow_type(interp, ft, argv[1]);
     if (error != TCL_OK) {
 	return error;
     }
@@ -856,6 +886,8 @@ Tcl_AppInit(Tcl_Interp *interp)
 
 main(int argc, char *argv[])
 {
+    protohasports[6] = protohasports[17] = 1;
+
     Tcl_Main(argc, argv, Tcl_AppInit);
     exit(0);
 }
