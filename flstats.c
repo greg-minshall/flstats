@@ -19,9 +19,12 @@
 
 #define PICKUP_NETSHORT(p)       ((((u_char *)p)[0]<<8)|((u_char *)p)[1])
 
-#define	TIMETOBINNO() (binsecs == 0 ? 0 : \
-		(timesecs-starttimesecs)/binsecs - \
-			(timeusecs < starttimeusecs ? 1:0))
+#define	TIMEDIFFSECS(now,then) \
+		(((now)->tv_sec-(then)->tv_sec) -\
+			((now)->tv_usec < (then)->tv_usec ? 1 : 0))
+
+#define	NOWASBINNO() (binsecs == 0 ? 0 : \
+		(TIMEDIFFSECS(&curtime, &starttime)/binsecs))
 
 #define	TYPE_UNKNOWN	1
 #define	TYPE_PCAP	2
@@ -35,10 +38,10 @@ struct hentry {
     /* fields for application use */
     u_long
 	packets,
-	last_pkt_secs,
-	last_pkt_usecs,
-	created_secs,
-	created_usecs,
+	last_pkt_sec,
+	last_pkt_usec,
+	created_sec,
+	created_usec,
 	created_bin,
 	last_bin_active;
     /* fields for hashing */
@@ -101,8 +104,7 @@ int filetype = 0;
 hentry_p buckets[3197];
 hentry_p table;			/* list of everything */
 
-u_long timesecs, timeusecs;
-u_long starttimesecs, starttimeusecs;
+struct timeval curtime, starttime;
 
 int binsecs = 0;		/* number of seconds in a bin */
 
@@ -216,14 +218,14 @@ tbl_add(u_char *key, int key_len)
 static void
 set_time(u_long secs, u_long usecs)
 {
-    timesecs = secs;
-    timeusecs = usecs;
-    if ((starttimesecs == 0) && (starttimeusecs == 0)) {
-	starttimesecs = timesecs;
-	starttimeusecs = timeusecs;
+    curtime.tv_sec = secs;
+    curtime.tv_usec = usecs;
+    if ((starttime.tv_sec == 0) && (starttime.tv_usec == 0)) {
+	starttime.tv_sec = curtime.tv_sec;
+	starttime.tv_usec = curtime.tv_usec;
     }
     if (binno == -1) {
-	binno = TIMETOBINNO();
+	binno = NOWASBINNO();
     }
 }
 
@@ -260,11 +262,11 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	    packet_error = TCL_ERROR;
 	    return;
 	}
-	binno = TIMETOBINNO();
+	binno = NOWASBINNO();
     }
 
     /* XXX shouldn't count runts, fragments, etc., if time hasn't arrived */
-    if (binno != TIMETOBINNO()) {
+    if (binno != NOWASBINNO()) {
 	packets--;		/* undone by pending call packets++ above */
 	pending = 1;
 	return;
@@ -283,13 +285,13 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	numflows++;
 	flowscreated++;
 	hent->last_bin_active = 0xffffffff;
-	hent->created_secs = timesecs;
-	hent->created_usecs = timeusecs;
+	hent->created_sec = curtime.tv_sec;
+	hent->created_usec = curtime.tv_usec;
 	hent->created_bin = binno;
     }
     hent->packets++;
-    hent->last_pkt_secs = timesecs;
-    hent->last_pkt_usecs = timeusecs;
+    hent->last_pkt_sec = curtime.tv_sec;
+    hent->last_pkt_usec = curtime.tv_usec;
     if (hent->last_bin_active != binno) {
 	hent->last_bin_active = binno;
 	flowsactive++;
@@ -414,7 +416,7 @@ teho_read_one_bin(ClientData clientData, Tcl_Interp *interp,
     binno = -1;
 
     interp->result = "1";
-    while (((binno == -1) || (binno == TIMETOBINNO())) && !fileeof) {
+    while (((binno == -1) || (binno == NOWASBINNO())) && !fileeof) {
 	error = process_one_packet(interp);
 	if (error != TCL_OK) {
 	    return error;
