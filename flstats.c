@@ -52,7 +52,7 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.81 1996/11/29 23:40:28 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.82 1997/03/09 23:15:12 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -344,6 +344,10 @@ atoft_t atoft[] = {
 	{ "df", 6, 1, 1}, { "mf", 6, 2, 1}, { "foff", 6, 3, 13},
 	{ "ttl", 8, 0, 8}, { "prot", 9, 0, 8}, { "sum", 10, 0, 16},
 	{ "src", 12, 0, 32, FMT_DOTTED}, { "dst", 16, 0, 32, FMT_DOTTED},
+	{ "src8", 12, 0, 8, FMT_DOTTED}, { "dst8", 16, 0, 8, FMT_DOTTED},
+	{ "src16", 12, 0, 16, FMT_DOTTED}, { "dst16", 16, 0, 16, FMT_DOTTED},
+	{ "src24", 12, 0, 24, FMT_DOTTED}, { "dst24", 16, 0, 24, FMT_DOTTED},
+	{ "src32", 12, 0, 32, FMT_DOTTED}, { "dst32", 16, 0, 32, FMT_DOTTED},
 	{ "sport", 20, 0, 16}, { "dport", 22, 0, 16}
 };
 
@@ -1829,7 +1833,7 @@ set_flow_type(Tcl_Interp *interp, int ftype, int Ftype, int class,
 
     while (*curdesc) {
 	int j, n;
-	n = sscanf(curdesc, "%[a-zA-Z]%s", initial, after);
+	n = sscanf(curdesc, "%[a-zA-Z0-9]%s", initial, after);
 	if (n == 0) {
 	    break;
 	}
