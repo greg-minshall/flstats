@@ -1,8 +1,6 @@
 ### PARAMETERS ###
 
 # some DEFINES
-set CL_LL_NONSWITCHED		1
-set CL_LL_TO_BE_SWITCHED	2
 set CL_NONSWITCHED		3
 set CL_TO_BE_SWITCHED		4
 set CL_SWITCHED			5
@@ -30,15 +28,17 @@ proc switchtime {} { return 0.300000 }	; # time to switch
 proc\
 classifier { class flowtype flowid }\
 {
-    global CL_LL_NONSWITCHED CL_LL_TO_BE_SWITCHED
-    global FT_UL_PORT FT_UL_NOPORT FT_LL_NOPORT
+    global CL_NONSWITCHED CL_TO_BE_SWITCHED
+    global FT_UL_PORT FT_UL_NOPORT
 
-#    6 {return "$CL_SWITCHED $FT_LL_NOPORT"}
     regexp {/prot/([^/]*)/} $flowid match prot
     switch -exact -- $prot {
-    6 {return "$CL_LL_TO_BE_SWITCHED $FT_UL_NOPORT - 0.0 deleteflow 2.0 0x2"}
-    11 {return "$CL_LL_NONSWITCHED $FT_UL_NOPORT - 0.0 deleteflow 2.0 0x2"}
-    default {return "$CL_LL_NONSWITCHED $FT_UL_NOPORT - 0.0 deleteflow 2.0 0x2"}
+    6 {return "$class $CL_TO_BE_SWITCHED $FT_UL_NOPORT - 0.0 \
+							deleteflow 2.0 0x2"}
+    11 {return "$class $CL_NONSWITCHED $FT_UL_NOPORT - 0.0 \
+							deleteflow 2.0 0x2"}
+    default {return "$class $CL_NONSWITCHED $FT_UL_NOPORT - 0.0 \
+							deleteflow 2.0 0x2"}
     }
 }
 
@@ -51,15 +51,13 @@ classifier { class flowtype flowid }\
 proc\
 starttimeout { class flowtype flowid }\
 {
-puts "starttimeout $class $flowtype"
     global CL_TO_BE_SWITCHED CL_NONSWITCHED
-    global CL_LL_TO_BE_SWITCHED CL_LL_NONSWITCHED
 
-    if {$class == $CL_LL_TO_BE_SWITCHED} {
-	return "$CL_TO_BE_SWITCHED $flowtype getswitched [switchtime] \
+    if {$class == $CL_TO_BE_SWITCHED} {
+	return "$class $class $flowtype getswitched [switchtime] \
 							deleteflow 2.0 0x2"
     } else {
-	return "$CL_NONSWITCHED $flowtype - 0.0  deleteflow 2.0 0x2"
+	return "$class $class $flowtype - 0.0  deleteflow 2.0 0x2"
     }
 }
 
@@ -92,7 +90,6 @@ deleteflow {cookie class ftype flowid time FLOW args}\
 proc\
 getswitched { class flowtype flowid args}\
 {
-puts getswitched
     global CL_SWITCHED
 
     return "$CL_SWITCHED -"
@@ -171,15 +168,20 @@ simul { fixortcpd filename {binsecs 1} } \
 	return
     }
 
-    # set low level flow types
-    teho_set_flow_type -f $FT_LL_PORT -s 0 -c classifier \
+    # set lower level flow types
+    teho_set_flow_type -f $FT_LL_PORT -c classifier \
 				ihv/ihl/tos/ttl/prot/src/dst/sport/dport
-    teho_set_flow_type -f $FT_LL_NOPORT -s 0 -c classifier ihv/ihl/tos/ttl/prot/src/dst
+    teho_set_flow_type -f $FT_LL_NOPORT -c classifier \
+				ihv/ihl/tos/ttl/prot/src/dst
+
     # leave *2* uninitialized (as a guard)
-    teho_set_flow_type -f $FT_UL_PORT -s $CL_TO_BE_SWITCHED \
-				-c starttimeout ihv/ihl/tos/ttl/prot/src/dst
-    teho_set_flow_type -f $FT_UL_NOPORT -s $CL_TO_BE_SWITCHED \
-				-c starttimeout ihv/ihl/tos/ttl/prot/src/dst
+
+    # set upper level flow types
+    teho_set_flow_type -f $FT_UL_PORT -c starttimeout \
+				ihv/ihl/tos/ttl/prot/src/dst/sport/dport
+    teho_set_flow_type -f $FT_UL_NOPORT -c starttimeout \
+				ihv/ihl/tos/ttl/prot/src/dst
+
 
     puts "# plotvars 1 binno 2 pktsrouted 3 pktsswitched 4 newflows 5 numflows"
     puts "# plotvars 6 totalflows 7 bintime 8 timeouttime 9 vsz 10 rsz 11 cputime"
