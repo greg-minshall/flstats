@@ -1,7 +1,7 @@
 #
 # Tcl script as part of flstats
 #
-# $Id: flstats.tcl,v 1.51 1996/08/01 21:28:33 minshall Exp minshall $
+# $Id: flstats.tcl,v 1.52 1996/10/26 06:03:56 minshall Exp minshall $
 #
 #
 
@@ -21,7 +21,7 @@
 # some DEFINES
 
 # (note that because of ordering of upgrading parent classes, the *numbers*
-# here are important!  (sigh)
+# here are important!  (sigh))
 set CL_NONSWITCHED		3
 set CL_TO_BE_SWITCHED		4
 set CL_SWITCHED			5
@@ -495,17 +495,17 @@ fl_setft { {classifier {}} {flowtypes {}} } \
 # NO	    global [lindex $flow 1]
 # NO	    set [lindex $flow 1] $ftindex
 # NO	}
-	if {$len >= 2} {
+	if {($len >= 2) && ([string compare [lindex $flow 1] "-"] != 0)} {
 	    set newflow "-n [lindex $flow 1]"
 	} else {
 	    set newflow ""
 	}
-	if {$len >= 3} {
+	if {($len >= 3) && ([string compare [lindex $flow 2] "-"] != 0)} {
 	    set recv "-r [lindex $flow 2]"
 	} else {
 	    set recv ""
 	}
-	if {$len >= 4} {
+	if {($len >= 4) && ([string compare [lindex $flow 3] "-"] != 0)} {
 	    set timeout "-t [lindex $flow 3]"
 	} else {
 	    set timeout ""
