@@ -55,6 +55,7 @@ struct hentry {
     u_char key[1];		/* variable sized (KEEP AT END!) */
 };
 
+
 typedef struct {
 	char	*name;		/* external name */
 	char	offset,		/* where in header */
@@ -131,7 +132,10 @@ int binsecs = 0;		/* number of seconds in a bin */
 
 u_char flow_type_indicies[MAX_FLOW_ID_BYTES];
 u_char flow_bytes_and_mask[2*MAX_FLOW_ID_BYTES];
-int flow_bytes_and_mask_len, flow_id_len, flow_id_covers;
+int flow_bytes_and_mask_len,
+    flow_type_indicies_len,
+    flow_id_len,
+    flow_id_covers;
 
 pcap_t *pcap_descriptor;
 char pcap_errbuf[PCAP_ERRBUF_SIZE];
@@ -247,7 +251,7 @@ cksum(u_char *p, int len)
 }
 /* table lookup */
 
-hentry_p
+static hentry_p
 tbl_lookup(u_char *key, int key_len)
 {
     u_short sum = cksum(key, key_len);
@@ -277,7 +281,7 @@ tbl_lookup(u_char *key, int key_len)
     return hent;
 }
 
-hentry_p
+static hentry_p
 tbl_add(u_char *key, int key_len)
 {
     u_short sum = cksum(key, key_len);
@@ -514,10 +518,29 @@ teho_read_one_bin(ClientData clientData, Tcl_Interp *interp,
     return TCL_OK;
 }
 
+static char *
+flow_type_to_string(void)
+{
+    static char result[MAX_FLOW_ID_BYTES*5];
+    int i, sep=0;
+
+    result[0] = 0;
+    for (i = 0; i < flow_type_indicies_len; i++) {
+	if (sep) {
+	    strcat(result, "/");
+	} else {
+	    sep = 1;
+	}
+	strcat(result, atoft[flow_type_indicies[i]].name);
+    }
+    return result;
+}
+
+
 static int
 get_flow_type(Tcl_Interp *interp, char *name)
 {
-    char initial[200], after[200];
+    char initial[MAX_FLOW_ID_BYTES*5], after[MAX_FLOW_ID_BYTES*5]; /* 5 rndm */
     char *curdesc;
     int bandm = 0;	/* number of bytes in flow_bytes_and_mask used */
     int indicies = 0;	/* index (in atoft) of each field in flow id */
@@ -583,6 +606,7 @@ get_flow_type(Tcl_Interp *interp, char *name)
 goodout:
     flow_bytes_and_mask_len = bandm;
     flow_id_len = bandm/2;
+    flow_type_indicies_len = indicies;
     return TCL_OK;
 }
 
@@ -630,6 +654,7 @@ static int
 teho_start_enum(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
+    printf("%s\n", flow_type_to_string());
     return TCL_OK;
 }
 
