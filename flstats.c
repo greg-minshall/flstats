@@ -54,7 +54,7 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.70 1996/03/15 17:39:52 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.71 1996/03/20 00:06:18 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -111,6 +111,9 @@ static char *rcsid =
 	} \
     }
 
+#define	SIPG_TO_SECS(x)	    (((x)>>3)/1000000)
+#define	SIPG_TO_USECS(x)    (((x)>>3)%1000000)
+#define	SECS_USECS_TO_SIPG(s,u)	((((s)*1000000)+(u))<<3)
 
 /* Types of input files to be processed */
 #define	TYPE_UNKNOWN	0
@@ -640,11 +643,12 @@ flow_statistics(flowentry_p fe)
     static char summary[200];
 
     sprintf(summary,
-	    "type %d class %d id %s pkts %lu bytes %lu sipg %lu "
+	    "type %d class %d id %s pkts %lu bytes %lu sipg %lu.%06lu "
 					"created %ld.%06ld last %ld.%06ld",
 	    fe->fe_flow_type, fe->fe_class,
 	    flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_id),
-	    fe->fe_pkts-fe->fe_pkts_last_enum, fe->fe_bytes, fe->fe_sipg>>3,
+	    fe->fe_pkts-fe->fe_pkts_last_enum, fe->fe_bytes,
+	    SIPG_TO_SECS(fe->fe_sipg), SIPG_TO_USECS(fe->fe_sipg),
 	    fe->fe_created.tv_sec, fe->fe_created.tv_usec,
 	    fe->fe_last_pkt_rcvd.tv_sec, fe->fe_last_pkt_rcvd.tv_usec);
 
@@ -659,12 +663,15 @@ class_statistics(clstats_p clsp)
     static char summary[100];
 
     sprintf(summary, "class %d created %lu deleted %lu added %lu removed %lu "
-	"active %lu pkts %lu bytes %lu sipg %lu fragpkts %lu fragbytes %lu "
+	"active %lu pkts %lu bytes %lu sipg %lu.%06lu "
+	"fragpkts %lu fragbytes %lu "
 	"toosmallpkts %lu toosmallbytes %lu runtpkts %lu runtbytes %lu "
         "noportpkts %lu noportbytes %lu lastrecv %ld.%06ld",
 	clsp-clstats, clsp->cls_created, clsp->cls_deleted,
 	clsp->cls_added, clsp->cls_removed, clsp->cls_active,
-	clsp->cls_pkts, clsp->cls_bytes, clsp->cls_sipg>>3, clsp->cls_fragpkts,
+	clsp->cls_pkts, clsp->cls_bytes,
+	SIPG_TO_SECS(clsp->cls_sipg), SIPG_TO_USECS(clsp->cls_sipg),
+	clsp->cls_fragpkts,
 	clsp->cls_fragbytes, clsp->cls_toosmallpkts, clsp->cls_toosmallbytes,
 	clsp->cls_runtpkts, clsp->cls_runtbytes, clsp->cls_noportpkts,
 	clsp->cls_noportbytes, clsp->cls_last_pkt_rcvd.tv_sec,
@@ -938,6 +945,7 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int class)
 
     if (ft->fti_new_flow_upcall) {
 	int n;
+	u_long sipgsecs, sipgusecs;
 	char buf[100];
 
 	sprintf(buf, " %d %d ", fe->fe_class, ft-ftinfo);
@@ -949,12 +957,13 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int class)
 	fe->fe_upcall_when_secs_ge.tv_usec = 0;
 	fe->fe_timer_time.tv_usec = 0;
 
-	n = sscanf(interp->result, "%hd %hd %hd %ld.%ld %ld %ld %ld.%ld",
+	sipgusecs = 0;
+	n = sscanf(interp->result, "%hd %hd %hd %ld.%ld %ld %lu.%lu %ld.%ld",
 		&fe->fe_class, &fe->fe_parent_class, &fe->fe_parent_ftype,
 			    &fe->fe_upcall_when_secs_ge.tv_sec,
 			    &fe->fe_upcall_when_secs_ge.tv_usec,
 			    &fe->fe_upcall_when_pkts_ge,
-			    &fe->fe_upcall_when_sipg_lt,
+			    &sipgsecs, &sipgusecs,
 			    &fe->fe_timer_time.tv_sec,
 			    &fe->fe_timer_time.tv_usec);
 
@@ -970,7 +979,10 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int class)
 				&fe->fe_upcall_when_secs_ge, &curtime);
 	    }
 	}
-	if (n >= 8) {
+	if (n >= 7) {
+	    fe->fe_upcall_when_sipg_lt = SECS_USECS_TO_SIPG(sipgsecs,sipgusecs);
+	}
+	if (n >= 9) {
 	    if (!TIME_EQ(&fe->fe_timer_time, &ZERO)) {
 		/* returned value is relative to now, so make absolute */
 		TIME_ADD(&fe->fe_timer_time, &fe->fe_timer_time, &curtime);
@@ -1056,6 +1068,7 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
 		TIME_LE(&curtime, &fe->fe_upcall_when_secs_ge) &&
 		!TIME_EQ(&fe->fe_upcall_when_secs_ge, &ZERO)) {
 	int n, outcls;
+	u_long sipgsecs, sipgusecs;
 	struct timeval outtime;
 
 	if (Tcl_VarEval(interp, ftinfo[fe->fe_flow_type].fti_recv_upcall,
@@ -1064,12 +1077,13 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
 	    return;
 	}
 
+	sipgusecs = 0;
 	outcls = fe->fe_class;
-	n = sscanf(interp->result, "%d %ld.%ld %ld %ld", &outcls,
+	n = sscanf(interp->result, "%d %ld.%ld %ld %lu.%lu", &outcls,
 				    &fe->fe_upcall_when_secs_ge.tv_sec,
 				    &fe->fe_upcall_when_secs_ge.tv_usec,
 				    &fe->fe_upcall_when_pkts_ge,
-				    &fe->fe_upcall_when_sipg_lt);
+				    &sipgsecs, &sipgusecs);
 
 	if (outcls != fe->fe_class) {
 	    /* class is changing --- update statistics */
@@ -1082,6 +1096,9 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
 	    if (!TIME_EQ(&fe->fe_upcall_when_secs_ge, &ZERO)) {
 		TIME_ADD(&fe->fe_upcall_when_secs_ge, &curtime, &outtime);
 	    }
+	}
+	if (n >= 5) {
+	    fe->fe_upcall_when_sipg_lt = SECS_USECS_TO_SIPG(sipgsecs,sipgusecs);
 	}
     }
 }
