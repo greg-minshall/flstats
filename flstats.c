@@ -52,7 +52,7 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.85 1997/04/24 23:45:44 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.86 1997/05/05 02:41:09 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1024,11 +1024,14 @@ set_time(Tcl_Interp *interp, long sec, long usec)
 	curtime = starttime;
     } else {
 	if (TIME_LT(&now, &curtime)) {
-	    
-	sprintf(interp->result,
+#if	0
+	    OK.  Vern's tcpslice(1) doesn't worry about this (but,
+	    like this #if 0, just doesn't update time for a while). hmm '
+	    sprintf(interp->result,
 		    "[%s] bad trace file format -- time goes backwards",
 								    pktloc());
 	    packet_error = TCL_ERROR;
+#endif	/* 0 */
 	    return;
 	}
 	/* call timers once per second */
