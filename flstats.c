@@ -18,10 +18,12 @@
 #include <tcl.h>
 
 /* global preprocessor defines */
-
-#define	NUM(a)	(sizeof (a)/sizeof ((a)[0]))
+#define	MAX_PACKET_SIZE		1518
 
 #define	MAX_FLOW_ID_BYTES	24	/* maximum number of bytes in flow id */
+
+#define	NUM(a)	(sizeof (a)/sizeof ((a)[0]))
+#define	MIN(a,b)	((a) < (b) ? (a):(b))
 
 #define PICKUP_NETSHORT(p)       ((((u_char *)p)[0]<<8)|((u_char *)p)[1])
 
@@ -81,8 +83,8 @@ struct hentry {
 	*pkt_recv_cmd;		/* command to call when a pkt received */
 	    /*
 	     * routine:	pkt_recv_cmd
-	     * call:	"pkt_recv_cmd flowtype flowid"
-	     * result:	"pkt_recv_cmd secs.usecs" 
+	     * call:	"pkt_recv_cmd class flowtype flowid"
+	     * result:	"class pkt_recv_cmd secs.usecs" 
 	     *
 	     * if, on output, pkt_recv_cmd is null, no command will
 	     * be run.  if, on output, secs is null, zero will be used
@@ -190,8 +192,8 @@ struct ftinfo {
     char    *fti_new_flow_cmd;
 	    /*
 	     * routine:	fti_new_flow_cmd
-	     * call:	"pkt_new_flow_cmd flowtype flowid"
-	     * result:	"flowtype class_index pkt_recv_cmd secs.usecs" 
+	     * call:	"fti_new_flow_cmd class flowtype flowid"
+	     * result:	"class flowtype pkt_recv_cmd secs.usecs" 
 	     *
 	     * the output flowtype is the application (upper
 	     * level) flowtype (this flowtype must already exist/have
@@ -322,6 +324,7 @@ FILE *fix_descriptor;
 u_char pending_flow_id[MAX_FLOW_ID_BYTES];
 int pending, pending_flow_type;
 int packet_error = 0;
+u_char *pending_packet[MAX_PACKET_SIZE];
 
 u_long binno;
 
@@ -630,7 +633,7 @@ static void
 packetin(Tcl_Interp *interp, const u_char *packet, int len)
 {
     u_char flow_id[MAX_FLOW_ID_BYTES];
-    int i, j, ftype, pkthasports, bigenough;
+    int i, j, ftype, pkthasports, outcls, bigenough;
     hentry_p hent;
     ftinfo_p ftip;
     clstats_p clsp;
@@ -678,12 +681,14 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	ftip = &ftinfo[ftype];
 	clsp = &clstats[ftip->fti_class_index];
 	binno = NOW_AS_BINNO();
+	packet = (const u_char *)pending_packet;
     }
 
     /* XXX shouldn't count runts, fragments, etc., if time hasn't arrived */
     if (binno != NOW_AS_BINNO()) {
 	pending = 1;
 	pending_flow_type = ftype;
+	memcpy(pending_packet, packet, MIN(len, sizeof pending_packet));
 	return;
     }
 
@@ -707,10 +712,10 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	 */
 	if (ftip->fti_new_flow_cmd) {
 	    char buf[60];
-	    int outft, outcls, n;
+	    int outft, n;
 	    struct timeval outtime;
 
-	    sprintf(buf, " %d ", ftype);
+	    sprintf(buf, " %d %d ", hent->class_index, ftype);
 	    if (Tcl_VarEval(interp, ftip->fti_new_flow_cmd,
 		    buf, flow_id_to_string(ftype, hent->key), 0) != TCL_OK) {
 		packet_error = TCL_ERROR;
@@ -718,18 +723,16 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	    }
 	    outft = ftype;
 	    outcls = hent->class_index;
-	    outtime.tv_sec = 0;
-	    outtime.tv_usec = 0;
+	    outtime = curtime;
+	    buf[0] = 0;
 	    n = sscanf(interp->result, "%d %d %s %d.%d",
-		    &outft, &outcls, buf, &outtime.tv_sec, &outtime.tv_sec);
-	    if (n >= 3) {
-		    hent->pkt_recv_cmd = strsave(buf);
-		if (n >= 4) {
-		    TIME_ADD(&hent->pkt_recv_cmd_time, &outtime, &curtime);
-		}
+		    &outcls, &outft, buf, &outtime.tv_sec, &outtime.tv_usec);
+	    if (n >= 4) {
+		TIME_ADD(&outtime, &outtime, &curtime);
 	    }
 	    if (outft != ftype) {
 		/* sigh, need to go find/create a new flow */
+		ftype = outft;
 		ftip = &ftinfo[ftype];
 		if (FTI_UNUSED(ftip)) {
 		    interp->result ="attempt to map flow to unused flow type";
@@ -749,6 +752,11 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	    }
 	    hent->class_index = outcls;
 	    hent->pkt_recv_cmd_time = outtime;
+	    if (buf[0]) {
+		hent->pkt_recv_cmd = strsave(buf);
+	    } else {
+		hent->pkt_recv_cmd = 0;
+	    }
 	}
 	clsp = &clstats[hent->class_index];
 	clsp->cls_created++;
@@ -764,7 +772,7 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	int n;
 	struct timeval outtime;
 
-	sprintf(buf, " %d ", ftype);
+	sprintf(buf, " %d %d ", hent->class_index, ftype);
 	/*
 	 * i can think of a few things this might be good for:
 	 *
@@ -800,17 +808,17 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	    packet_error = TCL_ERROR;
 	    return;
 	}
-	outtime.tv_sec = 0;
-	outtime.tv_usec = 0;
-	n = sscanf(interp->result, "%s %d.%d",
-				buf, &outtime.tv_sec, &outtime.tv_usec);
+	n = sscanf(interp->result, "%d %s %d.%d",
+		    &hent->class_index, buf, &outtime.tv_sec, &outtime.tv_usec);
 	free(hent->pkt_recv_cmd);
-	if (n >= 1) {
+	if (n >= 2) {
 	    hent->pkt_recv_cmd = strsave(buf);
+	    if (n >= 3) {
+		TIME_ADD(&hent->pkt_recv_cmd_time, &curtime, &outtime);
+	    }
 	} else {
 	    hent->pkt_recv_cmd = 0;
 	}
-	TIME_ADD(&hent->pkt_recv_cmd_time, &curtime, &outtime);
     }
     hent->packets++;
     hent->last_pkt_rcvd = curtime;
@@ -1117,19 +1125,19 @@ teho_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 
 
 static int
-teho_flow_type_summary(ClientData clientData, Tcl_Interp *interp,
+teho_class_summary(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
     char summary[100];
     clstats_p clsp;
 
     if (argc != 2) {
-	interp->result = "Usage: teho_summary statistics_group_index";
+	interp->result = "Usage: teho_summary class";
 	return TCL_ERROR;
     }
 
-    if (atoi(argv[1]) >= NUM(ftinfo)) {
-	interp->result = "statistics_group_index too high";
+    if (atoi(argv[1]) >= NUM(clstats)) {
+	interp->result = "class too high";
 	return TCL_ERROR;
     }
 
@@ -1256,7 +1264,7 @@ Tcl_AppInit(Tcl_Interp *interp)
 								NULL, NULL);
     Tcl_CreateCommand(interp, "teho_set_fix_file", teho_set_fix_file,
 								NULL, NULL);
-    Tcl_CreateCommand(interp, "teho_flow_type_summary", teho_flow_type_summary,
+    Tcl_CreateCommand(interp, "teho_class_summary", teho_class_summary,
 								NULL, NULL);
     Tcl_CreateCommand(interp, "teho_summary", teho_summary,
 								NULL, NULL);
