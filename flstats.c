@@ -136,6 +136,23 @@ struct {
 	fragments;		/* fragments seen (when using ports) */
 } gstats;
 
+
+static void
+newfile(void)
+{
+    hentry_p hent, nhent;
+
+    memset(&gstats, 0, sizeof gstats);
+    curtime.tv_sec = curtime.tv_usec = 0;
+    starttime.tv_sec = starttime.tv_usec = 0;
+    pending = 0;
+    /* close PCAP, FIX */
+    for (hent = table; hent; hent = nhent) {
+	nhent = hent->next_in_table;
+	free(hent);
+    }
+}
+
 /*
  * Compute a checksum on a contiguous area of storage
  *
@@ -184,7 +201,9 @@ tbl_lookup(u_char *key, int key_len)
 {
     u_short sum = cksum(key, key_len);
     hentry_p hent = buckets[sum%NUM(buckets)];
+    hentry_p onebehind = onebehinds[sum%NUM(onebehinds)];
 
+    if (onebehind && (onebehind->sum == sum) && (onebehind->key_len == key_len)
     while (hent) {
 	if ((hent->sum == sum) && (hent->key_len == key_len) &&
 				(!memcmp(key, hent->key, key_len))) {
@@ -568,6 +587,7 @@ teho_set_tcpd_file(ClientData clientData, Tcl_Interp *interp,
 	sprintf(interp->result, "%s", pcap_errbuf);
 	return TCL_ERROR;
     }
+    newfile();
     fileeof = 0;
     filetype = TYPE_PCAP;
     return TCL_OK;
@@ -586,6 +606,7 @@ teho_set_fix_file(ClientData clientData, Tcl_Interp *interp,
 	interp->result = "error opening file";
 	return TCL_ERROR;
     }
+    newfile();
     fileeof = 0;
     filetype = TYPE_FIX;
     return TCL_OK;
