@@ -5,6 +5,9 @@
  *	1.	Make non-ethernet specific!
  */
 
+/* enable onebehind caching (disable for relative performance tests) */
+#define	ONEBEHIND
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -26,7 +29,7 @@
 #define	NOWASBINNO() (binsecs == 0 ? 0 : \
 		(TIMEDIFFSECS(&curtime, &starttime)/binsecs))
 
-#define	TYPE_UNKNOWN	1
+#define	TYPE_UNKNOWN	0
 #define	TYPE_PCAP	2
 #define	TYPE_FIX	3
 
@@ -102,6 +105,9 @@ int fileeof = 0;
 int filetype = 0;
 
 hentry_p buckets[31979];
+#if	defined(ONEBEHIND)
+hentry_p onebehinds[NUM(buckets)];
+#endif	defined(ONEBEHIND)
 hentry_p table;			/* list of everything */
 
 struct timeval curtime, starttime;
@@ -137,20 +143,49 @@ struct {
 } gstats;
 
 
+/*
+ * a new file is being opened, so clean up from the last one.
+ */
+
 static void
 newfile(void)
 {
     hentry_p hent, nhent;
 
+    fileeof = 0;
+    switch (filetype) {
+    case TYPE_PCAP:
+	filetype = TYPE_UNKNOWN;
+	pcap_close(pcap_descriptor);
+	break;
+    case TYPE_FIX:
+	filetype = TYPE_UNKNOWN;
+	if (close(fix_descriptor) < 0) {
+	    perror("close");
+	    exit(2);
+	}
+	break;
+    case TYPE_UNKNOWN:
+	/* nothing to do */
+	break;
+    default:
+	fprintf(stderr, "%s.%d: filetype %d unknown!\n", __FILE__, __LINE__, filetype);
+	exit(2);
+    }
     memset(&gstats, 0, sizeof gstats);
     curtime.tv_sec = curtime.tv_usec = 0;
     starttime.tv_sec = starttime.tv_usec = 0;
     pending = 0;
-    /* close PCAP, FIX */
+
     for (hent = table; hent; hent = nhent) {
 	nhent = hent->next_in_table;
 	free(hent);
     }
+    table = 0;
+    memset(buckets, 0, sizeof buckets);
+#if	defined(ONEBEHIND)
+    memset(onebehinds, 0, sizeof onebehinds);
+#endif	defined(ONEBEHIND)
 }
 
 /*
@@ -201,12 +236,24 @@ tbl_lookup(u_char *key, int key_len)
 {
     u_short sum = cksum(key, key_len);
     hentry_p hent = buckets[sum%NUM(buckets)];
+#if	defined(ONEBEHIND)
     hentry_p onebehind = onebehinds[sum%NUM(onebehinds)];
+#endif	defined(ONEBEHIND)
 
-    if (onebehind && (onebehind->sum == sum) && (onebehind->key_len == key_len)
+#if	defined(ONEBEHIND)
+    if (onebehind && (onebehind->sum == sum) &&
+		    (onebehind->key_len == key_len) &&
+		    !memcmp(key, onebehind->key, key_len)) {
+	return onebehind;
+    }
+#endif	defined(ONEBEHIND)
+
     while (hent) {
 	if ((hent->sum == sum) && (hent->key_len == key_len) &&
 				(!memcmp(key, hent->key, key_len))) {
+#if	defined(ONEBEHIND)
+	    onebehinds[sum%NUM(onebehinds)] = hent;
+#endif	defined(ONEBEHIND)
 	    break;
 	}
 	hent = hent->next_in_bucket;
@@ -582,13 +629,12 @@ teho_set_tcpd_file(ClientData clientData, Tcl_Interp *interp,
 	interp->result = "Usage: teho_set_tcpd_file filename";
 	return TCL_ERROR;
     }
+    newfile();
     pcap_descriptor = pcap_open_offline(argv[1], pcap_errbuf);
     if (pcap_descriptor == 0) {
 	sprintf(interp->result, "%s", pcap_errbuf);
 	return TCL_ERROR;
     }
-    newfile();
-    fileeof = 0;
     filetype = TYPE_PCAP;
     return TCL_OK;
 }
@@ -601,13 +647,12 @@ teho_set_fix_file(ClientData clientData, Tcl_Interp *interp,
 	interp->result = "Usage: teho_set_fix_file filename";
 	return TCL_ERROR;
     }
+    newfile();
     fix_descriptor = fopen(argv[1], "r");
     if (fix_descriptor == 0) {
 	interp->result = "error opening file";
 	return TCL_ERROR;
     }
-    newfile();
-    fileeof = 0;
     filetype = TYPE_FIX;
     return TCL_OK;
 }
