@@ -19,21 +19,21 @@ classifier { class flowtype flowid }\
     global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
     global FT_UL_PORT FT_UL_NOPORT FT_LL_NOPORT
 
-#    6 {return "$CL_TO_BE_SWITCHED $FT_UL_PORT getswitched [switchtime]"}
+#    6 {return "$CL_SWITCHED $FT_LL_NOPORT"}
     regexp {/prot/([^/]*)/} $flowid match prot
     switch -exact -- $prot {
-    6 {return "$CL_SWITCHED $FT_LL_NOPORT"}
+    6 {return "$CL_TO_BE_SWITCHED $FT_UL_PORT getswitched [switchtime]"}
     11 {return "$CL_NONSWITCHED $FT_LL_NOPORT"}
     default {return "$CL_NONSWITCHED $FT_LL_NOPORT"}
     }
 }
 
 proc\
-getswitched { class flowtype flowid }\
+getswitched { class flowtype flowid args}\
 {
     global CL_SWITCHED
 
-    return $CL_SWITCHED
+    return "$CL_SWITCHED -"
 }
 ### END OF PARAMTERS ###
 
@@ -41,6 +41,9 @@ proc\
 vec_difference { l1 l2 }\
 {
     set len [llength $l1]
+    if {$len > [llength $l2]} {
+	set len [llength $l2]
+    }
     set output [list]
 
     for {set i 0} {$i < $len} {incr i} {
@@ -48,6 +51,18 @@ vec_difference { l1 l2 }\
     }
     return $output
 }
+
+proc\
+get_summary_vec {class} \
+{
+	# ahh, dr. regsub... 
+	regsub -all {([a-zA-Z_]+) ([0-9]+)} \
+			[teho_class_summary $class] {[set ts_\1 \2]} bar
+	subst $bar
+	return [list $ts_added $ts_removed $ts_active \
+			$ts_pkts $ts_frags $ts_runts $ts_noports]
+}
+
 
 proc \
 simul { fixortcpd filename {binsecs 1} } \
@@ -92,11 +107,11 @@ simul { fixortcpd filename {binsecs 1} } \
 	if {$binno == -1} {
 	    break;	# eof
 	}
-	set non [split [teho_class_summary $CL_NONSWITCHED]]
+	set non [get_summary_vec $CL_NONSWITCHED]
 #	puts $non
-	set waiting [split [teho_class_summary $CL_TO_BE_SWITCHED]]
+	set waiting [get_summary_vec $CL_TO_BE_SWITCHED]
 #	puts $waiting
-	set switched [split [teho_class_summary $CL_SWITCHED]]
+	set switched [get_summary_vec $CL_SWITCHED]
 #	puts $switched
 	set diffnon [vec_difference $non $onon]
 	set diffwaiting [vec_difference $waiting $owaiting]
