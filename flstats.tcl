@@ -1,11 +1,9 @@
 # for compatibility...
 
 proc \
-simul { fixortcpd filename {binsecs 1} {classifier {}} \
-				{classifiertype {}} { ulflows {} }} \
+simul { fixortcpd filename {binsecs 1} {classifier {}} { ulflows {} }} \
 {
-    fsim_class_details $fixortcpd $filename \
-			$binsecs $classifier $classifiertype $ulflows
+    fsim_class_details $fixortcpd $filename $binsecs $classifier $ulflows
 }
 
 
@@ -41,13 +39,20 @@ fsimswitchtime {} \
 # over some period of time
 #
 
+# $classifier.specifier -- return flow types used by $classifier
+proc\
+fsimclassifier.specifier {} \
+{
+    return "prot"	; # flow specifier parts used by this classifier
+}
+
 proc\
 fsimclassifier { class flowtype flowid }\
 {
     global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
     global FT_UL_PORT FT_UL_NOPORT
 
-    regexp {/prot/([^/]*)/} $flowid match prot
+    regexp {/prot/([^/]*)} $flowid match prot
     switch -exact -- $prot {
     6 {return "$class $CL_SWITCHED $FT_UL_NOPORT 0.0 2.0"}
     11 {return "$class $CL_NONSWITCHED $FT_UL_NOPORT 0.0 2.0"}
@@ -177,9 +182,6 @@ fsimll_delete {class ftype flowid time FLOW args}\
 # flows arrive and need to be correlated with an upper level
 # flow.
 #
-# classifiertype is the "flow type string" (ihv/ihl/...) which
-# the classifier needs to use to classify flows.
-#
 # ulflows is a list of lists.  the inner list has the form:
 #
 #    flow-type-string flow-type-index-variable newflow_cmd recv_cmd timeout_cmd
@@ -189,7 +191,7 @@ fsimll_delete {class ftype flowid time FLOW args}\
 #
 
 proc \
-fsim_setft { classifier classifiertype ulflows } \
+fsim_setft { classifier ulflows } \
 {
 
     # default UL flows...
@@ -234,7 +236,7 @@ fsim_setft { classifier classifiertype ulflows } \
 
     # now, make sure we get all the stuff the classifier needs
     # (the point being to produce the union of everything)
-    set classifiertype [split $classifiertype /]
+    set classifiertype [split [$classifier.specifier] /]
     foreach type $classifiertype {
 	if {[lsearch -exact $alltags $type] == -1} {
 	    error "unknown flow type tag $type in classifiertype"
@@ -260,7 +262,7 @@ fsim_setft { classifier classifiertype ulflows } \
     set type1 [join $type1 /]
     set type2 [join $type2 /]
     puts "# flowtype $ftindex $type1 $classifier"
-    puts "fsim_set_flow_type -f $ftindex -n $classifier -t fsimll_delete $type1"
+puts "fsim_set_flow_type -f $ftindex -n $classifier -t fsimll_delete $type1"
     fsim_set_flow_type -f $ftindex -n $classifier -t fsimll_delete $type1
     incr ftindex
     if {$portsseen != 0} {
@@ -296,7 +298,7 @@ fsim_setft { classifier classifiertype ulflows } \
 	} else {
 	    set timeout "-"
 	}
-	puts "fsim_set_flow_type -f $ftindex -n $newflow \
+puts "fsim_set_flow_type -f $ftindex -n $newflow \
 				-r $recv -t $timeout [lindex $flow 0]"
 	fsim_set_flow_type -f $ftindex -n $newflow \
 				-r $recv -t $timeout [lindex $flow 0]
@@ -304,8 +306,7 @@ fsim_setft { classifier classifiertype ulflows } \
 }
 
 proc \
-fsim_setup { fixortcpd filename {binsecs 1} {classifier {}} \
-				{classifiertype {}} { ulflows {} }} \
+fsim_setup { fixortcpd filename {binsecs 1} {classifier {}} { ulflows {} }} \
 {
     set fname [glob $filename]
 
@@ -323,7 +324,7 @@ fsim_setup { fixortcpd filename {binsecs 1} {classifier {}} \
 			$fname $filestats(size) $filestats(mtime)]
 
     puts "#"
-    fsim_setft $classifier $classifiertype $ulflows
+    fsim_setft $classifier $ulflows
 
     puts "#"
     puts "# binsecs $binsecs"
@@ -333,11 +334,10 @@ fsim_setup { fixortcpd filename {binsecs 1} {classifier {}} \
 
 
 proc \
-fsim_flow_details { fixortcpd filename {binsecs 1} {classifier {}} \
-					{classifiertype {}} { ulflows {} }} \
+fsim_flow_details { fixortcpd filename {binsecs 1} \
+					{classifier {}} { ulflows {} }} \
 {
-    fsim_setup $fixortcpd $filename $binsecs $classifier \
-					$classifiertype $ulflows
+    fsim_setup $fixortcpd $filename $binsecs $classifier $ulflows
 
     while {1} {
 	set bintime [lindex [split [time { \
@@ -354,13 +354,12 @@ fsim_flow_details { fixortcpd filename {binsecs 1} {classifier {}} \
 
 
 proc \
-fsim_class_details { fixortcpd filename {binsecs 1} {classifier {}} \
-					{classifiertype {}} { ulflows {} }}\
+fsim_class_details { fixortcpd filename {binsecs 1} \
+					{classifier {}} { ulflows {} }}\
 {
     global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
 
-    fsim_setup $fixortcpd $filename $binsecs $classifier \
-					$classifiertype $ulflows
+    fsim_setup $fixortcpd $filename $binsecs $classifier $ulflows
 
     puts "# plotvars 1 binno 2 pktsrouted 3 bytesrouted 4 pktsswitched"
     puts "# plotvars 5 bytesswitched 6 pktsdropped 7 bytesdropped"
