@@ -52,7 +52,7 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.84 1997/04/24 23:22:17 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.85 1997/04/24 23:45:44 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -83,7 +83,7 @@ static char *rcsid =
 	    }
 
 #define	TIME_LE(a,b) \
-		(((a)->tv_sec <= (b)->tv_sec) \
+		(((a)->tv_sec < (b)->tv_sec) \
 			|| (((a)->tv_sec == (b)->tv_sec) && \
 			    ((a)->tv_usec <= (b)->tv_usec)))
 
