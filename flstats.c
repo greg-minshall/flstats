@@ -62,7 +62,8 @@ typedef struct flow_type_stats {
     int	    flowscreated,
 	    flowsactive,
 	    packets,
-	    packetsnewflows;
+	    packetsnewflows,
+	    fragments;
 } ftstats_t, *ftstats_p;
 
 typedef struct ftinfo {
@@ -367,8 +368,6 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
     hentry_p hent;
     ftinfo_p ftp;
 
-    gstats.packets++;
-
     /* if no packet pending, then process this packet */
     if (pending == 0) {
 	pkthasports = protohasports[packet[9]];
@@ -384,14 +383,19 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	if (ft >= NUM(ftinfo)) {
 	    if (bigenough) {	/* packet was big enough, but... */
 		gstats.noports++;
+		gstats.packets++;
 	    } else {
 		gstats.runts++;
+		gstats.packets++;
 	    }
 	    return;
 	}
 	ftp = &ftinfo[ft];
 	if ((packet[6]&0x1fff) && FTI_USES_PORTS(ftp)) { /* XXX */
 	    gstats.fragments++;	/* can't deal with if looking at ports */
+	    gstats.packets++;
+	    ftp->ft_stats.fragments++;
+	    ftp->ft_stats.packets++;
 	    return;
 	}
 
@@ -414,11 +418,13 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 
     /* XXX shouldn't count runts, fragments, etc., if time hasn't arrived */
     if (binno != NOWASBINNO()) {
-	gstats.packets--;	/* undone by pending call packets++ above */
 	pending = 1;
 	pending_flow_type = ft;
 	return;
     }
+
+    gstats.packets++;
+    ftp->ft_stats.packets++;
 
     hent = tbl_lookup(pending_flow_id, ftinfo[ft].flow_id_len);
     if (hent == 0) {
@@ -429,6 +435,7 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	    return;
 	}
 	gstats.flowscreated++;
+	ftp->ft_stats.flowscreated++;
 	hent->last_bin_active = 0xffffffff;
 	hent->created_sec = curtime.tv_sec;
 	hent->created_usec = curtime.tv_usec;
@@ -441,9 +448,11 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
     if (hent->last_bin_active != binno) {
 	hent->last_bin_active = binno;
 	gstats.flowsactive++;
+	ftp->ft_stats.flowsactive++;
     }
     if (hent->created_bin == binno) {
 	gstats.packetsnewflows++;
+	ftp->ft_stats.packetsnewflows++;
     }
 }
 
@@ -810,9 +819,10 @@ teho_flow_type_summary(ClientData clientData, Tcl_Interp *interp,
 
     ftp = ftinfo+atoi(argv[1]);
 
-    sprintf(summary, "%d %d %d %d",
+    sprintf(summary, "%d %d %d %d %d",
 		    ftp->ft_stats.flowscreated, ftp->ft_stats.flowsactive,
-		    ftp->ft_stats.packets, ftp->ft_stats.packetsnewflows);
+		    ftp->ft_stats.packets, ftp->ft_stats.packetsnewflows,
+		    ftp->ft_stats.fragments);
     Tcl_SetResult(interp, summary, TCL_VOLATILE);
     return TCL_OK;
 }
@@ -834,7 +844,6 @@ teho_summary(ClientData clientData, Tcl_Interp *interp,
 		    gstats.packets, gstats.packetsnewflows,
 		    gstats.runts, gstats.fragments);
     Tcl_SetResult(interp, summary, TCL_VOLATILE);
-    interp->result = summary;
     return TCL_OK;
 }
 
