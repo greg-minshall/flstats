@@ -54,7 +54,7 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.75 1996/05/18 04:02:01 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.3 1996/07/29 21:10:07 minshall Exp $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -265,7 +265,7 @@ struct ftinfo {
     char    *fti_new_flow_upcall;
 	    /*
 	     * routine:	fti_new_flow_upcall
-	     * call:	"fti_new_flow_upcall class flowtype flowid"
+	     * call:	"fti_new_flow_upcall class flowindex flowtype flowid"
 	     * result:	"class upper_class upper_ftype recvsecs.usecs"
 	     *						timersecs.usecs" 
 	     *
@@ -291,8 +291,8 @@ struct ftinfo {
     char    *fti_timer_upcall;	/* timer command (if registered) */
 	    /*
 	     * routine: timer_upcall
-	     * call:	"timer_upcall class ftype flowid FLOW flowstats"
-	     * result:  "command timersecs.usecs"
+	     * call:	"timer_upcall timesecs.usecs FLOW flowstats"
+	     * result:  "command secs.usecs"
 	     *
 	     * if "command" is "DELETE", the associated flow will be
 	     * deleted.  if "command" starts with '-', it will be ignored.
@@ -497,15 +497,7 @@ int flow_types = 0;
 pcap_t *pcap_descriptor;
 char pcap_errbuf[PCAP_ERRBUF_SIZE];
 
-
-    /* FDDI support */
-#if defined(ultrix) || defined(__alpha)
-#define FDDIPAD 3
-#else
-#define FDDIPAD 0
-#endif
-
-int fddipad = FDDIPAD;
+int fddipad = 0;
 
 FILE *fix24_descriptor;
 
@@ -1070,8 +1062,8 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int class)
 
 	sprintf(buf, " %d %d ", fe->fe_class, ft-ftinfo);
 	if (Tcl_VarEval(interp, ft->fti_new_flow_upcall,
-		buf, "type ", flow_type_to_string(ft),
-		"id ", flow_id_to_string(ft, fe->fe_id), 0) != TCL_OK) {
+		buf, flow_type_to_string(ft),
+		" ", flow_id_to_string(ft, fe->fe_id), 0) != TCL_OK) {
 	    packet_error = TCL_ERROR;
 	    return 0;
 	}
