@@ -23,6 +23,11 @@
 
 #define PICKUP_NETSHORT(p)       ((((u_char *)p)[0]<<8)|((u_char *)p)[1])
 
+#define	TIME_LT(a,b) \
+		(((a)->tv_sec < (b)->tv_sec) \
+			|| (((a)->tv_sec == (b)->tv_sec) && \
+			    ((a)->tv_usec < (b)->tv_usec)))
+
 #define	TIMEDIFFSECS(now,then) \
 		(((now)->tv_sec-(then)->tv_sec) -\
 			((now)->tv_usec < (then)->tv_usec ? 1 : 0))
@@ -48,13 +53,15 @@ struct hentry {
 	flow_type_index,	/* which flow type is this? */
 	stats_group_index;	/* where are statistics recorded? */
     u_long
-	packets,
-	last_pkt_sec,
-	last_pkt_usec,
-	created_sec,
-	created_usec,
+	packets,		/* number of packets received */
 	created_bin,
 	last_bin_active;
+    char
+	*pkt_recv_cmd;		/* command to call when a pkt received */
+    struct timeval
+	created,		/* time created */
+	last_pkt_rcvd,		/* time most recent packet seen */
+	pkt_recv_cmd_time;	/* pkt_recv_cmd won't run till this time */
     /* fields for hashing */
     u_short sum;
     u_short key_len;
@@ -472,6 +479,13 @@ flow_type_to_string(int ft)
 }
 
 
+/*
+ * This is the main packet input routine, called when a packet
+ * has been received.
+ *
+ * This is where all the statistics are kept (!).
+ */
+
 static void
 packetin(Tcl_Interp *interp, const u_char *packet, int len)
 {
@@ -535,6 +549,10 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	return;
     }
 
+    /*
+     * now, we know the flow type and flow id.  we don't know
+     * where the flow entry is, yet.
+     */
     hent = tbl_lookup(pending_flow_id, ftip->fti_id_len);
     if (hent == 0) {
 	hent = tbl_add(pending_flow_id, ftip->fti_id_len);
@@ -544,10 +562,13 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	    return;
 	}
 	hent->last_bin_active = 0xffffffff;
-	hent->created_sec = curtime.tv_sec;
-	hent->created_usec = curtime.tv_usec;
+	hent->created = curtime;
 	hent->created_bin = binno;
 	hent->flow_type_index = ft;
+	/*
+	 * if there is a "new flow" callout registered in this flow
+	 * type, call it.
+	 */
 	if (ftip->fti_new_flow_cmd) {
 	    char buf[20];
 	    sprintf(buf, " %d ", ft);
@@ -556,20 +577,54 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 		packet_error = TCL_ERROR;
 		return;
 	    }
+	    /* fti_new_flow_cmd returns stats_group_index (currently) */
 	    hent->stats_group_index = atoi(interp->result);
 	} else {
-	    hent->stats_group_index = ftip->fti_stats_group_index; /* XXX */
+	    /* else, take default stats_group_index */
+	    hent->stats_group_index = ftip->fti_stats_group_index;
 	}
 	ftsp = &ftstats[hent->stats_group_index];
 	ftsp->fts_created++;
     }
 
+    /* we now know the flow table entry. */
     ftsp = &ftstats[hent->stats_group_index];
     ftsp->fts_packets++;
 
+    if (hent->pkt_recv_cmd && TIME_LT(&curtime, &hent->pkt_recv_cmd_time)) {
+	char buf[20];
+	sprintf(buf, " %d ", ft);
+	/*
+	 * i can think of two main things to do here:
+	 *
+	 * 1.  if this should be switched, then after .N seconds,
+	 *	switch to a "switched" statistics group.
+	 * 2.  if this is associated with a more coarse
+	 *	statistics group, but some packets in that
+	 *	statistics group might want to be in a different
+	 *	(more fine grained) statistics group.
+	 *	(i'm not sure about this, though; if the initial
+	 *	flow types are as fine as you get, then this will
+	 *	get accomplished when you create the new fine-grained
+	 *	flow entry -- at that point you would have associated
+	 *	that fine-grained flow entry with the more coarse-
+	 *	grained statistics group.)
+	 * 3.  as a way of "timing out" flows;  i.e., if this
+	 *	has been idle for more than NNN seconds, then
+	 *	this should be deleted.  by using the timer,
+	 *	this can make the deletion "data driven" (by the
+	 *	*next* packet received in the same flow).
+	 */
+	if (Tcl_VarEval(interp, hent->pkt_recv_cmd,
+		    buf, flow_id_to_string(ft, hent->key), 0) != TCL_OK) {
+	    packet_error = TCL_ERROR;
+	    return;
+	}
+	/* fti_new_flow_cmd returns stats_group_index (currently) */
+	hent->stats_group_index = atoi(interp->result);
+    }
     hent->packets++;
-    hent->last_pkt_sec = curtime.tv_sec;
-    hent->last_pkt_usec = curtime.tv_usec;
+    hent->last_pkt_rcvd = curtime;
     if (hent->last_bin_active != binno) {
 	hent->last_bin_active = binno;
 	ftsp->fts_active++;
