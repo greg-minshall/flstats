@@ -10,6 +10,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <pcap.h>
 #include <tcl.h>
@@ -200,6 +201,24 @@ int pending, pending_flow_type;
 int packet_error = 0;
 
 u_long binno;
+
+
+/*
+ * save a string
+ */
+
+char *
+strsave(char *s)
+{
+    int n = strlen(s);
+    char *new;
+
+    new = (char *) malloc(n+1);
+    if (new) {
+	strncpy(new, s, n+1);
+    }
+    return new;
+}
 
 
 /*
@@ -530,6 +549,14 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	hent->created_bin = binno;
 	hent->flow_type_index = ft;
 	if (ftip->fti_new_flow_cmd) {
+	    char buf[20];
+	    sprintf(buf, " %d ", ft);
+	    if (Tcl_VarEval(interp, ftip->fti_new_flow_cmd,
+			buf, flow_id_to_string(ft, hent->key), 0) != TCL_OK) {
+		packet_error = TCL_ERROR;
+		return;
+	    }
+	    hent->stats_group_index = atoi(interp->result);
 	} else {
 	    hent->stats_group_index = ftip->fti_stats_group_index; /* XXX */
 	}
@@ -800,7 +827,11 @@ teho_set_flow_type(ClientData clientData, Tcl_Interp *interp,
     }
 
     if (argc >= 5) {
-	new_flow_cmd = argv[4];
+	new_flow_cmd = strsave(argv[4]);
+	if (new_flow_cmd == 0) {
+	    interp->result = "malloc failed";
+	    return TCL_ERROR;
+	}
     } else {
 	new_flow_cmd = 0;
     }
