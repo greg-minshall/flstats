@@ -22,6 +22,7 @@
  *		a flag; make fmt == char * ("%d", say)?
  */
 
+/* $Id$ */
 
 #include <stdio.h>
 #include <stdlib.h>

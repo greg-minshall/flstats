@@ -1,10 +1,7 @@
-# for compatibility...
-
-proc \
-simul { fixortcpd filename {binsecs 1} {classifier {}} { ulflows {} }} \
-{
-    fsim_class_details $fixortcpd $filename $binsecs $classifier $ulflows
-}
+#
+# Tcl script as part of flowsim
+#
+# $Id$
 
 
 ### PARAMETERS ###
