@@ -1,10 +1,15 @@
 #
 # Tcl script as part of flowsim
 #
-# $Id$
+# $Id: flowsim.tcl,v 1.34 1996/03/01 21:03:01 minshall Exp minshall $
 
 
-### PARAMETERS ###
+### The following is useful, but is also provided as an
+### example of how to use flowsim.
+
+###############
+### EXAMPLE ###
+###############
 
 # some DEFINES
 
@@ -110,9 +115,6 @@ fsimgetswitched { class flowtype flowid args}\
     return "$CL_SWITCHED -"
 }
 
-### END OF PARAMTERS ###
-
-
 # this doesn't need $pre, since the subst is performed at the caller...
 
 proc\
@@ -160,11 +162,125 @@ fsimll_delete {class ftype flowid time FLOW args}\
     return "- $time.0"
 }
 
-#
-# end of local
-#
-# start of global
 
+proc \
+fsim_flow_details { {fixortcpd {}} {filename {}} {binsecs {}} \
+					{classifier {}} { ulflows {} }} \
+{
+    global fsim
+    fsim_setup $fixortcpd $filename $binsecs $classifier $ulflows
+
+    set binsecs $fsim(binsecs)		; # make sure we have correct value
+
+    while {1} {
+	set bintime [lindex [split [time { \
+			set binno [fsim_read_one_bin $binsecs]}]] 0]
+	if {$binno == -1} {
+	    break;	# eof
+	}
+	fsim_start_enumeration
+	while { [set x [fsim_continue_enumeration]] != ""} {
+	    puts "$binno $x"
+	}
+    }
+}
+
+
+proc \
+fsim_class_details { {fixortcpd {}} {filename {}} {binsecs {}} \
+					{classifier {}} { ulflows {} }}\
+{
+    global fsim
+    global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
+
+    fsim_setup $fixortcpd $filename $binsecs $classifier $ulflows
+
+    puts "# plotvars 1 binno 2 pktsrouted 3 bytesrouted 4 pktsswitched"
+    puts "# plotvars 5 bytesswitched 6 pktsdropped 7 bytesdropped"
+    puts "# plotvars 8 created 9 deleted 10 numflows "
+#    puts "# plotvars 11 bintime 12 vsz 13 rsz 14 cputime"
+
+    # we look at 3 classes: CL_NONSWITCHED, CL_TO_BE_SWITCHED, CL_SWITCHED
+
+    set pid [pid]
+
+
+    # preload the stats counters
+    set pre non
+    subst [fsimget_summary_vec $CL_NONSWITCHED]
+    set pre waiting
+    subst [fsimget_summary_vec $CL_TO_BE_SWITCHED]
+    set pre switched
+    subst [fsimget_summary_vec $CL_SWITCHED]
+    set pre gstats
+    subst [fsimget_summary_vec 0]
+
+    set binsecs $fsim(binsecs)		; # make sure we have correct value
+
+    while {1} {
+	set bintime [lindex [split [time { \
+			set binno [fsim_read_one_bin $binsecs]}]] 0]
+	if {$binno == -1} {
+	    break;	# eof
+	}
+
+	# get differences from previous stats counters
+	set pre non
+	subst [fsimget_diff_vec $CL_NONSWITCHED]
+	set pre waiting
+	subst [fsimget_diff_vec $CL_TO_BE_SWITCHED]
+	set pre switched
+	subst [fsimget_diff_vec $CL_SWITCHED]
+	set pre gstats
+	subst [fsimget_diff_vec 0]
+
+	# now, update the stats counters
+	set pre non
+	subst [fsimget_summary_vec $CL_NONSWITCHED]
+	set pre waiting
+	subst [fsimget_summary_vec $CL_TO_BE_SWITCHED]
+	set pre switched
+	subst [fsimget_summary_vec $CL_SWITCHED]
+	set pre gstats
+	subst [fsimget_summary_vec 0]
+	set xx [exec ps lp$pid]
+	set xx [lrange [split [join $xx]] 19 24]
+	puts [format \
+	    "%-7d %7d %7d %7d %7d %7d %7d %7d %7d %7d" \
+		$binno\
+		[expr $diff_non_pkts + $diff_waiting_pkts] \
+		[expr $diff_non_bytes + $diff_waiting_bytes] \
+		$diff_switched_pkts \
+		$diff_switched_bytes \
+		[expr $diff_gstats_fragpkts + $diff_gstats_runtpkts \
+			+ $diff_gstats_noportpkts] \
+		[expr $diff_gstats_fragbytes + $diff_gstats_runtbytes \
+			+ $diff_gstats_noportbytes] \
+		[expr $diff_waiting_created + $diff_switched_created] \
+		[expr $diff_waiting_deleted + $diff_switched_deleted] \
+		[expr ($waiting_created + $switched_created + \
+					$waiting_added + $switched_added) - \
+			($waiting_deleted + $switched_deleted + \
+					$waiting_removed + $switched_removed)]]
+		; # $bintime
+		; # [lindex $xx 0]
+		; # [lindex $xx 1]
+		; # [lindex $xx 5] ]
+	flush stdout
+    }
+}
+
+###################
+### END EXAMPLE ###
+###################
+
+#
+# start of global -- the following is part of the simulator proper
+#
+
+######################
+### START FLOWSIM ####
+######################
 
 #
 # set up the flow types, using the upper level flows.
@@ -339,112 +455,6 @@ fsim_setup { {fixortcpd {}} {filename {}} {binsecs {}} \
     puts "#"
 }
 
-
-proc \
-fsim_flow_details { {fixortcpd {}} {filename {}} {binsecs {}} \
-					{classifier {}} { ulflows {} }} \
-{
-    global fsim
-    fsim_setup $fixortcpd $filename $binsecs $classifier $ulflows
-
-    set binsecs $fsim(binsecs)		; # make sure we have correct value
-
-    while {1} {
-	set bintime [lindex [split [time { \
-			set binno [fsim_read_one_bin $binsecs]}]] 0]
-	if {$binno == -1} {
-	    break;	# eof
-	}
-	fsim_start_enumeration
-	while { [set x [fsim_continue_enumeration]] != ""} {
-	    puts "$binno $x"
-	}
-    }
-}
-
-
-proc \
-fsim_class_details { {classifier {}} { ulflows {} }}\
-{
-    global fsim
-    global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
-
-    fsim_setup $fixortcpd $filename $binsecs $classifier $ulflows
-
-    puts "# plotvars 1 binno 2 pktsrouted 3 bytesrouted 4 pktsswitched"
-    puts "# plotvars 5 bytesswitched 6 pktsdropped 7 bytesdropped"
-    puts "# plotvars 8 created 9 deleted 10 numflows "
-#    puts "# plotvars 11 bintime 12 vsz 13 rsz 14 cputime"
-
-    # we look at 3 classes: CL_NONSWITCHED, CL_TO_BE_SWITCHED, CL_SWITCHED
-
-    set pid [pid]
-
-
-    # preload the stats counters
-    set pre non
-    subst [fsimget_summary_vec $CL_NONSWITCHED]
-    set pre waiting
-    subst [fsimget_summary_vec $CL_TO_BE_SWITCHED]
-    set pre switched
-    subst [fsimget_summary_vec $CL_SWITCHED]
-    set pre gstats
-    subst [fsimget_summary_vec 0]
-
-    set binsecs $fsim(binsecs)		; # make sure we have correct value
-
-    while {1} {
-	set bintime [lindex [split [time { \
-			set binno [fsim_read_one_bin $binsecs]}]] 0]
-	if {$binno == -1} {
-	    break;	# eof
-	}
-
-	# get differences from previous stats counters
-	set pre non
-	subst [fsimget_diff_vec $CL_NONSWITCHED]
-	set pre waiting
-	subst [fsimget_diff_vec $CL_TO_BE_SWITCHED]
-	set pre switched
-	subst [fsimget_diff_vec $CL_SWITCHED]
-	set pre gstats
-	subst [fsimget_diff_vec 0]
-
-	# now, update the stats counters
-	set pre non
-	subst [fsimget_summary_vec $CL_NONSWITCHED]
-	set pre waiting
-	subst [fsimget_summary_vec $CL_TO_BE_SWITCHED]
-	set pre switched
-	subst [fsimget_summary_vec $CL_SWITCHED]
-	set pre gstats
-	subst [fsimget_summary_vec 0]
-	set xx [exec ps lp$pid]
-	set xx [lrange [split [join $xx]] 19 24]
-	puts [format \
-	    "%-7d %7d %7d %7d %7d %7d %7d %7d %7d %7d" \
-		$binno\
-		[expr $diff_non_pkts + $diff_waiting_pkts] \
-		[expr $diff_non_bytes + $diff_waiting_bytes] \
-		$diff_switched_pkts \
-		$diff_switched_bytes \
-		[expr $diff_gstats_fragpkts + $diff_gstats_runtpkts \
-			+ $diff_gstats_noportpkts] \
-		[expr $diff_gstats_fragbytes + $diff_gstats_runtbytes \
-			+ $diff_gstats_noportbytes] \
-		[expr $diff_waiting_created + $diff_switched_created] \
-		[expr $diff_waiting_deleted + $diff_switched_deleted] \
-		[expr ($waiting_created + $switched_created + \
-					$waiting_added + $switched_added) - \
-			($waiting_deleted + $switched_deleted + \
-					$waiting_removed + $switched_removed)]]
-		; # $bintime
-		; # [lindex $xx 0]
-		; # [lindex $xx 1]
-		; # [lindex $xx 5] ]
-	flush stdout
-    }
-}
 
 # parse command line arguments.
 proc\
