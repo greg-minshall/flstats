@@ -573,8 +573,8 @@ flow_id_to_string(int ftype, u_char *id)
 	} else {
 	    *fidp = 0;
 	}
-	/*sprintf(result+strlen(result), "%s%s/%s", sep, xp->name, fidstring);*/
-	sprintf(result+strlen(result), "%s%s", sep, fidstring);
+	sprintf(result+strlen(result), "%s%s/%s", sep, xp->name, fidstring);
+	/* sprintf(result+strlen(result), "%s%s", sep, fidstring); */
 	sep = "/";
     }
     return result;
