@@ -58,6 +58,27 @@ struct hentry {
 };
 
 
+typedef struct flow_type_stats {
+    int	    flowscreated,
+	    flowsactive,
+	    packets,
+	    packetsnewflows;
+} ftstats_t, *ftstats_p;
+
+typedef struct ftinfo {
+    u_char  flow_type_indicies[MAX_FLOW_ID_BYTES],
+            flow_bytes_and_mask[2*MAX_FLOW_ID_BYTES];
+    int	    flow_bytes_and_mask_len,
+	    flow_type_indicies_len,
+	    flow_id_len,
+	    flow_id_covers;
+    ftstats_t
+	    ft_stats;
+} ftinfo_t, *ftinfo_p;
+
+#define	FTI_USES_PORTS(p) ((p)->flow_id_covers > 20)
+
+
 /*
  * This describes the IP header and relevant fields of TCP/UDP header.
  *
@@ -153,18 +174,7 @@ struct timeval curtime, starttime;
 
 int binsecs = 0;		/* number of seconds in a bin */
 
-typedef struct flow_type_info {
-    u_char  flow_type_indicies[MAX_FLOW_ID_BYTES],
-            flow_bytes_and_mask[2*MAX_FLOW_ID_BYTES];
-    int	    flow_bytes_and_mask_len,
-	    flow_type_indicies_len,
-	    flow_id_len,
-	    flow_id_covers;
-} fti_t, *fti_p;
-
-#define	FTI_USES_PORTS(p) ((p)->flow_id_covers > 20)
-
-fti_t fti[2];
+ftinfo_t ftinfo[2];
 int flow_types = 0;
 
 pcap_t *pcap_descriptor;
@@ -355,7 +365,7 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
     u_char flow_id[MAX_FLOW_ID_BYTES];
     int i, j, ft, pkthasports, bigenough;
     hentry_p hent;
-    fti_p ftp;
+    ftinfo_p ftp;
 
     gstats.packets++;
 
@@ -363,15 +373,15 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
     if (pending == 0) {
 	pkthasports = protohasports[packet[9]];
 	bigenough = 0;
-	for (ft = 0; ft < NUM(fti); ft++) {
-	    if (len >= fti[ft].flow_id_covers) {
+	for (ft = 0; ft < NUM(ftinfo); ft++) {
+	    if (len >= ftinfo[ft].flow_id_covers) {
 		bigenough = 1;
-		if (pkthasports || !FTI_USES_PORTS(&fti[ft])) {
+		if (pkthasports || !FTI_USES_PORTS(&ftinfo[ft])) {
 		    break;
 		}
 	    }
 	}
-	if (ft >= NUM(fti)) {
+	if (ft >= NUM(ftinfo)) {
 	    if (bigenough) {	/* packet was big enough, but... */
 		gstats.noports++;
 	    } else {
@@ -379,7 +389,7 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	    }
 	    return;
 	}
-	ftp = &fti[ft];
+	ftp = &ftinfo[ft];
 	if ((packet[6]&0x1fff) && FTI_USES_PORTS(ftp)) { /* XXX */
 	    gstats.fragments++;	/* can't deal with if looking at ports */
 	    return;
@@ -397,7 +407,8 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	    packet_error = TCL_ERROR;
 	    return;
 	}
-	ftp = &fti[pending_flow_type];
+	ft = pending_flow_type;
+	ftp = &ftinfo[ft];
 	binno = NOWASBINNO();
     }
 
@@ -409,9 +420,9 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	return;
     }
 
-    hent = tbl_lookup(pending_flow_id, fti[ft].flow_id_len);
+    hent = tbl_lookup(pending_flow_id, ftinfo[ft].flow_id_len);
     if (hent == 0) {
-	hent = tbl_add(pending_flow_id, fti[ft].flow_id_len);
+	hent = tbl_add(pending_flow_id, ftinfo[ft].flow_id_len);
 	if (hent == 0) {
 	    interp->result = "no room for more flows";
 	    packet_error = TCL_ERROR;
@@ -520,6 +531,10 @@ process_one_packet(Tcl_Interp *interp)
 
 /*
  * Read packets for one bin interval.
+ *
+ * Returns the current bin number.
+ *
+ * Returns -1 if EOF reached on the input file.
  */
 
 static int
@@ -527,6 +542,7 @@ teho_read_one_bin(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
     int error;
+    char buf[20];
 
     if (argc > 2) {
 	interp->result = "Usage: teho_read_one_bin ?binsecs?";
@@ -550,17 +566,17 @@ teho_read_one_bin(ClientData clientData, Tcl_Interp *interp,
 
     binno = -1;
 
-    interp->result = "1";
-    while (((binno == -1) || (binno == NOWASBINNO())) && !fileeof) {
-	error = process_one_packet(interp);
-	if (error != TCL_OK) {
-	    return error;
+    if (!fileeof) {
+	while (((binno == -1) || (binno == NOWASBINNO())) && !fileeof) {
+	    error = process_one_packet(interp);
+	    if (error != TCL_OK) {
+		return error;
+	    }
 	}
     }
 
-    if (fileeof) {
-	interp->result = "0";
-    }
+    sprintf(buf, "%d", binno);
+    Tcl_SetResult(interp, buf, TCL_VOLATILE);
     return TCL_OK;
 }
 
@@ -575,8 +591,8 @@ flow_id_to_string(int ft, u_char *id)
     int i, j;
 
     result[0] = 0;
-    for (i = 0; i < fti[ft].flow_type_indicies_len; i++) {
-	xp = &atoft[fti[ft].flow_type_indicies[i]];
+    for (i = 0; i < ftinfo[ft].flow_type_indicies_len; i++) {
+	xp = &atoft[ftinfo[ft].flow_type_indicies[i]];
 	fidp = fidstring;
 	dot = "";			/* for dotted decimal */
 	decimal = 0;			/* for decimal */
@@ -649,9 +665,9 @@ flow_type_to_string(int ft)
     int i;
 
     result[0] = 0;
-    for (i = 0; i < fti[ft].flow_type_indicies_len; i++) {
+    for (i = 0; i < ftinfo[ft].flow_type_indicies_len; i++) {
 	sprintf(result+strlen(result), "%s%s",
-				sep, atoft[fti[ft].flow_type_indicies[i]].name);
+			    sep, atoft[ftinfo[ft].flow_type_indicies[i]].name);
 	sep = "/";
     }
     return result;
@@ -668,9 +684,9 @@ set_flow_type(Tcl_Interp *interp, int ft, char *name)
     atoft_p xp;
 
     /* forget current file type */
-    fti[ft].flow_bytes_and_mask_len = 0;
-    fti[ft].flow_id_covers = 0;
-    fti[ft].flow_id_len = 0;
+    ftinfo[ft].flow_bytes_and_mask_len = 0;
+    ftinfo[ft].flow_id_covers = 0;
+    ftinfo[ft].flow_id_len = 0;
 
     curdesc = name;
 
@@ -701,17 +717,17 @@ set_flow_type(Tcl_Interp *interp, int ft, char *name)
 			interp->result = "flow type too long";
 			return TCL_ERROR;
 		    }
-		    if (off > fti[ft].flow_id_covers) {
-			fti[ft].flow_id_covers = off;
+		    if (off > ftinfo[ft].flow_id_covers) {
+			ftinfo[ft].flow_id_covers = off;
 		    }
-		    fti[ft].flow_bytes_and_mask[bandm++] = off++;
-		    fti[ft].flow_bytes_and_mask[bandm++] = mask;
+		    ftinfo[ft].flow_bytes_and_mask[bandm++] = off++;
+		    ftinfo[ft].flow_bytes_and_mask[bandm++] = mask;
 		}
-		if (indicies >= NUM(fti[ft].flow_type_indicies)) {
+		if (indicies >= NUM(ftinfo[ft].flow_type_indicies)) {
 		    interp->result = "too many fields in flow type";
 		    return TCL_ERROR;
 		}
-		fti[ft].flow_type_indicies[indicies++] = j;
+		ftinfo[ft].flow_type_indicies[indicies++] = j;
 		break;
 	    }
 	}
@@ -725,9 +741,9 @@ set_flow_type(Tcl_Interp *interp, int ft, char *name)
 	}
     }
 goodout:
-    fti[ft].flow_bytes_and_mask_len = bandm;
-    fti[ft].flow_id_len = bandm/2;
-    fti[ft].flow_type_indicies_len = indicies;
+    ftinfo[ft].flow_bytes_and_mask_len = bandm;
+    ftinfo[ft].flow_id_len = bandm/2;
+    ftinfo[ft].flow_type_indicies_len = indicies;
     return TCL_OK;
 }
 
@@ -750,13 +766,14 @@ teho_set_flow_type(ClientData clientData, Tcl_Interp *interp,
     static char result[20];
 
     if (argc != 3) {
-	interp->result = "Usage: teho_set_flow_type index flowtypedescription";
+	interp->result =
+		"Usage: teho_set_flow_type flow_type_index string";
 	return TCL_ERROR;
     }
 
     ft = atoi(argv[1]);
 
-    if (ft >= NUM(fti)) {
+    if (ft >= NUM(ftinfo)) {
 	interp->result = "no room in flow_type_info table";
 	return TCL_ERROR;
     }
@@ -775,21 +792,48 @@ teho_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 
 
 static int
+teho_flow_type_summary(ClientData clientData, Tcl_Interp *interp,
+		int argc, char *argv[])
+{
+    char summary[100];
+    ftinfo_p ftp;
+
+    if (argc != 2) {
+	interp->result = "Usage: teho_summary flow_type_index";
+	return TCL_ERROR;
+    }
+
+    if (atoi(argv[1]) >= NUM(ftinfo)) {
+	interp->result = "flow_type_index too high";
+	return TCL_ERROR;
+    }
+
+    ftp = ftinfo+atoi(argv[1]);
+
+    sprintf(summary, "%d %d %d %d",
+		    ftp->ft_stats.flowscreated, ftp->ft_stats.flowsactive,
+		    ftp->ft_stats.packets, ftp->ft_stats.packetsnewflows);
+    Tcl_SetResult(interp, summary, TCL_VOLATILE);
+    return TCL_OK;
+}
+
+
+static int
 teho_summary(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
-    static char summary[100];
+    char summary[100];
 
     if (argc != 1) {
 	interp->result = "Usage: teho_summary";
 	return TCL_ERROR;
     }
 
-    sprintf(summary, "%d %d %d %d %d %d %d",
-		    binno,
+    sprintf(summary, "%d %d %d %d %d %d",
 		    gstats.flowscreated, gstats.flowsactive,
 		    gstats.packets, gstats.packetsnewflows,
 		    gstats.runts, gstats.fragments);
+    Tcl_SetResult(interp, summary, TCL_VOLATILE);
     interp->result = summary;
     return TCL_OK;
 }
@@ -887,6 +931,8 @@ Tcl_AppInit(Tcl_Interp *interp)
     Tcl_CreateCommand(interp, "teho_set_tcpd_file", teho_set_tcpd_file,
 								NULL, NULL);
     Tcl_CreateCommand(interp, "teho_set_fix_file", teho_set_fix_file,
+								NULL, NULL);
+    Tcl_CreateCommand(interp, "teho_flow_type_summary", teho_flow_type_summary,
 								NULL, NULL);
     Tcl_CreateCommand(interp, "teho_summary", teho_summary,
 								NULL, NULL);
