@@ -1,6 +1,9 @@
-CFLAGS	= -g
 
 LIBPCAP = ../libpcap/libpcap-0.0.6/libpcap.a
+LIBTCL = /usr/local/lib/libtcl7.4.a
+INCLUDES	= -I/usr/local/include
+
+CFLAGS	= -g ${INCLUDES}
 
 all:	tcpd2det fix2det
 
@@ -9,3 +12,6 @@ tcpd2det:	tcpd2det.o
 
 fix2det:	fix2det.o
 	${CC} ${CFLAGS} -o fix2det ${LDFLAGS} fix2det.o
+
+tehone:		tehone.o
+	${CC} ${CFLAGS} -o tehone ${LDFLAGS} tehone.o ${LIBTCL} ${LIBPCAP} -lm
