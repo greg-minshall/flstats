@@ -1,7 +1,7 @@
 #
 # Tcl script as part of flstats
 #
-# $Id: flstats.tcl,v 1.3 1996/07/29 21:09:39 minshall Exp $
+# $Id: flstats.tcl,v 1.49 1996/07/29 21:13:39 minshall Exp minshall $
 #
 #
 
@@ -435,10 +435,7 @@ fl_setft { {classifier {}} {flowtypes {}} } \
 	set merge [concat [join $merge /] $classifier - flll_delete]
 	lappend flowtypes $merge
 	# tell ll classifier which flow types to use.
-	fl_set_ll_classifier 0 [expr [llength $flowtypes] -1]
-	if {$flstats(label)} {
-	    puts "# flowtype [llength $flowtypes] $merge"
-	}
+	fl_set_ll_classifier 0 [llength $flowtypes]
     }
 
     set flstats(lastllclassifier) 0
@@ -475,7 +472,7 @@ fl_setft { {classifier {}} {flowtypes {}} } \
 					    $classifier - flll_delete]
 	    lappend flowtypes $merge_no_ports
 	    # tell ll classifier which flow types to use.
-	    fl_set_ll_classifier 1 [expr [llength $flowtypes] -1]
+	    fl_set_ll_classifier 1 [llength $flowtypes]
 	}
 	set flstats(lastllclassifier) 1
     }
@@ -487,7 +484,7 @@ fl_setft { {classifier {}} {flowtypes {}} } \
 
     # now, scan thru the input list again, setting upper level flows...
 
-    for {set whichflow 0; set ftindex 0} {$whichflow < [llength $flowtypes]} \
+    for {set whichflow 0; set ftindex 1} {$whichflow < [llength $flowtypes]} \
 					{ incr whichflow; incr ftindex } {
 	set flow [lindex $flowtypes $whichflow]
 	if {$flstats(label)} {
