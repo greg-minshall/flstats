@@ -1,7 +1,7 @@
 #
 # Tcl script as part of flstats
 #
-# $Id: flstats.tcl,v 1.43 1996/03/14 23:42:20 minshall Exp minshall $
+# $Id: flstats.tcl,v 1.44 1996/03/15 00:53:49 minshall Exp minshall $
 #
 #
 
@@ -630,6 +630,10 @@ fl_set_parameters {argc argv}\
 	    set classes 1
 	    incr argc -1
 	    set argv [lrange $argv 1 end]
+	} elseif {[string first $arg -debug] == 0} { ; # flow details
+	    set flstats(debug) 1
+	    incr argc -1
+	    set argv [lrange $argv 1 end]
 	} else {
 	    error [format {unknown argument %s in '%s'\nusage: %s\
 			[-binsecs num]\
@@ -678,26 +682,29 @@ fl_set_parameters {argc argv}\
 }
 
 proc\
-fl_startup { }\
+fl_startup { argc argv }\
 {
-    global argc argv
+    global flstats
     global tcl_RcFileName
+
+    set argv [string trim $argv]
 
     set tcl_RcFileName "~/.flstats.tcl"		; # only run if interactive...
 
     if [catch {
-	set ret [fl_set_parameters $argc $argv]
-	set argc [lindex $ret 0]
-	set argv [lindex $ret 1]
+	fl_set_parameters $argc $argv
     } result ] {
 	global errorInfo
 	puts stderr $result
-#	puts stderr $errorInfo
+	if {$flstats(debug)} {
+	    puts stderr $errorInfo
+	}
 	exit 1
     }
 }
 
 # set some defaults...
+set flstats(debug) 0
 set flstats(classifier) {}
 set flstats(binsecs) 0
 set flstats(tracefile.kind) {}

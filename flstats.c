@@ -28,7 +28,7 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.67 1996/03/14 23:41:57 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.68 1996/03/15 00:53:49 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -400,6 +400,9 @@ flowentry_t timers[150];
 
 u_long binno;
 
+char	*args,			/* arguments... */
+	argcount[20];		/* number of them */
+
 char fl_tclprogram[] = 
 #include "flstats.char"
 ;
@@ -611,13 +614,13 @@ flow_statistics(flowentry_p fe)
     static char summary[200];
 
     sprintf(summary,
-	    "type %d class %d id %s created %ld.%06ld "
-			    "last %ld.%06ld pkts %lu bytes %lu sipg %lu",
+	    "type %d class %d id %s pkts %lu bytes %lu sipg %lu "
+					"created %ld.%06ld last %ld.%06ld",
 	    fe->fe_flow_type, fe->fe_class,
 	    flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_id),
+	    fe->fe_pkts-fe->fe_pkts_last_enum, fe->fe_bytes, fe->fe_sipg>>3,
 	    fe->fe_created.tv_sec, fe->fe_created.tv_usec,
-	    fe->fe_last_pkt_rcvd.tv_sec, fe->fe_last_pkt_rcvd.tv_usec,
-	    fe->fe_pkts-fe->fe_pkts_last_enum, fe->fe_bytes, fe->fe_sipg>>3);
+	    fe->fe_last_pkt_rcvd.tv_sec, fe->fe_last_pkt_rcvd.tv_usec);
 
     return summary;
 }
@@ -1812,11 +1815,13 @@ Tcl_AppInit(Tcl_Interp *interp)
 								NULL, NULL);
     Tcl_CreateCommand(interp, "fl_version", fl_version,
 								NULL, NULL);
+
     /* call out to Tcl to set up whatever... */
     if (Tcl_GlobalEval(interp, fl_tclprogram) != TCL_OK) {
 	return TCL_ERROR;
     }
-    return Tcl_Eval(interp, "fl_startup");
+
+    return Tcl_VarEval(interp, "fl_startup ", argcount, " { ", args, " }", 0);
 }
 
 int
@@ -1830,6 +1835,10 @@ main(int argc, char *argv[])
 
     protohasports[6] = protohasports[17] = 1;
 
-    Tcl_Main(argc, argv, Tcl_AppInit);
+    args = Tcl_Merge(argc-1, argv+1);
+    sprintf(argcount, "%d", argc-1);
+
+    /* we lie to Tcl_Main(), because, by gum, *WE* control argument parsing */
+    Tcl_Main(1, argv, Tcl_AppInit);
     exit(0);
 }
