@@ -10,10 +10,8 @@
  *	4.	Document: [simul_setup], [flow_details],
  *		[class_details], [teho_read_one_bin].  Give
  *		examples of use; warn about memory consumption.
- *	5.	Register callbacks routines.  Point at them from
- *		from flow_entries, etc.  (Can be done internally.)
- *	6.	Make timeouts occur in a nicer way (i.e., slotted
- *		timeout queues, or some such).
+ *	7.	Verify the results of callouts (new flow, recv,
+ *		timeout) are valid.
  */
 
 
@@ -42,10 +40,15 @@
 		    (r)->tv_usec -= 1000000; \
 		} \
 	    }
+
 #define	TIME_LT(a,b) \
 		(((a)->tv_sec < (b)->tv_sec) \
 			|| (((a)->tv_sec == (b)->tv_sec) && \
 			    ((a)->tv_usec < (b)->tv_usec)))
+
+#define	TIME_EQ(a,b) \
+		(((a)->tv_sec == (b)->tv_sec) && \
+			    ((a)->tv_usec == (b)->tv_usec))
 
 #define	TIMEDIFFSECS(now,then) \
 		(((now)->tv_sec-(then)->tv_sec) -\
@@ -89,36 +92,10 @@ struct flowentry {
 	fe_sipg,		/* smoothed interpacket gap (units of 8 usec) */
 	fe_created_bin,
 	fe_last_bin_active;
-    char
-	*fe_pkt_recv_cmd;	/* command to call when a pkt received */
-	    /*
-	     * routine:	pkt_recv_cmd
-	     * call:	"pkt_recv_cmd class ftype flowid FLOW flowstats"
-	     * result:	"class pkt_recv_cmd secs.usecs" 
-	     *
-	     * if, on output, pkt_recv_cmd is null (or begins with '-'),
-	     * no command will be run.  if, on output, secs is null,
-	     * zero will be used (which means that pkt_recv_cmd will be
-	     * called the next time a packet is received on that flow,
-	     * no matter how soon it arrives).
-	     */
-    char
-	*fe_timeout_cmd;	/* timeout command (if registered) */
-	    /*
-	     * routine: timeout_cmd
-	     * call:	"timeout_cmd cookie class ftype flowid FLOW flowstats"
-	     * result:  "command timeout_cmd secs.usecs cookie"
-	     *
-	     * if "command" is "DELETE", the associated flow will be
-	     * deleted.  if "command" starts with '-', it will be ignored.
-	     * other values for "command" are TBD.
-	     */
-    void
-	*fe_timeout_cookie;	/* cookie for timeout routine */
     struct timeval
 	fe_created,		/* time created */
 	fe_last_pkt_rcvd,	/* time most recent packet seen */
-	fe_pkt_recv_cmd_time,	/* pkt_recv_cmd won't run till this time */
+	fe_recv_cmd_time,	/* recv_cmd won't run till this time */
 	fe_timeout_time;	/* time to run timeout routine */
     /* fields for hashing */
     u_short fe_sum;		/* hash of key, speeds up searching */
@@ -233,17 +210,37 @@ struct ftinfo {
 	    /*
 	     * routine:	fti_new_flow_cmd
 	     * call:	"fti_new_flow_cmd class flowtype flowid"
-	     * result:	"class upper_class upper_ftype pkt_recv_cmd secs.usecs" 
+	     * result:	"class upper_class upper_ftype recvsecs.usecs"
+	     *						timeoutsecs.usecs" 
 	     *
 	     * 'class' is the class of the new flow.  'upper_class'
 	     * is the class for any parent flow that might be created.
 	     * 'upper_ftype' is the flow type for a created parent flow.
-	     * pkt_recv_cmd is the command
-	     * executed when a packet in the new flow is received
-	     * secs.usecs after the current time in the output flow.
-	     * note that if the output flowtype and flowid map to
-	     * an existing flow, the class, pkt_recv, and
-	     * secs.usecs return values are not used.
+	     * recvsecs.usecs after the current time in the output flow,
+	     * a received packet will cause the flow types receive routine
+	     * to be called.  timeoutsecs.usecs from now, the flow type's
+	     * timeout routine will be called for this flow.
+	     */
+    char    *fti_recv_cmd;	/* command to call when a pkt received */
+	    /*
+	     * routine:	recv_cmd
+	     * call:	"recv_cmd class ftype flowid FLOW flowstats"
+	     * result:	"class recvsecs.usecs" 
+	     *
+	     * if, on output, recvsecs is null,
+	     * zero will be used (which means that recv_cmd will be
+	     * called the next time a packet is received on that flow,
+	     * no matter how soon it arrives).
+	     */
+    char    *fti_timeout_cmd;	/* timeout command (if registered) */
+	    /*
+	     * routine: timeout_cmd
+	     * call:	"timeout_cmd class ftype flowid FLOW flowstats"
+	     * result:  "command timeoutsecs.usecs"
+	     *
+	     * if "command" is "DELETE", the associated flow will be
+	     * deleted.  if "command" starts with '-', it will be ignored.
+	     * other values for "command" are TBD.
 	     */
 };
 
@@ -661,57 +658,52 @@ static void
 do_timeouts(Tcl_Interp *interp)
 {
     flowentry_p nfe, fe;
+    ftinfo_p fti;
     char buf[100], buf2[100];
-    int n, i = 0;
+    int n;
     static void delete_flow(flowentry_p fe);
 
-    fe = timer_get_slot();
+    nfe = timer_get_slot();
 
-    while (fe) {
+    while ((fe = nfe) != 0) {
 	nfe = fe->fe_next_in_timer;
 	fe->fe_next_in_timer = fe->fe_prev_in_timer = 0;
-	if (fe->fe_timeout_cmd && TIME_LT(&fe->fe_timeout_time, &curtime)) {
+	if (TIME_LT(&fe->fe_timeout_time, &curtime)) {
+	    fti = &ftinfo[fe->fe_flow_type];
+	    if ((fti->fti_timeout_cmd == 0) ||
+				TIME_EQ(&fe->fe_timeout_time, &ZERO)) {
+		continue;	/* maybe flow type changed? */
+	    }
 	    /*
-	     * call:	"timeout_cmd cookie class ftype flowid FLOW flowstats"
-	     * result:  "command timeout_cmd secs.usecs cookie"
+	     * call:	"timeout_cmd class ftype flowid FLOW flowstats"
+	     * result:  "command secs.usecs"
 	     */
-	    sprintf(buf, " %p %d %d ", fe->fe_timeout_cookie,
-					fe->fe_class, fe->fe_flow_type);
+	    sprintf(buf, " %d %d ", fe->fe_class, fe->fe_flow_type);
 	    sprintf(buf2, " %ld.%06ld ", curtime.tv_sec, curtime.tv_usec);
-	    if (Tcl_VarEval(interp, fe->fe_timeout_cmd, buf,
-			    flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_key),
-			    buf2,
-			    " FLOW ", flow_statistics(fe), 0) != TCL_OK) {
+	    if (Tcl_VarEval(interp,
+		    ftinfo[fe->fe_flow_type].fti_timeout_cmd, buf,
+		    flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_key),
+		    buf2, " FLOW ", flow_statistics(fe), 0) != TCL_OK) {
 		packet_error = TCL_ERROR;
 		return;
 	    }
 
 	    fe->fe_timeout_time.tv_usec = 0;
-	    n = sscanf(interp->result, "%s %s %ld.%ld %p",
-			buf, buf2, &fe->fe_timeout_time.tv_sec,
-			&fe->fe_timeout_time.tv_usec, &fe->fe_timeout_cookie);
-	    if (n >= 2) {
-		if (buf2[0] == '-') {
-		    free(fe->fe_timeout_cmd);
-		    fe->fe_timeout_cmd = 0;
-		} else {
-		    if (strcmp(fe->fe_timeout_cmd, buf2)) {
-			free(fe->fe_timeout_cmd);
-			fe->fe_timeout_cmd = strsave(buf2);
-		    }
-		}
-	    }
-	    if (n >= 3) {
-		TIME_ADD(&fe->fe_timeout_time, &fe->fe_timeout_time, &curtime);
-	    }
+	    n = sscanf(interp->result, "%s %ld.%ld",
+			buf, &fe->fe_timeout_time.tv_sec,
+			&fe->fe_timeout_time.tv_usec);
 	    if ((n >= 1) && !strcmp(buf, "DELETE")) {
 		delete_flow(fe);
+	    } else if (n >= 2) {
+		if (!TIME_EQ(&fe->fe_timeout_time, &ZERO)) {
+		    TIME_ADD(&fe->fe_timeout_time,
+					&fe->fe_timeout_time, &curtime);
+		    timer_insert(fe, &fe->fe_timeout_time);
+		}
 	    }
 	} else {
 	    timer_insert(fe, &fe->fe_timeout_time);
 	}
-	fe = nfe;
-	i++;
     }
 }
 
@@ -847,12 +839,6 @@ static void
 delete_flow(flowentry_p fe)
 {
     clstats[fe->fe_class].cls_deleted++;
-    if (fe->fe_pkt_recv_cmd) {
-	free(fe->fe_pkt_recv_cmd);
-    }
-    if (fe->fe_timeout_cmd) {
-	free(fe->fe_timeout_cmd);
-    }
     tbl_delete(fe);
 }
 
@@ -876,8 +862,6 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int level, int class)
     fe->fe_created_bin = binno;
     fe->fe_last_bin_active = 0xffffffff;
     fe->fe_created = curtime;
-    fe->fe_pkt_recv_cmd = 0;
-    fe->fe_timeout_cmd = 0;
     fe->fe_last_pkt_rcvd = ZERO;
 
     /*
@@ -886,13 +870,13 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int level, int class)
      *
      * the callout is allowed to change certain parameters of
      * this flow entry: the class, the parent flow type,
-     * the pkt_recv_cmd and parameters, and the timeout_cmd
+     * the recv_cmd and parameters, and the timeout_cmd
      * and parameters.
      */
 
     if (ft->fti_new_flow_cmd) {
-	char buf[60], buf2[60];
 	int n;
+	char buf[100];
 
 	sprintf(buf, " %d %d ", fe->fe_class, ft-ftinfo);
 	if (Tcl_VarEval(interp, ft->fti_new_flow_cmd,
@@ -900,41 +884,34 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int level, int class)
 	    packet_error = TCL_ERROR;
 	    return 0;
 	}
-	buf[0] = 0;
-	buf2[0] = 0;
-	fe->fe_pkt_recv_cmd_time.tv_usec = 0;
+	fe->fe_recv_cmd_time.tv_usec = 0;
 	fe->fe_timeout_time.tv_usec = 0;
-	fe->fe_timeout_cookie = 0;
 
-	n = sscanf(interp->result, "%hd %hd %hd %s %ld.%ld %s %ld.%ld %p",
+	n = sscanf(interp->result, "%hd %hd %hd %ld.%ld %ld.%ld",
 		&fe->fe_class, &fe->fe_parent_class, &fe->fe_parent_ftype,
-			    buf, &fe->fe_pkt_recv_cmd_time.tv_sec,
-			    &fe->fe_pkt_recv_cmd_time.tv_usec,
-			    buf2, &fe->fe_timeout_time.tv_sec,
-			    &fe->fe_timeout_time.tv_usec,
-			    &fe->fe_timeout_cookie);
+			    &fe->fe_recv_cmd_time.tv_sec,
+			    &fe->fe_recv_cmd_time.tv_usec,
+			    &fe->fe_timeout_time.tv_sec,
+			    &fe->fe_timeout_time.tv_usec);
 
 	/*
 	 * (yes, these "if" stmts could be nested, and thus
 	 * be more efficient; but, they would be less legible,
 	 * so...)
 	 */
-	if (buf[0] && (buf[0] != '-')) {
-	    fe->fe_pkt_recv_cmd = strsave(buf);
-	}
 	if (n >= 4) {
-	    /* returned value is relative to now, so make absolute */
-	    TIME_ADD(&fe->fe_pkt_recv_cmd_time,
-			    &fe->fe_pkt_recv_cmd_time, &curtime);
+	    if (!TIME_EQ(&fe->fe_recv_cmd_time, &ZERO)) {
+		/* returned value is relative to now, so make absolute */
+		TIME_ADD(&fe->fe_recv_cmd_time,
+				&fe->fe_recv_cmd_time, &curtime);
+	    }
 	}
-
-	if (buf2[0] && (buf2[0] != '-')) {
-	    fe->fe_timeout_cmd = strsave(buf2);
-	}
-	if (n >= 7) {
-	    /* returned value is relative to now, so make absolute */
-	    TIME_ADD(&fe->fe_timeout_time, &fe->fe_timeout_time, &curtime);
-	    timer_insert(fe, &fe->fe_timeout_time);
+	if (n >= 6) {
+	    if (!TIME_EQ(&fe->fe_timeout_time, &ZERO)) {
+		/* returned value is relative to now, so make absolute */
+		TIME_ADD(&fe->fe_timeout_time, &fe->fe_timeout_time, &curtime);
+		timer_insert(fe, &fe->fe_timeout_time);
+	    }
 	}
     }
     clstats[fe->fe_class].cls_created++;
@@ -1007,14 +984,16 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
 	 *	N seconds.
 	 */
 
-    if (fe->fe_pkt_recv_cmd && TIME_LT(&curtime, &fe->fe_pkt_recv_cmd_time)) {
+    if (ftinfo[fe->fe_flow_type].fti_recv_cmd &&
+			TIME_LT(&curtime, &fe->fe_recv_cmd_time) &&
+			!TIME_EQ(&fe->fe_recv_cmd_time, &ZERO)) {
 	char buf[60];
 	int n, outcls;
 	struct timeval outtime;
 
 	sprintf(buf, " %d %d ", fe->fe_class, fe->fe_flow_type);
 
-	if (Tcl_VarEval(interp, fe->fe_pkt_recv_cmd, buf,
+	if (Tcl_VarEval(interp, ftinfo[fe->fe_flow_type].fti_recv_cmd, buf,
 		    flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_key),
 				" FLOW ", flow_statistics(fe), 0) != TCL_OK) {
 	    packet_error = TCL_ERROR;
@@ -1022,10 +1001,9 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
 	}
 
 	outcls = fe->fe_class;
-	n = sscanf(interp->result, "%d %s %ld.%ld",
-				    &outcls, buf,
-				    &fe->fe_pkt_recv_cmd_time.tv_sec,
-				    &fe->fe_pkt_recv_cmd_time.tv_usec);
+	n = sscanf(interp->result, "%d %ld.%ld", &outcls,
+				    &fe->fe_recv_cmd_time.tv_sec,
+				    &fe->fe_recv_cmd_time.tv_usec);
 
 	if (outcls != fe->fe_class) {
 	    /* class is changing --- update statistics */
@@ -1034,14 +1012,8 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
 	    clstats[fe->fe_class].cls_added++;
 	}
 	if (n >= 2) {
-	    free(fe->fe_pkt_recv_cmd);
-	    if (buf[0] != '-') {
-		fe->fe_pkt_recv_cmd = strsave(buf);
-	    } else {
-		fe->fe_pkt_recv_cmd = 0;
-	    }
-	    if (n >= 3) {
-		TIME_ADD(&fe->fe_pkt_recv_cmd_time, &curtime, &outtime);
+	    if (!TIME_EQ(&fe->fe_recv_cmd_time, &ZERO)) {
+		TIME_ADD(&fe->fe_recv_cmd_time, &curtime, &outtime);
 	    }
 	}
     }
@@ -1350,18 +1322,20 @@ teho_read_one_bin(ClientData clientData, Tcl_Interp *interp,
 }
 
 static int
-set_flow_type(Tcl_Interp *interp, int ftype, char *name, char *new_flow_cmd)
+set_flow_type(Tcl_Interp *interp, int ftype, char *name, char *new_flow_cmd,
+				char *recv_cmd, char *timeout_cmd)
 {
     char initial[MAX_FLOW_ID_BYTES*5], after[MAX_FLOW_ID_BYTES*5]; /* 5 rndm */
     char *curdesc;
     int bandm = 0;	/* number of bytes in fti_bytes_and_mask used */
     int indicies = 0;	/* index (in atoft) of each field in flow id */
     atoft_p xp;
+    ftinfo_p fti = &ftinfo[ftype];
 
     /* forget current file type */
-    ftinfo[ftype].fti_bytes_and_mask_len = 0;
-    ftinfo[ftype].fti_id_covers = 0;
-    ftinfo[ftype].fti_id_len = 0;
+    fti->fti_bytes_and_mask_len = 0;
+    fti->fti_id_covers = 0;
+    fti->fti_id_len = 0;
 
     curdesc = name;
 
@@ -1392,17 +1366,17 @@ set_flow_type(Tcl_Interp *interp, int ftype, char *name, char *new_flow_cmd)
 			interp->result = "flow type too long";
 			return TCL_ERROR;
 		    }
-		    if (off > ftinfo[ftype].fti_id_covers) {
-			ftinfo[ftype].fti_id_covers = off;
+		    if (off > fti->fti_id_covers) {
+			fti->fti_id_covers = off;
 		    }
-		    ftinfo[ftype].fti_bytes_and_mask[bandm++] = off++;
-		    ftinfo[ftype].fti_bytes_and_mask[bandm++] = mask;
+		    fti->fti_bytes_and_mask[bandm++] = off++;
+		    fti->fti_bytes_and_mask[bandm++] = mask;
 		}
-		if (indicies >= NUM(ftinfo[ftype].fti_type_indicies)) {
+		if (indicies >= NUM(fti->fti_type_indicies)) {
 		    interp->result = "too many fields in flow type";
 		    return TCL_ERROR;
 		}
-		ftinfo[ftype].fti_type_indicies[indicies++] = j;
+		fti->fti_type_indicies[indicies++] = j;
 		break;
 	    }
 	}
@@ -1416,10 +1390,21 @@ set_flow_type(Tcl_Interp *interp, int ftype, char *name, char *new_flow_cmd)
 	}
     }
 goodout:
-    ftinfo[ftype].fti_bytes_and_mask_len = bandm;
-    ftinfo[ftype].fti_id_len = bandm/2;
-    ftinfo[ftype].fti_type_indicies_len = indicies;
-    ftinfo[ftype].fti_new_flow_cmd = new_flow_cmd;
+    fti->fti_bytes_and_mask_len = bandm;
+    fti->fti_id_len = bandm/2;
+    fti->fti_type_indicies_len = indicies;
+    if (fti->fti_new_flow_cmd) {
+	free(fti->fti_new_flow_cmd);
+    }
+    fti->fti_new_flow_cmd = new_flow_cmd;
+    if (fti->fti_recv_cmd) {
+	free(fti->fti_recv_cmd);
+    }
+    fti->fti_recv_cmd = recv_cmd;
+    if (fti->fti_timeout_cmd) {
+	free(fti->fti_timeout_cmd);
+    }
+    fti->fti_timeout_cmd = timeout_cmd;
     return TCL_OK;
 }
 
@@ -1439,28 +1424,54 @@ teho_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 {
     int error;
     int ftype;
-    char *new_flow_cmd;
+    char *new_flow_cmd, *recv_cmd, *timeout_cmd;
     static char result[20];
     static char *usage =
 		"Usage: teho_set_flow_type "
-			"?-c new_flow_command? ?-f flow_type string";
+		"?-n new_flow_command? ?-r recv_command? "
+		"?-t timeout_command? ?-f flow_type? flowstring";
     int op;
     extern char *optarg;
     extern int optind, opterr, optreset;
 
     ftype = 0;
     new_flow_cmd = 0;
+    recv_cmd = 0;
+    timeout_cmd = 0;
     opterr = 0;
     optreset = 1;
     optind = 1;
-    while ((op = getopt(argc, argv, "f:c:")) != EOF) {
+    while ((op = getopt(argc, argv, "f:n:r:t:")) != EOF) {
 	switch (op) {
 	    case 'f':
 		    ftype = atoi(optarg);
 		    break;
-	    case 'c':
+	    case 'n':
+		    if (optarg[0] == '-') {
+			break;
+		    }
 		    new_flow_cmd = strsave(optarg);
 		    if (new_flow_cmd == 0) {
+			interp->result = "malloc failed";
+			return TCL_ERROR;
+		    }
+		    break;
+	    case 'r':
+		    if (optarg[0] == '-') {
+			break;
+		    }
+		    recv_cmd = strsave(optarg);
+		    if (recv_cmd == 0) {
+			interp->result = "malloc failed";
+			return TCL_ERROR;
+		    }
+		    break;
+	    case 't':
+		    if (optarg[0] == '-') {
+			break;
+		    }
+		    timeout_cmd = strsave(optarg);
+		    if (timeout_cmd == 0) {
 			interp->result = "malloc failed";
 			return TCL_ERROR;
 		    }
@@ -1485,7 +1496,8 @@ teho_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 	return TCL_ERROR;
     }
 
-    error = set_flow_type(interp, ftype, argv[0], new_flow_cmd);
+    error = set_flow_type(interp, ftype, argv[0],
+				new_flow_cmd, recv_cmd, timeout_cmd);
     if (error != TCL_OK) {
 	return error;
     }

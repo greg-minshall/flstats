@@ -41,12 +41,9 @@ teho_classifier { class flowtype flowid }\
 
     regexp {/prot/([^/]*)/} $flowid match prot
     switch -exact -- $prot {
-    6 {return "$class $CL_SWITCHED $FT_UL_NOPORT - 0.0 \
-						    teho_deleteflow 2.0 0x2"}
-    11 {return "$class $CL_NONSWITCHED $FT_UL_NOPORT - 0.0 \
-						    teho_deleteflow 2.0 0x2"}
-    default {return "$class $CL_NONSWITCHED $FT_UL_NOPORT - 0.0 \
-						    teho_deleteflow 2.0 0x2"}
+    6 {return "$class $CL_SWITCHED $FT_UL_NOPORT 0.0 2.0"}
+    11 {return "$class $CL_NONSWITCHED $FT_UL_NOPORT 0.0 2.0"}
+    default {return "$class $CL_NONSWITCHED $FT_UL_NOPORT 0.0 2.0"}
     }
 }
 
@@ -62,10 +59,9 @@ teho_starttimeout { class flowtype flowid }\
     global CL_TO_BE_SWITCHED CL_NONSWITCHED
 
     if {$class == $CL_TO_BE_SWITCHED} {
-	return "$class $class $flowtype teho_getswitched [teho_switchtime] \
-							teho_deleteflow 2.0 0x2"
+	return "$class $class $flowtype [teho_switchtime] 2.0"
     } else {
-	return "$class $class $flowtype - 0.0  teho_deleteflow 2.0 0x2"
+	return "$class $class $flowtype 0.0 2.0"
     }
 }
 
@@ -75,24 +71,24 @@ teho_starttimeout { class flowtype flowid }\
 #
 
 proc\
-teho_deleteflow {cookie class ftype flowid time FLOW args}\
+teho_deleteflow {class ftype flowid time FLOW args}\
 {
-    global CL_SWITCHED CL_TO_BE_SWITCHED CL_NONSWITCHED
-
     # ahh, dr. regsub... 
     regsub -all {([a-zA-Z_]+) ([0-9.]+)} $args {[set x_\1 \2]} bar
     subst $bar
 
-    if {[expr $time - $x_last] > $cookie} {
+    set idle [expr $time - $x_last]
+    set life [expr $x_last - $x_created]
+    if {($idle > $life) || ($idle > 64)} {
 	return "DELETE"		; # gone...
     }
 
-    set time [expr 2 * $cookie]
+    set time [expr 2 * $life]
     if {$time > 64} {
 	set time 64
     }
 
-    return "- teho_deleteflow $time.0 $time"
+    return "- $time.0"
 }
 
 
@@ -134,24 +130,24 @@ teho_get_diff_vec {class} \
 }
 
 proc\
-teho_ll_delete {cookie class ftype flowid time FLOW args}\
+teho_ll_delete {class ftype flowid time FLOW args}\
 {
-    global CL_SWITCHED CL_TO_BE_SWITCHED CL_NONSWITCHED
-
     # ahh, dr. regsub... 
     regsub -all {([a-zA-Z_]+) ([0-9.]+)} $args {[set x_\1 \2]} bar
     subst $bar
 
-    if {[expr $time - $x_last] > $cookie} {
+    set idle [expr $time - $x_last]
+    set life [expr $x_last - $x_created]
+    if {($idle > $life) || ($idle > 64)} {
 	return "DELETE"		; # gone...
     }
 
-    set time [expr 2 * $cookie]
+    set time [expr 2 * $life]
     if {$time > 64} {
 	set time 64
     }
 
-    return "- teho_ll_delete $time.0 $time"
+    return "- $time.0"
 }
 
 
@@ -174,7 +170,7 @@ teho_ll_delete {cookie class ftype flowid time FLOW args}\
 #
 # ulflows is a list of lists.  the inner list has the form:
 #
-#		flow-type-string classifier flow-type-index-variable
+#    flow-type-string flow-type-index-variable newflow_cmd recv_cmd timeout_cmd
 #
 # where a flow of type flow-type-string is set up with classifier
 # the index is placed in the variable flow-type-index-variable.
@@ -183,12 +179,25 @@ teho_ll_delete {cookie class ftype flowid time FLOW args}\
 proc \
 teho_setft { classifier classifiertype ulflows } \
 {
+
+    # default UL flows...
     set ULFLOWS { \
-	{ ihv/ihl/tos/ttl/prot/src/dst teho_starttimeout FT_UL_NOPORT } \
-	{ ihv/ihl/tos/ttl/prot/src/dst/sport/dport teho_starttimeout FT_UL_PORT }}
+	{   ihv/ihl/tos/ttl/prot/src/dst \
+	    FT_UL_NOPORT \
+	    teho_starttimeout \
+	    - \
+	    teho_deleteflow} \
+	{   ihv/ihl/tos/ttl/prot/src/dst/sport/dport \
+	    FT_UL_PORT \
+	    teho_starttimeout \
+	    - \
+	    teho_deleteflow}}
+
     set ftindex 0
+
     # the following is like atoft in the .c file:
     set alltags { ihv ihl tos len id foff ttl prot sum src dst sport dport }
+
 
     if {$ulflows == {}} {
 	set ulflows $ULFLOWS
@@ -238,11 +247,12 @@ teho_setft { classifier classifiertype ulflows } \
     set type1 [join $type1 /]
     set type2 [join $type2 /]
     puts "# flowtype $ftindex $type1 $classifier"
-    teho_set_flow_type -f $ftindex -c $classifier $type1
+    puts "teho_set_flow_type -f $ftindex -n $classifier -t teho_ll_delete $type1"
+    teho_set_flow_type -f $ftindex -n $classifier -t teho_ll_delete $type1
     incr ftindex
     if {$portsseen != 0} {
 	puts "# flowtype $ftindex $type2 $classifier"
-	teho_set_flow_type -f $ftindex -c $classifier $type2
+	teho_set_flow_type -f $ftindex -n $classifier -t teho_ll_delete $type2
 	incr ftindex
     }
 
@@ -254,16 +264,29 @@ teho_setft { classifier classifiertype ulflows } \
 	set flow [lindex $ulflows $whichflow]
 	puts "# flowtype $ftindex $flow"
 	set len [llength $flow]
-	if {$len >= 3} {
-	    global [lindex $flow 2]
-	    set [lindex $flow 2] $ftindex
-	}
 	if {$len >= 2} {
-	    teho_set_flow_type -f $ftindex -c [lindex $flow 1] \
-							[lindex $flow 0]
-	} else {
-	    teho_set_flow_type -f $ftindex [lindex $flow 0]
+	    global [lindex $flow 1]
+	    set [lindex $flow 1] $ftindex
 	}
+	if {$len >= 3} {
+	    set newflow "[lindex $flow 2]"
+	} else {
+	    set newflow "-"
+	}
+	if {$len >= 4} {
+	    set recv "[lindex $flow 3]"
+	} else {
+	    set recv "-"
+	}
+	if {$len >= 5} {
+	    set timeout "[lindex $flow 4]"
+	} else {
+	    set timeout "-"
+	}
+	puts "teho_set_flow_type -f $ftindex -n $newflow \
+				-r $recv -t $timeout [lindex $flow 0]"
+	teho_set_flow_type -f $ftindex -n $newflow \
+				-r $recv -t $timeout [lindex $flow 0]
     }
 }
 
@@ -333,7 +356,7 @@ teho_class_details { fixortcpd filename {binsecs 1} {classifier {}} \
     puts "# plotvars 1 binno 2 pktsrouted 3 bytesrouted 4 pktsswitched"
     puts "# plotvars 5 bytesswitched 6 pktsdropped 7 bytesdropped"
     puts "# plotvars 8 created 9 deleted 10 numflows "
-    puts "# plotvars 11 bintime 12 vsz 13 rsz 14 cputime"
+#    puts "# plotvars 11 bintime 12 vsz 13 rsz 14 cputime"
 
     # we look at 3 classes: CL_NONSWITCHED, CL_TO_BE_SWITCHED, CL_SWITCHED
 
@@ -379,7 +402,7 @@ teho_class_details { fixortcpd filename {binsecs 1} {classifier {}} \
 	set xx [exec ps lp$pid]
 	set xx [lrange [split [join $xx]] 19 24]
 	puts [format \
-	    "%-7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %s" \
+	    "%-7d %7d %7d %7d %7d %7d %7d %7d %7d %7d" \
 		$binno\
 		[expr $diff_non_pkts + $diff_waiting_pkts] \
 		[expr $diff_non_bytes + $diff_waiting_bytes] \
@@ -394,11 +417,11 @@ teho_class_details { fixortcpd filename {binsecs 1} {classifier {}} \
 		[expr ($waiting_created + $switched_created + \
 					$waiting_added + $switched_added) - \
 			($waiting_deleted + $switched_deleted + \
-					$waiting_removed + $switched_removed)] \
-		$bintime \
-		[lindex $xx 0] \
-		[lindex $xx 1] \
-		[lindex $xx 5]]
+					$waiting_removed + $switched_removed)]]
+		; # $bintime
+		; # [lindex $xx 0]
+		; # [lindex $xx 1]
+		; # [lindex $xx 5] ]
 	flush stdout
     }
 }
@@ -410,5 +433,6 @@ proc \
 simul { fixortcpd filename {binsecs 1} {classifier {}} \
 				{classifiertype {}} { ulflows {} }} \
 {
-    teho_class_details $fixortcpd $filename $binsecs $classifier $classifiertype $ulflows
+    teho_class_details $fixortcpd $filename \
+			$binsecs $classifier $classifiertype $ulflows
 }
