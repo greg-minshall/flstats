@@ -1,4 +1,4 @@
 LIBPCAP = ../libpcap/libpcap-0.0.6/libpcap.a
 
 groktcpd:	groktcpd.o
-	${CC} ${LDFLAGS} groktcpd.o ${LIBPCAP}
+	${CC} -o groktcpd ${LDFLAGS} groktcpd.o ${LIBPCAP}
