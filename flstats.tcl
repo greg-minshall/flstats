@@ -52,15 +52,11 @@ proc\
 starttimeout { class flowtype flowid }\
 {
     global CL_TO_BE_SWITCHED CL_NONSWITCHED
-    global flowscreated
 
     if {$class == $CL_TO_BE_SWITCHED} {
 	return "$class $class $flowtype getswitched [switchtime] \
 							deleteflow 2.0 0x2"
     } else {
-	if {$class != $CL_NONSWITCHED} {
-	    incr flowscreated
-	}
 	return "$class $class $flowtype - 0.0  deleteflow 2.0 0x2"
     }
 }
@@ -74,16 +70,12 @@ proc\
 deleteflow {cookie class ftype flowid time FLOW args}\
 {
     global CL_SWITCHED CL_TO_BE_SWITCHED CL_NONSWITCHED
-    global flowsdeleted
 
     # ahh, dr. regsub... 
     regsub -all {([a-zA-Z_]+) ([0-9.]+)} $args {[set x_\1 \2]} bar
     subst $bar
 
     if {[expr $time - $x_last] > $cookie} {
-	if {($class == $CL_SWITCHED) || ($class == $CL_TO_BE_SWITCHED)} {
-	    incr flowsdeleted
-	}
 	return "DELETE"		; # gone...
     }
 
@@ -160,7 +152,6 @@ simul { fixortcpd filename {binsecs 1} } \
 {
     global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
     global FT_LL_PORT FT_LL_NOPORT FT_UL_PORT FT_UL_NOPORT
-    global flowscreated flowsdeleted
 
     set fname [glob $filename]
     file stat $fname filestats
@@ -205,28 +196,28 @@ simul { fixortcpd filename {binsecs 1} } \
     #	5	switched flows
 
     set pid [pid]
-    set flowscreated 0
-    set flowsdeleted 0
-    set oflowsdeleted 0
-    set oflowscreated 0
+
+
+    # preload the stats counters
+    set pre non
+    subst [get_summary_vec $CL_NONSWITCHED]
+    set pre waiting
+    subst [get_summary_vec $CL_TO_BE_SWITCHED]
+    set pre switched
+    subst [get_summary_vec $CL_SWITCHED]
+    set pre gstats
+    subst [get_summary_vec 0]
 
     while {1} {
-	set pre non
-	subst [get_summary_vec $CL_NONSWITCHED]
-	set pre waiting
-	subst [get_summary_vec $CL_TO_BE_SWITCHED]
-	set pre switched
-	subst [get_summary_vec $CL_SWITCHED]
-	set pre gstats
-	subst [get_summary_vec 0]
-	set bintime [lindex [split [time {set binno [teho_read_one_bin $binsecs]}]] 0]
-
+	set bintime [lindex [split [time { \
+			set binno [teho_read_one_bin $binsecs]}]] 0]
 	if {$binno == -1} {
 	    break;	# eof
 	}
-	set timeouttime [lindex [split \
-			[time {set totalflows [teho_run_timeouts]}]] 0 ]
+	set timeouttime [lindex [split [time { \
+			set totalflows [teho_run_timeouts]}]] 0 ]
 
+	# get differences from previous stats counters
 	set pre non
 	subst [get_diff_vec $CL_NONSWITCHED]
 	set pre waiting
@@ -236,27 +227,40 @@ simul { fixortcpd filename {binsecs 1} } \
 	set pre gstats
 	subst [get_diff_vec 0]
 
+	# now, update the stats counters
+	set pre non
+	subst [get_summary_vec $CL_NONSWITCHED]
+	set pre waiting
+	subst [get_summary_vec $CL_TO_BE_SWITCHED]
+	set pre switched
+	subst [get_summary_vec $CL_SWITCHED]
+	set pre gstats
+	subst [get_summary_vec 0]
 	set xx [exec ps lp$pid]
 	set xx [lrange [split [join $xx]] 19 24]
 	puts [format \
 	    "%-7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %s" \
-			$binno\
-			[expr $diff_non_pkts + $diff_waiting_pkts] \
-			[expr $diff_non_bytes + $diff_waiting_bytes] \
-			$diff_switched_pkts \
-			$diff_switched_bytes \
-			[expr $diff_gstats_fragpkts + $diff_gstats_runtpkts \
-				+ $diff_gstats_noportpkts] \
-			[expr $diff_gstats_fragbytes + $diff_gstats_runtbytes \
-				+ $diff_gstats_noportbytes] \
-			[expr $flowscreated - $oflowscreated] \
-			[expr $flowsdeleted - $oflowsdeleted] \
-			[expr ($waiting_added + $switched_added) - \
-				($waiting_removed + $switched_removed)] \
-			$totalflows $bintime $timeouttime \
-			[lindex $xx 0] [lindex $xx 1] [lindex $xx 5]]
+		$binno\
+		[expr $diff_non_pkts + $diff_waiting_pkts] \
+		[expr $diff_non_bytes + $diff_waiting_bytes] \
+		$diff_switched_pkts \
+		$diff_switched_bytes \
+		[expr $diff_gstats_fragpkts + $diff_gstats_runtpkts \
+			+ $diff_gstats_noportpkts] \
+		[expr $diff_gstats_fragbytes + $diff_gstats_runtbytes \
+			+ $diff_gstats_noportbytes] \
+		[expr $diff_waiting_created + $diff_switched_created] \
+		[expr $diff_waiting_deleted + $diff_switched_deleted] \
+		[expr ($waiting_created + $switched_created + \
+					$waiting_added + $switched_added) - \
+			($waiting_deleted + $switched_deleted + \
+					$waiting_removed + $switched_removed)] \
+		$totalflows \
+		$bintime \
+		$timeouttime \
+		[lindex $xx 0] \
+		[lindex $xx 1] \
+		[lindex $xx 5]]
 	flush stdout
-	set oflowscreated $flowscreated
-	set oflowsdeleted $flowsdeleted
     }
 }
