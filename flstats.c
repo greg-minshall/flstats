@@ -28,7 +28,7 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.65 1996/03/14 22:03:25 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.66 1996/03/14 22:47:45 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1670,6 +1670,7 @@ fl_continue_flow_enumeration(ClientData clientData, Tcl_Interp *interp,
 	    Tcl_SetResult(interp,
 			    flow_statistics(flow_enum_state), TCL_VOLATILE);
 	    flow_enum_state->fe_pkts_last_enum = flow_enum_state->fe_pkts;
+	    flow_enum_state = flow_enum_state->fe_next_in_table;
 	    return TCL_OK;
 	}
 	flow_enum_state = flow_enum_state->fe_next_in_table;
