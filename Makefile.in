@@ -1,4 +1,4 @@
-# $Id: Makefile.in,v 1.19 1996/10/01 03:53:40 minshall Exp $
+# $Id: Makefile.in,v 1.20 1997/02/28 22:00:32 minshall Exp minshall $
 
 # version for distribution...
 VERS=`cat VERSION`
@@ -22,7 +22,34 @@ SOURCES = Makefile.in flstats.1 flstats.c flstats.tcl flstats.html \
 
 DISTRIBUTION = ${SOURCES} flstats.0 flstats.0.txt
 
+.SUFFIXES:	.c .h .o .tcl .char
+
+# turn a .tcl file into a string for a .c file to process...
+.tcl.char:
+	sed 's/\\/\\\\/g' < $< | sed 's/"/\\"/g' | \
+				sed 's/^/"/' | sed 's/$$/\\n"/' > $@
+
+
 all:	flstats
+flstats:		flstats.o
+	${CC} ${CFLAGS} -o flstats ${LDFLAGS} flstats.o \
+					    ${LIBPATH} ${LIBTCL} ${LIBPCAP} -lm
+
+flstats.o:	flstats.char init.char flstats.c
+
+init.char:	__CONFIGURE__TCLLOC__/init.tcl
+
+flstats.char:	flstats.tcl
+
+flstats.0:	flstats.1
+	nroff -man flstats.1 > flstats.0
+
+flstats.0.txt:	flstats.0
+	colcrt < flstats.0 > flstats.0.txt
+
+flstats.html:  flstats.vtml VERSION
+	sed -e "s/__VERSION__/${VERS}/g" -e "s/__DATE__/`date "+%d %h %y"`/g" \
+					    flstats.vtml > flstats.html
 
 distribution:	fixrev tar.Z web.tar
 
@@ -65,28 +92,6 @@ fixrev:
 	}' < VERSION > VERSION.new
 	mv VERSION.new VERSION
 	ci -u -m"new fix version" VERSION
-
-
-flstats:		flstats.o
-	${CC} ${CFLAGS} -o flstats ${LDFLAGS} flstats.o \
-					    ${LIBPATH} ${LIBTCL} ${LIBPCAP} -lm
-
-flstats.o:	flstats.char flstats.c
-
-# turn a .tcl file into a string for a .c file to process...
-flstats.char:	flstats.tcl
-	sed 's/\\/\\\\/g' < flstats.tcl | sed 's/"/\\"/g' | \
-				sed 's/^/"/' | sed 's/$$/\\n"/' > flstats.char
-
-flstats.0:	flstats.1
-	nroff -man flstats.1 > flstats.0
-
-flstats.0.txt:	flstats.0
-	colcrt < flstats.0 > flstats.0.txt
-
-flstats.html:  flstats.vtml VERSION
-	sed -e "s/__VERSION__/${VERS}/g" -e "s/__DATE__/`date "+%d %h %y"`/g" \
-					    flstats.vtml > flstats.html
 
 tar.Z:	${DISTRIBUTION}
 	tar cf flstats-${VERS}.tar ${DISTRIBUTION}
