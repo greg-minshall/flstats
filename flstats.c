@@ -54,7 +54,7 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.3 1996/07/29 21:10:07 minshall Exp $";
+	"$Id: flstats.c,v 1.77 1996/07/29 21:12:33 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -267,7 +267,7 @@ struct ftinfo {
 	     * routine:	fti_new_flow_upcall
 	     * call:	"fti_new_flow_upcall class flowindex flowtype flowid"
 	     * result:	"class upper_class upper_ftype recvsecs.usecs"
-	     *						timersecs.usecs" 
+	     *			revcpkts recvsipg.usecs timersecs.usecs" 
 	     *
 	     * 'class' is the class of the new flow.  'upper_class'
 	     * is the class for any parent flow that might be created.
