@@ -1,7 +1,7 @@
 #
 # Tcl script as part of flstats
 #
-# $Id: flstats.tcl,v 1.50 1996/08/01 00:54:04 minshall Exp minshall $
+# $Id: flstats.tcl,v 1.51 1996/08/01 21:28:33 minshall Exp minshall $
 #
 #
 
@@ -56,7 +56,7 @@ flclassifier.specifier {} \
 }
 
 proc\
-flclassifier { class flowtype flowid }\
+flclassifier { class flowtype flowid } \
 {
     global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
     global FT_UL_PORT FT_UL_NOPORT
@@ -76,7 +76,7 @@ flclassifier { class flowtype flowid }\
 #
 
 proc\
-flstarttimeout { class flowtype flowid }\
+flstarttimeout { class flowtype flowid } \
 {
     global CL_TO_BE_SWITCHED CL_NONSWITCHED
 
@@ -93,7 +93,7 @@ flstarttimeout { class flowtype flowid }\
 #
 
 proc\
-fldeleteflow {class ftype flowid time FLOW args}\
+fldeleteflow {class ftype flowid time FLOW args} \
 {
     # ahh, dr. regsub... 
     regsub -all {([a-zA-Z_]+) ([0-9.]+)} $args {[set x_\1 \2]} bar
@@ -115,7 +115,7 @@ fldeleteflow {class ftype flowid time FLOW args}\
 
 
 proc\
-flgetswitched { class flowtype flowid args}\
+flgetswitched { class flowtype flowid args} \
 {
     global CL_SWITCHED
 
@@ -149,7 +149,7 @@ flget_diff_vec {class} \
 }
 
 proc\
-flll_delete {class ftype flowid time FLOW args}\
+flll_delete {class ftype flowid time FLOW args} \
 {
     # ahh, dr. regsub... 
     regsub -all {([a-zA-Z_]+) ([0-9.]+)} $args {[set x_\1 \2]} bar
@@ -195,7 +195,7 @@ fl_flow_details { {filename {}} {binsecs {}} \
 
 proc \
 fl_class_details { {filename {}} {binsecs {}} \
-					{classifier {}} { flowtypes {} }}\
+					{classifier {}} { flowtypes {} }} \
 {
     global flstats
 
@@ -218,7 +218,7 @@ fl_class_details { {filename {}} {binsecs {}} \
 
 proc \
 old_fl_class_details { {filename {}} {binsecs {}} \
-					{classifier {}} { flowtypes {} }}\
+					{classifier {}} { flowtypes {} }} \
 {
     global flstats
     global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
@@ -424,7 +424,7 @@ fl_setft { {classifier {}} {flowtypes {}} } \
 	if {$notthis == 0} {
 	    set notfound 0
 	    # tell ll classifier which flow types to use.
-	    fl_set_ll_classifier 0 $whichflow
+	    fl_set_ll_classifier 0 [expr 1 + $whichflow]
 	    break
 	}
     }
@@ -460,7 +460,7 @@ fl_setft { {classifier {}} {flowtypes {}} } \
 		if {$notthis == 0} {
 		    set notfound 0
 		    # tell ll classifier which flow types to use.
-		    fl_set_ll_classifier 1 $whichflow
+		    fl_set_ll_classifier 1 [expr 1 + $whichflow]
 		    break
 		}
 	    }
@@ -564,7 +564,7 @@ fl_setup { {filename {}} {binsecs {}} \
 
 # parse command line arguments.
 proc\
-fl_set_parameters {argc argv}\
+fl_set_parameters {argc argv} \
 {
     global argv0
     global flstats
@@ -700,7 +700,7 @@ fl_set_parameters {argc argv}\
 }
 
 proc\
-fl_startup { argc argv }\
+fl_startup { argc argv } \
 {
     global flstats
     global tcl_RcFileName
