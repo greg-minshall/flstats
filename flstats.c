@@ -7,8 +7,6 @@
  *		pointers internally (ftype, class).
  */
 
-/* enable onebehind caching (disable for relative performance tests) */
-#define	ONEBEHIND
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -72,8 +70,9 @@ typedef struct hentry hentry_t, *hentry_p;
 struct hentry {
     /* fields for application use */
     u_char
-	flow_type_index,	/* which flow type is this? */
-	class_index;	/* where are statistics recorded? */
+	flow_type,		/* which flow type is this? */
+	parent_ftype,		/* parent's flow type index */
+	class;			/* where are statistics recorded? */
     u_long
 	packets,		/* number of packets received */
 	created_bin,
@@ -93,18 +92,35 @@ struct hentry {
 	     * soon it arrives).
 	     */
 
+    char
+	*timeout_cmd;		/* timeout command (if registered) */
+	    /*
+	     * routine: timeout_cmd
+	     * call:	"timeout_cmd cookie class flowtype flowid
+	     *				FLOW flowstats CLASS classstats"
+	     * result:  "timeout_cmd secs.usecs cookie"
+	     */
+    void
+	*timeout_cookie;	/* cookie for timeout routine */
     struct timeval
 	created,		/* time created */
 	last_pkt_rcvd,		/* time most recent packet seen */
-	pkt_recv_cmd_time;	/* pkt_recv_cmd won't run till this time */
+	pkt_recv_cmd_time,	/* pkt_recv_cmd won't run till this time */
+	timeout_time;		/* time to run timeout routine */
     /* fields for hashing */
-    u_short sum;
-    u_short key_len;
-    hentry_p next_in_bucket;
-    hentry_p next_in_table;
-    u_char key[1];		/* variable sized (KEEP AT END!) */
+    u_short sum;		/* hash of key, speeds up searching */
+    u_char  key_len,		/* length of key */
+	    level;		/* "level" - to allow same key at diff */
+    hentry_p
+	    next_in_bucket;
+    hentry_p
+	    next_in_table;
+    u_char  key[1];		/* variable sized (KEEP AT END!) */
 };
 
+/* we define two levels; LOWER is for the low level machinery; HIGHER is ... */
+#define	LEVEL_LOWER	0
+#define	LEVEL_UPPER	1
 
 /*
  * At the lower level, application-defined "classes" are merely
@@ -120,8 +136,8 @@ struct hentry {
  */
 
 typedef struct clstats {
-    int	    cls_created,		/* flows created */
-	    cls_deleted,		/* flows deleted */
+    int	    cls_added,			/* flows added to this class */
+	    cls_removed,		/* flows removed from this class */
 	    cls_active,			/* flows active this interval */
 	    cls_packets,		/* packets read */
 	    cls_fragments,		/* fragments seen (using ports) */
@@ -182,7 +198,7 @@ typedef struct ftinfo ftinfo_t, *ftinfo_p;
 struct ftinfo {
     u_char  fti_type_indicies[MAX_FLOW_ID_BYTES],
             fti_bytes_and_mask[2*MAX_FLOW_ID_BYTES],
-	    fti_class_index;	/* default */
+	    fti_class;	/* default */
     int	    fti_bytes_and_mask_len,
 	    fti_type_indicies_len,
 	    fti_id_len,
@@ -201,7 +217,7 @@ struct ftinfo {
 	     * executed when a packet in the new flow is received
 	     * secs.usecs after the current time in the output flow.
 	     * note that if the output flowtype and flowid map to
-	     * an existing flow, the class_index, pkt_recv, and
+	     * an existing flow, the class, pkt_recv, and
 	     * secs.usecs return values are not used.
 	     */
 };
@@ -295,13 +311,13 @@ int fileeof = 0;
 int filetype = 0;
 
 hentry_p buckets[31979];
-#if	defined(ONEBEHIND)
 hentry_p onebehinds[NUM(buckets)];
-#endif	defined(ONEBEHIND)
 hentry_p table;			/* list of everything */
 hentry_p enum_state;
 
 struct timeval curtime, starttime;
+
+struct timeval ZERO = { 0, 0 };
 
 int binsecs = 0;		/* number of seconds in a bin */
 
@@ -320,9 +336,9 @@ char pcap_errbuf[PCAP_ERRBUF_SIZE];
 
 FILE *fix_descriptor;
 
-u_char pending_flow_id[MAX_FLOW_ID_BYTES];
-int pending, pending_flow_type;
 int packet_error = 0;
+
+int pending;
 u_char *pending_packet[MAX_PACKET_SIZE];
 
 u_long binno;
@@ -380,8 +396,8 @@ newfile(void)
 	exit(2);
     }
     memset(&clstats[0], 0, sizeof clstats);
-    curtime.tv_sec = curtime.tv_usec = 0;
-    starttime.tv_sec = starttime.tv_usec = 0;
+    curtime = ZERO;
+    starttime = ZERO;
     pending = 0;
 
     for (hent = table; hent; hent = nhent) {
@@ -390,40 +406,37 @@ newfile(void)
     }
     table = 0;
     memset(buckets, 0, sizeof buckets);
-#if	defined(ONEBEHIND)
     memset(onebehinds, 0, sizeof onebehinds);
-#endif	defined(ONEBEHIND)
 }
 
 /*
  * Compute a checksum on a contiguous area of storage
  *
  * This is tailored to doing quite short data structures,
- * in particular, flow ids
+ * in particular, flow ids.
  *
- * This does *NOT* do the ones complement...
+ * The seed parameter biases things slightly.
  */
 
 static u_short
-cksum(u_char *p, int len)
+cksum(u_char *p, int len, u_long seed)
 {
-    u_long sum = 0;
     int shorts = len/2;
 
     while (shorts > 4) {
-/* 0*/	sum += PICKUP_NETSHORT(p); p += 2; sum += PICKUP_NETSHORT(p); p += 2;
-/* 2*/	sum += PICKUP_NETSHORT(p); p += 2; sum += PICKUP_NETSHORT(p); p += 2;
+/* 0*/	seed += PICKUP_NETSHORT(p); p += 2; seed += PICKUP_NETSHORT(p); p += 2;
+/* 2*/	seed += PICKUP_NETSHORT(p); p += 2; seed += PICKUP_NETSHORT(p); p += 2;
 /* 4*/	shorts -= 4;
     }
 
     while (shorts > 0) {
-	sum += PICKUP_NETSHORT(p);
+	seed += PICKUP_NETSHORT(p);
 	p += 2;
 	shorts--;
     }
 
     if (len&1) {
-	sum += p[0]<<8;
+	seed += p[0]<<8;
     }
 
     /*
@@ -431,36 +444,30 @@ cksum(u_char *p, int len)
      *
      * 0xffff + 0xffff = 0x1fffe.  So, 
      */
-    sum = (sum&0xffff)+((sum>>16)&0xffff);
-    sum = (sum&0xffff)+((sum>>16)&0xffff);	/* That's enough */
+    seed = (seed&0xffff)+((seed>>16)&0xffff);
+    seed = (seed&0xffff)+((seed>>16)&0xffff);	/* That's enough */
 
-    return (u_short) (~htons(sum))&0xffff;
+    return (u_short) (~htons(seed))&0xffff;
 }
 /* table lookup */
 
 static hentry_p
-tbl_lookup(u_char *key, int key_len)
+tbl_lookup(u_char *key, int key_len, int level)
 {
-    u_short sum = cksum(key, key_len);
+    u_short sum = cksum(key, key_len, level);
     hentry_p hent = buckets[sum%NUM(buckets)];
-#if	defined(ONEBEHIND)
     hentry_p onebehind = onebehinds[sum%NUM(onebehinds)];
-#endif	defined(ONEBEHIND)
+#define MATCH(key,len,sum,level,p) \
+	((sum == (p)->sum) && (level == (p)->level) && (len == (p)->key_len) \
+			&& !memcmp(key, (p)->key, len))
 
-#if	defined(ONEBEHIND)
-    if (onebehind && (onebehind->sum == sum) &&
-		    (onebehind->key_len == key_len) &&
-		    !memcmp(key, onebehind->key, key_len)) {
+    if (onebehind && MATCH(key, key_len, sum, level, onebehind)) {
 	return onebehind;
     }
-#endif	defined(ONEBEHIND)
 
     while (hent) {
-	if ((hent->sum == sum) && (hent->key_len == key_len) &&
-				(!memcmp(key, hent->key, key_len))) {
-#if	defined(ONEBEHIND)
+	if (MATCH(key, key_len, sum, level, hent)) {
 	    onebehinds[sum%NUM(onebehinds)] = hent;
-#endif	defined(ONEBEHIND)
 	    break;
 	}
 	hent = hent->next_in_bucket;
@@ -469,9 +476,9 @@ tbl_lookup(u_char *key, int key_len)
 }
 
 static hentry_p
-tbl_add(u_char *key, int key_len)
+tbl_add(u_char *key, int key_len, int level)
 {
-    u_short sum = cksum(key, key_len);
+    u_short sum = cksum(key, key_len, level);
     hentry_p *bucket = &buckets[sum%NUM(buckets)];
     hentry_p hent;
 
@@ -481,6 +488,7 @@ tbl_add(u_char *key, int key_len)
     }
     hent->sum = sum;
     hent->key_len = key_len;
+    hent->level = level;
     hent->next_in_bucket = *bucket;
     *bucket = hent;
     hent->next_in_table = table;
@@ -495,9 +503,9 @@ set_time(u_long secs, u_long usecs)
 {
     curtime.tv_sec = secs;
     curtime.tv_usec = usecs;
-    if ((starttime.tv_sec == 0) && (starttime.tv_usec == 0)) {
-	starttime.tv_sec = curtime.tv_sec;
-	starttime.tv_usec = curtime.tv_usec;
+    if ((starttime.tv_sec == ZERO.tv_sec) && 
+				(starttime.tv_usec == ZERO.tv_usec)) {
+	starttime = curtime;
     }
     if (binno == -1) {
 	binno = NOW_AS_BINNO();
@@ -506,7 +514,7 @@ set_time(u_long secs, u_long usecs)
 
 
 static char *
-flow_id_to_string(int ftype, u_char *id)
+flow_id_to_string(ftinfo_p ft, u_char *id)
 {
     static char result[MAX_FLOW_ID_BYTES*10];
     char fidstring[30], *fidp;
@@ -516,8 +524,8 @@ flow_id_to_string(int ftype, u_char *id)
     int i, j;
 
     result[0] = 0;
-    for (i = 0; i < ftinfo[ftype].fti_type_indicies_len; i++) {
-	xp = &atoft[ftinfo[ftype].fti_type_indicies[i]];
+    for (i = 0; i < ft->fti_type_indicies_len; i++) {
+	xp = &atoft[ft->fti_type_indicies[i]];
 	fidp = fidstring;
 	dot = "";			/* for dotted decimal */
 	decimal = 0;			/* for decimal */
@@ -601,177 +609,108 @@ flow_type_to_string(int ftype)
 
 
 static hentry_p
-new_flow(ftinfo_p ftip, int ftype, u_char *flowid)
+new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int level)
 {
-    hentry_p hent;
+    hentry_p fe;
 
-    hent = tbl_add(pending_flow_id, ftip->fti_id_len);
-    if (hent == 0) {
+    fe = tbl_add(flowid, ft->fti_id_len, level);
+    if (fe == 0) {
 	return 0;
     }
-    hent->flow_type_index = ftype;
-    hent->class_index = ftip->fti_class_index;
-    hent->packets = 0;
-    hent->created_bin = binno;
-    hent->last_bin_active = 0xffffffff;
-    hent->pkt_recv_cmd = 0;
-    hent->created = curtime;
-    hent->pkt_recv_cmd_time.tv_sec = 0;
-    hent->pkt_recv_cmd_time.tv_usec = 0;
+    fe->flow_type = ft-ftinfo;
+    fe->class = ft->fti_class;
+    fe->packets = 0;
+    fe->created_bin = binno;
+    fe->last_bin_active = 0xffffffff;
+    fe->pkt_recv_cmd = 0;
+    fe->created = curtime;
+    fe->pkt_recv_cmd_time = ZERO;
+
+    /*
+     * now, if there is a "new flow" callout registered in this
+     * flow type, call it.
+     *
+     * the callout is allowed to change certain parameters of
+     * this flow entry: the class, the parent flow type,
+     * the pkt_recv_cmd and parameters, and the timeout_cmd
+     * and parameters.
+     */
+
+    if (ft->fti_new_flow_cmd) {
+	char buf[60], buf2[60];
+	int n;
+
+	sprintf(buf, " %d %d ", fe->class, ft-ftinfo);
+	if (Tcl_VarEval(interp, ft->fti_new_flow_cmd,
+		buf, flow_id_to_string(ft, fe->key), 0) != TCL_OK) {
+	    packet_error = TCL_ERROR;
+	    return 0;
+	}
+	buf[0] = 0;
+	buf2[0] = 0;
+	fe->pkt_recv_cmd_time.tv_usec = 0;
+	fe->timeout_time.tv_usec = 0;
+	fe->timeout_cookie = 0;
+
+	n = sscanf(interp->result, "%d %d %s %d.%d %s %d.d 0x%x",
+		&fe->class, &fe->parent_ftype, buf,
+			    &fe->pkt_recv_cmd_time.tv_sec,
+			    &fe->pkt_recv_cmd_time.tv_usec,
+			    buf2, &fe->timeout_time.tv_sec,
+			    &fe->timeout_time.tv_usec,
+			    &fe->timeout_cookie);
+
+	/*
+	 * (yes, these "if" stmts could be nested, and thus
+	 * be more efficient; but, they would be less legible,
+	 * so...)
+	 */
+	if (buf[0] && (buf[0] != '-')) {
+	    fe->pkt_recv_cmd = strsave(buf);
+	} else {
+	    fe->pkt_recv_cmd = 0;
+	}
+	if (n >= 4) {
+	    /* returned value is relative to now, so make absolute */
+	    TIME_ADD(&fe->pkt_recv_cmd_time,
+			    &fe->pkt_recv_cmd_time, &curtime);
+	}
+
+	if (buf2[0] && (buf2[0] != '-')) {
+	    fe->timeout_cmd = strsave(buf2);
+	} else {
+	    fe->timeout_cmd = 0;
+	}
+	if (n >= 7) {
+	    /* returned value is relative to now, so make absolute */
+	    TIME_ADD(&fe->timeout_time, &fe->timeout_time, &curtime);
+	}
+    }
+    clstats[fe->class].cls_added++;
+    return fe;
 }
 
 
 /*
- * This is the main packet input routine, called when a packet
- * has been received.
+ * do per flow processing of a packet that has been received.
  *
- * This is where all the statistics are kept (!).
+ * this involves updating counters as well as calling out
+ * to the "packet_received" callback routine if appropriate.
  */
 
 static void
-packetin(Tcl_Interp *interp, const u_char *packet, int len)
+packetinflow(Tcl_Interp *interp, hentry_p fe)
 {
-    u_char flow_id[MAX_FLOW_ID_BYTES];
-    int i, j, ftype, pkthasports, outcls, bigenough;
-    hentry_p hent;
-    ftinfo_p ftip;
-    clstats_p clsp;
+    ftinfo_p ft;
+    clstats_p cl;
 
-    /* if no packet pending, then process this packet */
-    if (pending == 0) {
-	pkthasports = protohasports[packet[9]];
-	bigenough = 0;
-	for (ftype = 0;
-		    (ftype < NUM(ftinfo)) && !FTI_UNUSED(&ftinfo[ftype]);
-								    ftype++) {
-	    if (len >= ftinfo[ftype].fti_id_covers) {
-		bigenough = 1;
-		if (pkthasports || !FTI_USES_PORTS(&ftinfo[ftype])) {
-		    break;
-		}
-	    }
-	}
-	if (ftype >= NUM(ftinfo)) {
-	    clstats[0].cls_packets++;
-	    if (bigenough) {	/* packet was big enough, but... */
-		clstats[0].cls_noports++;
-	    } else {
-		clstats[0].cls_runts++;
-	    }
-	    return;
-	}
-	ftip = &ftinfo[ftype];
-	clsp = &clstats[ftip->fti_class_index];
-	if ((packet[6]&0x1fff) && FTI_USES_PORTS(ftip)) { /* XXX */
-	    clsp->cls_packets++;
-	    clsp->cls_fragments++;
-	    return;
-	}
-	/* create flow id for this packet */
-	FLOW_ID_FROM_HDR(pending_flow_id, packet, ftip);
-    } else {
-	pending = 0;
-	if (len) {	/* shouldn't happen! */
-	    interp->result = "invalid condition in packetin";
-	    packet_error = TCL_ERROR;
-	    return;
-	}
-	ftype = pending_flow_type;
-	ftip = &ftinfo[ftype];
-	clsp = &clstats[ftip->fti_class_index];
-	binno = NOW_AS_BINNO();
-	packet = (const u_char *)pending_packet;
-    }
-
-    /* XXX shouldn't count runts, fragments, etc., if time hasn't arrived */
-    if (binno != NOW_AS_BINNO()) {
-	pending = 1;
-	pending_flow_type = ftype;
-	memcpy(pending_packet, packet, MIN(len, sizeof pending_packet));
-	return;
-    }
-
-    /*
-     * now, we know the flow type and flow id.  we don't know
-     * where the flow entry is, yet.
-     */
-
-    /* find the low level flow entry */
-    hent = tbl_lookup(pending_flow_id, ftip->fti_id_len);
-    if (hent == 0) {
-	hent = new_flow(ftip, ftype, pending_flow_id);
-	if (hent == 0) {
-	    interp->result = "unable to create a new flow";
-	    packet_error = TCL_ERROR;
-	    return;
-	}
-	/*
-	 * now, if there is a "new flow" callout registered in this
-	 * flow type, call it.
-	 */
-	if (ftip->fti_new_flow_cmd) {
-	    char buf[60];
-	    int outft, n;
-	    struct timeval outtime;
-
-	    sprintf(buf, " %d %d ", hent->class_index, ftype);
-	    if (Tcl_VarEval(interp, ftip->fti_new_flow_cmd,
-		    buf, flow_id_to_string(ftype, hent->key), 0) != TCL_OK) {
-		packet_error = TCL_ERROR;
-		return;
-	    }
-	    outft = ftype;
-	    outcls = hent->class_index;
-	    outtime = curtime;
-	    buf[0] = 0;
-	    n = sscanf(interp->result, "%d %d %s %d.%d",
-		    &outcls, &outft, buf, &outtime.tv_sec, &outtime.tv_usec);
-	    if (n >= 4) {
-		TIME_ADD(&outtime, &outtime, &curtime);
-	    }
-	    if (outft != ftype) {
-		/* sigh, need to go find/create a new flow */
-		ftype = outft;
-		ftip = &ftinfo[ftype];
-		if (FTI_UNUSED(ftip)) {
-		    interp->result ="attempt to map flow to unused flow type";
-		    packet_error = TCL_ERROR;
-		    return;
-		}
-		FLOW_ID_FROM_HDR(pending_flow_id, packet, ftip);
-		hent = tbl_lookup(pending_flow_id, ftip->fti_id_len);
-		if (hent == 0) {
-		    hent = new_flow(ftip, ftype, pending_flow_id);
-		    if (hent == 0) {
-			interp->result = "no more room for more flows";
-			packet_error = TCL_ERROR;
-			return;
-		    }
-		}
-	    }
-	    hent->class_index = outcls;
-	    hent->pkt_recv_cmd_time = outtime;
-	    if (buf[0]) {
-		hent->pkt_recv_cmd = strsave(buf);
-	    } else {
-		hent->pkt_recv_cmd = 0;
-	    }
-	}
-	clsp = &clstats[hent->class_index];
-	clsp->cls_created++;
-    } else {
-	clsp = &clstats[hent->class_index];
-    }
-
-    /* we now know the flow table entry. */
-    clsp->cls_packets++;
-
-    if (hent->pkt_recv_cmd && TIME_LT(&curtime, &hent->pkt_recv_cmd_time)) {
+    /* do we need to callout? */
+    if (fe->pkt_recv_cmd && TIME_LT(&curtime, &fe->pkt_recv_cmd_time)) {
 	char buf[60];
 	int n;
 	struct timeval outtime;
 
-	sprintf(buf, " %d %d ", hent->class_index, ftype);
+	sprintf(buf, " %d %d ", fe->class, fe->flow_type);
 	/*
 	 * i can think of a few things this might be good for:
 	 *
@@ -802,29 +741,162 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	 *	this can make the deletion "data driven" (by the
 	 *	*next* packet received in the same flow).
 	 */
-	if (Tcl_VarEval(interp, hent->pkt_recv_cmd,
-		    buf, flow_id_to_string(ftype, hent->key), 0) != TCL_OK) {
+	if (Tcl_VarEval(interp, fe->pkt_recv_cmd,
+		    buf, flow_id_to_string(ft, fe->key), 0) != TCL_OK) {
 	    packet_error = TCL_ERROR;
 	    return;
 	}
 	n = sscanf(interp->result, "%d %s %d.%d",
-		    &hent->class_index, buf, &outtime.tv_sec, &outtime.tv_usec);
-	free(hent->pkt_recv_cmd);
+				    &fe->class, buf,
+				    &fe->pkt_recv_cmd_time.tv_sec,
+				    &fe->pkt_recv_cmd_time.tv_usec);
 	if (n >= 2) {
-	    hent->pkt_recv_cmd = strsave(buf);
-	    if (n >= 3) {
-		TIME_ADD(&hent->pkt_recv_cmd_time, &curtime, &outtime);
+	    free(fe->pkt_recv_cmd);
+	    if (buf[0] != '-') {
+		fe->pkt_recv_cmd = strsave(buf);
+	    } else {
+		fe->pkt_recv_cmd = 0;
 	    }
-	} else {
-	    hent->pkt_recv_cmd = 0;
+	    if (n >= 3) {
+		TIME_ADD(&fe->pkt_recv_cmd_time, &curtime, &outtime);
+	    }
 	}
     }
-    hent->packets++;
-    hent->last_pkt_rcvd = curtime;
-    if (hent->last_bin_active != binno) {
-	hent->last_bin_active = binno;
-	clsp->cls_active++;
+
+    ft = &ftinfo[fe->flow_type];
+    cl = &clstats[fe->class];
+    /* update counters (after callout has had a chance to change things) */
+    cl->cls_packets++;
+    fe->packets++;
+    fe->last_pkt_rcvd = curtime;
+    if (fe->last_bin_active != binno) {
+	fe->last_bin_active = binno;
+	cl->cls_active++;
     }
+}
+
+
+/*
+ * This is the main packet input routine, called when a packet
+ * has been received.
+ *
+ * We first map the incoming packet into a lower level
+ * flow type (llft).  We use that to find the lower level
+ * flow entry (llfe).  We also use the llft (possibly via
+ * a callout routine) to find an upper level flow type (ulft).
+ * We then use this ulft to find the upper level flow entry (ulfe).
+ */
+
+static void
+packetin(Tcl_Interp *interp, const u_char *packet, int len)
+{
+    u_char llfid[MAX_FLOW_ID_BYTES], ulfid[MAX_FLOW_ID_BYTES];
+    int i, j, pkthasports, bigenough;
+    hentry_p llfe, ulfe;	/* lower and upper level flow entries */
+    ftinfo_p llft, ulft;	/* lower and upper level flow types */
+    clstats_p llcl, ulcl;	/* lower and upper level classes */
+
+    /* if we've gone over to another bin number... */
+    if (binno != NOW_AS_BINNO()) {
+	if (pending) {
+	    interp->result = "pending pending pending";
+	    packet_error = TCL_ERROR;
+	    return;
+	}
+	pending = 1;
+	memcpy(pending_packet, packet, MIN(len, sizeof pending_packet));
+	/* wait till next time */
+	return;
+    }
+
+    /* check for a pending packet */
+    if (pending) {
+	if (len) {	/* shouldn't happen! */
+	    interp->result = "invalid condition in packetin";
+	    packet_error = TCL_ERROR;
+	    return;
+	}
+	pending = 0;
+	binno = NOW_AS_BINNO();
+	/* use the pending packet */
+	packet = (const u_char *)pending_packet;
+    }
+
+    /* now, do the low level classification into a llft */
+    pkthasports = protohasports[packet[9]];
+    bigenough = 0;
+    for (llft = ftinfo; (llft < &ftinfo[NUM(ftinfo)]) && !FTI_UNUSED(llft);
+								    llft++) {
+	if (len >= llft->fti_id_covers) {
+	    bigenough = 1;
+	    if (pkthasports || !FTI_USES_PORTS(llft)) {
+		break;
+	    }
+	}
+    }
+
+    if (llft >= &ftinfo[NUM(ftinfo)]) {
+	clstats[0].cls_packets++;
+	if (bigenough) {	/* packet was big enough, but... */
+	    clstats[0].cls_noports++;
+	} else {
+	    /* never found a flow type into which it fit */
+	    clstats[0].cls_runts++;
+	}
+	return;
+    }
+
+    llcl = &clstats[llft->fti_class];
+    if ((packet[6]&0x1fff) && FTI_USES_PORTS(llft)) { /* XXX */
+	llcl->cls_packets++;
+	llcl->cls_fragments++;
+	return;
+    }
+
+    /* create lower level flow id for this packet */
+    FLOW_ID_FROM_HDR(llfid, packet, llft);
+
+    /* find the lower level flow entry */
+    llfe = tbl_lookup(llfid, llft->fti_id_len, LEVEL_LOWER);
+
+    if (llfe == 0) {
+	/* the lower level flow doesn't exist, so will need to be created */
+	llfe = new_flow(interp, llft, llfid, LEVEL_LOWER);
+	if (llfe == 0) {
+	    if (packet_error == 0) {
+		interp->result = "unable to create a new lower level flow";
+		packet_error = TCL_ERROR;
+	    }
+	    return;
+	}
+    }
+
+    /* now, need to find ulfe from llfe */
+
+    ulft = &ftinfo[llfe->parent_ftype];		/* get ll's parent flow type */
+
+    /* create the ulfid */
+    FLOW_ID_FROM_HDR(ulfid, packet, ulft);
+
+    /* lookup the upper level flow entry */
+    ulfe = tbl_lookup(ulfid, ulft->fti_id_len, LEVEL_UPPER);
+
+    if (ulfe == 0) {
+	/* the upper level flow doesn't exist -- create it */
+	ulfe = new_flow(interp, ulft, ulfid, LEVEL_UPPER);
+	if (ulfe == 0) {
+	    if (packet_error == 0) {
+		interp->result = "unable to create a new upper level flow";
+		packet_error = TCL_ERROR;
+	    }
+	    return;
+	}
+    }
+
+    /* now, track packets in both the lower and upper flows */
+    /* (notice this doesn't happen if any error above occurs...) */
+    packetinflow(interp, llfe);
+    packetinflow(interp, ulfe);
 }
 
 static void
@@ -1031,7 +1103,7 @@ goodout:
     ftinfo[ftype].fti_bytes_and_mask_len = bandm;
     ftinfo[ftype].fti_id_len = bandm/2;
     ftinfo[ftype].fti_type_indicies_len = indicies;
-    ftinfo[ftype].fti_class_index = class;
+    ftinfo[ftype].fti_class = class;
     ftinfo[ftype].fti_new_flow_cmd = new_flow_cmd;
     return TCL_OK;
 }
@@ -1055,8 +1127,8 @@ teho_set_flow_type(ClientData clientData, Tcl_Interp *interp,
     char *new_flow_cmd;
     static char result[20];
     static char *usage =
-		"Usage: teho_set_flow_type ?-s class_index?"
-			" ?-c new_flow_command? ?-f flow_type_index string";
+		"Usage: teho_set_flow_type ?-s class?"
+			" ?-c new_flow_command? ?-f flow_type string";
     int op;
     extern char *optarg;
     extern int optind, opterr, optreset;
@@ -1098,7 +1170,7 @@ teho_set_flow_type(ClientData clientData, Tcl_Interp *interp,
     }
 
     if (ftype >= NUM(ftinfo)) {
-	interp->result = "flow_type_index higher than maximum";
+	interp->result = "flow_type higher than maximum";
 	return TCL_ERROR;
     }
 
@@ -1124,10 +1196,12 @@ static int
 do_class_summary(Tcl_Interp *interp, clstats_p clsp)
 {
     char summary[100];
-    clstats_p clsp;
 
-    sprintf(summary, "%d %d %d %d %d",
-		    clsp->cls_created, clsp->cls_deleted, clsp->cls_active, clsp->cls_packets, clsp->cls_fragments);
+    sprintf(summary,
+	"added %d removed %d active %d pkts %d frags %d runts %d noports %d",
+	clsp->cls_added, clsp->cls_removed, clsp->cls_active,
+	clsp->cls_packets, clsp->cls_fragments, clsp->cls_runts,
+	clsp->cls_noports);
     Tcl_SetResult(interp, summary, TCL_VOLATILE);
     return TCL_OK;
 }
@@ -1139,7 +1213,7 @@ teho_class_summary(ClientData clientData, Tcl_Interp *interp,
     clstats_p clsp;
 
     if (argc != 2) {
-	interp->result = "Usage: teho_summary class";
+	interp->result = "Usage: teho_class_summary class";
 	return TCL_ERROR;
     }
 
@@ -1166,19 +1240,13 @@ teho_summary(ClientData clientData, Tcl_Interp *interp,
     }
 
     return do_class_summary(interp, &clstats[0]);
-    sprintf(summary, "%d %d %d %d %d %d",
-		    clstats[0].cls_created, clstats[0].cls_active,
-		    clstats[0].cls_packets, clstats[0].cls_runts,
-		    clstats[0].cls_fragments);
-    Tcl_SetResult(interp, summary, TCL_VOLATILE);
-    return TCL_OK;
 }
 
 
 static char *
 one_enumeration(hentry_p hp)
 {
-    return flow_id_to_string(hp->flow_type_index, hp->key);
+    return flow_id_to_string(&ftinfo[hp->flow_type], hp->key);
 }
 
 
@@ -1202,7 +1270,7 @@ teho_continue_enumeration(ClientData clientData, Tcl_Interp *interp,
 
     if (enum_state) {
 	Tcl_ResetResult(interp);
-	sprintf(buf, "%d ", enum_state->flow_type_index);
+	sprintf(buf, "%d ", enum_state->flow_type);
 	Tcl_AppendResult(interp, buf, one_enumeration(enum_state), 0);
 	enum_state = enum_state->next_in_table;
     } else {
