@@ -11,7 +11,7 @@ set FT_GUARD		2
 set FT_UL_PORT		3
 set FT_UL_NOPORT	4
 
-proc switchtime {} { return 0.3 }	; # time to switch
+proc switchtime {} { return 0.300000 }	; # time to switch
 
 proc\
 classifier { class flowtype flowid }\
@@ -21,7 +21,8 @@ classifier { class flowtype flowid }\
 
     regexp {/prot/([^/]*)/} $flowid match prot
     switch -exact -- $prot {
-    6 {return "$CL_TO_BE_SWITCHED $FT_UL_PORT getswitched [switchtime]"}
+; #    6 {return "$CL_TO_BE_SWITCHED $FT_UL_PORT getswitched [switchtime]"}
+    6 {return "$CL_SWITCHED $FT_UL_PORT"}
     11 {return "$CL_NONSWITCHED $FT_UL_PORT"}
     default {return "$CL_NONSWITCHED $FT_UL_NOPORT"}
     }
@@ -97,15 +98,15 @@ simul { fixortcpd filename {binsecs 1} } \
 #	puts $waiting
 	set switched [split [teho_class_summary $CL_SWITCHED]]
 #	puts $switched
-	set diff3 [vec_difference $non $onon]
-	set diff4 [vec_difference $waiting $owaiting]
-	set diff5 [vec_difference $switched $oswitched]
+	set diffnon [vec_difference $non $onon]
+	set diffwaiting [vec_difference $waiting $owaiting]
+	set diffswitched [vec_difference $switched $oswitched]
 	# "binno pktsrouted pktsbypassed newflows numflows"
 	puts [format "%-7d %7d %7d %7d %7d" \
 			$binno\
-			[expr [lindex $diff3 2] + [lindex $diff4 2]] \
-			[lindex $diff5 2] \
-			[lindex $diff4 0] \
+			[expr [lindex $diffnon 2] + [lindex $diffwaiting 2]] \
+			[lindex $diffswitched 2] \
+			[lindex $diffwaiting 0] \
 			[lindex $waiting 0]]
 	set onon $non
 	set owaiting $waiting
