@@ -77,28 +77,29 @@ struct hentry {
 	packets,		/* number of packets received */
 	created_bin,
 	last_bin_active;
-
     char
 	*pkt_recv_cmd;		/* command to call when a pkt received */
 	    /*
 	     * routine:	pkt_recv_cmd
-	     * call:	"pkt_recv_cmd class flowtype flowid"
+	     * call:	"pkt_recv_cmd class ftype flowid FLOW flowstats"
 	     * result:	"class pkt_recv_cmd secs.usecs" 
 	     *
-	     * if, on output, pkt_recv_cmd is null, no command will
-	     * be run.  if, on output, secs is null, zero will be used
-	     * (which means that pkt_recv_cmd will be called the next
-	     * time a packet is received on that flow, no matter how
-	     * soon it arrives).
+	     * if, on output, pkt_recv_cmd is null (or begins with '-'),
+	     * no command will be run.  if, on output, secs is null,
+	     * zero will be used (which means that pkt_recv_cmd will be
+	     * called the next time a packet is received on that flow,
+	     * no matter how soon it arrives).
 	     */
-
     char
 	*timeout_cmd;		/* timeout command (if registered) */
 	    /*
 	     * routine: timeout_cmd
-	     * call:	"timeout_cmd cookie class flowtype flowid
-	     *				FLOW flowstats CLASS classstats"
-	     * result:  "timeout_cmd secs.usecs cookie"
+	     * call:	"timeout_cmd cookie class ftype flowid FLOW flowstats"
+	     * result:  "command timeout_cmd secs.usecs cookie"
+	     *
+	     * if "command" is "DELETE", the associated flow will be
+	     * deleted.  if "command" starts with '-', it will be ignored.
+	     * other values for "command" are TBD.
 	     */
     void
 	*timeout_cookie;	/* cookie for timeout routine */
@@ -136,11 +137,11 @@ struct hentry {
  */
 
 typedef struct clstats {
-    int	    cls_added,			/* flows added to this class */
-	    cls_removed,		/* flows removed from this class */
+    int	    cls_added,			/* num flows added to this class */
+	    cls_removed,		/* num flows removed from this class */
 	    cls_active,			/* flows active this interval */
-	    cls_packets,		/* packets read */
-	    cls_fragments,		/* fragments seen (using ports) */
+	    cls_pkts,			/* packets read */
+	    cls_frags,			/* fragments seen (using ports) */
 	    cls_runts,			/* runt (too short) packets seen */
 	    cls_noports;		/* packet had no ports (but needed) */
 } clstats_t, *clstats_p;
@@ -198,17 +199,16 @@ typedef struct ftinfo ftinfo_t, *ftinfo_p;
 struct ftinfo {
     u_char  fti_type_indicies[MAX_FLOW_ID_BYTES],
             fti_bytes_and_mask[2*MAX_FLOW_ID_BYTES],
-	    fti_class;	/* default */
+	    fti_class;		/* default class for flows of this type */
     int	    fti_bytes_and_mask_len,
 	    fti_type_indicies_len,
-	    fti_id_len,
-	    fti_id_covers;
-
+	    fti_id_len,		/* length of a flow id for this type */
+	    fti_id_covers;	/* how far into pkt hdr the flow id reaches */
     char    *fti_new_flow_cmd;
 	    /*
 	     * routine:	fti_new_flow_cmd
 	     * call:	"fti_new_flow_cmd class flowtype flowid"
-	     * result:	"class flowtype pkt_recv_cmd secs.usecs" 
+	     * result:	"class parent_ftype pkt_recv_cmd secs.usecs" 
 	     *
 	     * the output flowtype is the application (upper
 	     * level) flowtype (this flowtype must already exist/have
@@ -609,6 +609,34 @@ flow_type_to_string(int ftype)
 }
 #endif
 
+static char *
+flow_statistics(hentry_p fe)
+{
+    static char summary[100];
+
+    sprintf(summary, "created %ld.%06ld last %ld.%06ld pkts %lu",
+	    fe->created.tv_sec, fe->created.tv_usec,
+	    fe->last_pkt_rcvd.tv_sec, fe->last_pkt_rcvd.tv_usec, fe->packets);
+
+    return summary;
+}
+
+
+static char *
+class_statistics(clstats_p clsp)
+{
+    static char summary[100];
+
+    sprintf(summary,
+	"added %d removed %d active %d pkts %d frags %d runts %d noports %d",
+	clsp->cls_added, clsp->cls_removed, clsp->cls_active,
+	clsp->cls_pkts, clsp->cls_frags, clsp->cls_runts,
+	clsp->cls_noports);
+
+    return summary;
+}
+
+
 
 static hentry_p
 new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int level)
@@ -620,13 +648,15 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int level)
 	return 0;
     }
     fe->flow_type = ft-ftinfo;
+    fe->parent_ftype = fe->flow_type;	/* default */
     fe->class = ft->fti_class;
     fe->packets = 0;
     fe->created_bin = binno;
     fe->last_bin_active = 0xffffffff;
-    fe->pkt_recv_cmd = 0;
     fe->created = curtime;
-    fe->pkt_recv_cmd_time = ZERO;
+    fe->pkt_recv_cmd = 0;
+    fe->timeout_cmd = 0;
+    fe->last_pkt_rcvd = ZERO;
 
     /*
      * now, if there is a "new flow" callout registered in this
@@ -703,7 +733,6 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int level)
 static void
 packetinflow(Tcl_Interp *interp, hentry_p fe)
 {
-    ftinfo_p ft;
     clstats_p cl;
 
     /* do we need to callout? */
@@ -746,8 +775,9 @@ packetinflow(Tcl_Interp *interp, hentry_p fe)
 
 	sprintf(buf, " %d %d ", fe->class, fe->flow_type);
 
-	if (Tcl_VarEval(interp, fe->pkt_recv_cmd,
-		    buf, flow_id_to_string(ft, fe->key), 0) != TCL_OK) {
+	if (Tcl_VarEval(interp, fe->pkt_recv_cmd, buf,
+			flow_id_to_string(&ftinfo[fe->flow_type], fe->key),
+			" FLOW ", flow_statistics(fe), 0) != TCL_OK) {
 	    packet_error = TCL_ERROR;
 	    return;
 	}
@@ -772,7 +802,7 @@ packetinflow(Tcl_Interp *interp, hentry_p fe)
 
     cl = &clstats[fe->class];
     /* update counters (after callout has had a chance to change things) */
-    cl->cls_packets++;
+    cl->cls_pkts++;
     fe->packets++;
     fe->last_pkt_rcvd = curtime;
     if (fe->last_bin_active != binno) {
@@ -802,19 +832,6 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
     ftinfo_p llft, ulft;	/* lower and upper level flow types */
     clstats_p llcl;		/* lower level class */
 
-    /* if we've gone over to another bin number... */
-    if (binno != NOW_AS_BINNO()) {
-	if (pending) {
-	    interp->result = "pending pending pending";
-	    packet_error = TCL_ERROR;
-	    return;
-	}
-	pending = 1;
-	memcpy(pending_packet, packet, MIN(len, sizeof pending_packet));
-	/* wait till next time */
-	return;
-    }
-
     /* check for a pending packet */
     if (pending) {
 	if (len) {	/* shouldn't happen! */
@@ -826,6 +843,12 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	binno = NOW_AS_BINNO();
 	/* use the pending packet */
 	packet = (const u_char *)pending_packet;
+    } else if (binno != NOW_AS_BINNO()) {
+	/* if we've gone over to another bin number... */
+	pending = 1;
+	memcpy(pending_packet, packet, MIN(len, sizeof pending_packet));
+	/* wait till next time */
+	return;
     }
 
     /* now, do the low level classification into a llft */
@@ -842,7 +865,7 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
     }
 
     if (llft >= &ftinfo[NUM(ftinfo)]) {
-	clstats[0].cls_packets++;
+	clstats[0].cls_pkts++;
 	if (bigenough) {	/* packet was big enough, but... */
 	    clstats[0].cls_noports++;
 	} else {
@@ -854,8 +877,8 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 
     llcl = &clstats[llft->fti_class];
     if ((packet[6]&0x1fff) && FTI_USES_PORTS(llft)) { /* XXX */
-	llcl->cls_packets++;
-	llcl->cls_fragments++;
+	llcl->cls_pkts++;
+	llcl->cls_frags++;
 	return;
     }
 
@@ -1195,21 +1218,6 @@ teho_set_flow_type(ClientData clientData, Tcl_Interp *interp,
     return TCL_OK;
 }
 
-
-static int
-do_class_summary(Tcl_Interp *interp, clstats_p clsp)
-{
-    char summary[100];
-
-    sprintf(summary,
-	"added %d removed %d active %d pkts %d frags %d runts %d noports %d",
-	clsp->cls_added, clsp->cls_removed, clsp->cls_active,
-	clsp->cls_packets, clsp->cls_fragments, clsp->cls_runts,
-	clsp->cls_noports);
-    Tcl_SetResult(interp, summary, TCL_VOLATILE);
-    return TCL_OK;
-}
-
 static int
 teho_class_summary(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
@@ -1228,7 +1236,8 @@ teho_class_summary(ClientData clientData, Tcl_Interp *interp,
 
     clsp = &clstats[atoi(argv[1])];
 
-    return do_class_summary(interp, clsp);
+    Tcl_SetResult(interp, class_statistics(clsp), TCL_VOLATILE);
+    return TCL_OK;
 }
 
 
@@ -1241,7 +1250,8 @@ teho_summary(ClientData clientData, Tcl_Interp *interp,
 	return TCL_ERROR;
     }
 
-    return do_class_summary(interp, &clstats[0]);
+    Tcl_SetResult(interp, class_statistics(&clstats[0]), TCL_VOLATILE);
+    return TCL_OK;
 }
 
 
