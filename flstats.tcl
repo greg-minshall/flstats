@@ -1,7 +1,7 @@
 #
 # Tcl script as part of flstats
 #
-# $Id: flstats.tcl,v 1.42 1996/03/14 22:02:35 minshall Exp minshall $
+# $Id: flstats.tcl,v 1.43 1996/03/14 23:42:20 minshall Exp minshall $
 #
 #
 
@@ -563,19 +563,13 @@ fl_set_parameters {argc argv}\
     set classes 0
     set flows 0
     set interactive 0
+    set scriptfile 0
+    set eval 0
 
     set arg [lindex $argv 0]
     while {$argc && ([string length $arg] > 1) &&
 				([string range $arg 0 0] == "-")} {
-	if {[string first $arg -read] == 0} { ; # trace file name
-	    if {$argc < 2} {
-		error "not enough arguments for -read in $argv\nlooking\
-			for '-read tracefilename'"
-	    }
-	    set flstats(tracefile.filename) [lindex $argv 1]
-	    incr argc -2
-	    set argv [lrange $argv 2 end]
-	} elseif {[string first $arg -kind] == 0} { ; # trace file kind
+	if {[string first $arg -kind] == 0} { ; # trace file kind
 	    if {$argc < 2} {
 		error "not enough arguments for -kind in $argv\nlooking for\
 			    '-kind [tracefilekind]'"
@@ -599,8 +593,20 @@ fl_set_parameters {argc argv}\
 	    set flstats(flowtypes) [lindex $argv 1]
 	    incr argc -2
 	    set argv [lrange $argv 2 end]
-	} elseif {[string first $arg -script] == 0} { ; # execute tcl script
-	    uplevel #0 [lindex $argv 1]
+	} elseif {[string first $arg -evaluate] == 0} { ; # execute tcl script
+	    if {$argc < 2} {
+		error "not enough arguments for -evaluate in $argv\nlooking \
+				for '-evaluate tclcommands'"
+	    }
+	    set eval [lindex $argv 1]
+	    incr argc -2
+	    set argv [lrange $argv 2 end]
+	} elseif {[string first $arg -scriptfile] == 0} { ; # exec from file
+	    if {$argc < 2} {
+		error "not enough arguments for -scriptfile in $argv\nlooking \
+				for '-scriptfile tclscriptfile'"
+	    }
+	    set scriptfile [lindex $argv 1]
 	    incr argc -2
 	    set argv [lrange $argv 2 end]
 	} elseif {[string first $arg -interactive] == 0} { ; # interactive
@@ -625,16 +631,49 @@ fl_set_parameters {argc argv}\
 	    incr argc -1
 	    set argv [lrange $argv 1 end]
 	} else {
-	    error [format {unknown argument %s in %s\nusage: \
-		%s  [-read tracefilename -kind tracefilekind]\
+	    error [format {unknown argument %s in '%s'\nusage: %s\
 			[-binsecs num]\
+			[-{classes|flows|interactive}]\
+			[-evaluate tclcommands]\
 			[-flows flowtype[s]]\
-			[-script tclscript]\
-			[-{classes|flows|interactive}]}\
+			[-kind tracefilekind]}\
 			[lindex $argv 0] $argv $argv0]
 	}
 	set arg [lindex $argv 0]
     }
+
+    # get trace file name
+    if {$argc > 0} {
+	set flstats(tracefile.filename) [lindex $argv 0]
+	incr argc -1
+	set argv [lrange $argv 1 end]
+    }
+
+    if {$argc > 0} {
+	error "extra parameters at end of command line: $argv"
+    }
+
+    if {$eval} {
+	uplevel #0 [$eval]
+    }
+    if {$eval} {
+	uplevel #0 [source $scriptfile]
+    }
+
+    # default action
+    if {!$flows && !$classes && !$interactive} {
+	set classes 1
+    }
+
+    if {$flows} {
+	fl_flow_details
+	exit
+    } elseif {$classes} {
+	fl_class_details
+	exit
+    }
+
+    # must be interactive...
     return [list $argc $argv]
 }
 
@@ -646,15 +685,23 @@ fl_startup { }\
 
     set tcl_RcFileName "~/.flstats.tcl"		; # only run if interactive...
 
-    set ret [fl_set_parameters $argc $argv]
-    set argc [lindex $ret 0]
-    set argv [lindex $ret 1]
+    if [catch {
+	set ret [fl_set_parameters $argc $argv]
+	set argc [lindex $ret 0]
+	set argv [lindex $ret 1]
+    } result ] {
+	global errorInfo
+	puts stderr $result
+#	puts stderr $errorInfo
+	exit 1
+    }
 }
 
 # set some defaults...
 set flstats(classifier) {}
 set flstats(binsecs) 0
 set flstats(tracefile.kind) {}
+set flstats(tracefile.filename) "-"		; # from standard in...
 # default flowtypes...
 set flstats(flowtypes) { \
 	ihv/ihl/tos/ttl/prot/src/dst ihv/ihl/tos/ttl/prot/src/dst/sport/dport \

@@ -28,7 +28,7 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.66 1996/03/14 22:47:45 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.67 1996/03/14 23:41:57 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -89,7 +89,7 @@ static char *rcsid =
 /* Types of input files to be processed */
 #define	TYPE_UNKNOWN	0
 #define	TYPE_PCAP	2
-#define	TYPE_FIX	3
+#define	TYPE_FIX24	3
 
 /* type defines */
 
@@ -440,7 +440,7 @@ newfile(void)
 	filetype = TYPE_UNKNOWN;
 	pcap_close(pcap_descriptor);
 	break;
-    case TYPE_FIX:
+    case TYPE_FIX24:
 	filetype = TYPE_UNKNOWN;
 	if (fclose(fix24_descriptor) == EOF) {
 	    perror("fclose");
@@ -482,7 +482,7 @@ static u_short
 cksum(u_char *p, int len)
 {
     int shorts = len/2;
-    u_long sum;
+    u_long sum = 0;
 
     while (shorts > 4) {
 /* 0*/	sum += PICKUP_NETSHORT(p); p += 2; sum += PICKUP_NETSHORT(p); p += 2;
@@ -802,6 +802,7 @@ tbl_add(u_char *id, int id_len)
     if (fe == 0) {
 	return 0;
     }
+    memset(fe, 0, sizeof *fe);
     fe->fe_sum = sum;
     fe->fe_id_len = id_len;
     memcpy(fe->fe_id, id, id_len);
@@ -892,9 +893,6 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int class)
     fe->fe_parent_ftype = ft->fti_parent_ftype;			 /* default */
     fe->fe_parent_class = ftinfo[ft->fti_parent_ftype].fti_class;/* default */
     fe->fe_class = class;
-    fe->fe_pkts = 0;
-    fe->fe_bytes = 0;
-    fe->fe_sipg = 0;
     fe->fe_last_bin_active = 0xffffffff;
     fe->fe_created = curtime;
     fe->fe_last_pkt_rcvd = ZERO;
@@ -1301,7 +1299,7 @@ process_one_packet(Tcl_Interp *interp)
 		fileeof = 1;
 		filetype = TYPE_UNKNOWN;
 	    }
-	} else {	/* TYPE_FIX */
+	} else {	/* TYPE_FIX24 */
 	    struct fix24pkt fix24packet;
 	    int count;
 
@@ -1697,12 +1695,16 @@ static int
 set_fix24_file(ClientData clientData, Tcl_Interp *interp, char *filename)
 {
     newfile();
-    fix24_descriptor = fopen(filename, "r");
-    if (fix24_descriptor == 0) {
-	interp->result = "error opening file";
-	return TCL_ERROR;
+    if ((filename[0] == '-') && (filename[1] == 0)) {
+	fix24_descriptor = stdin;
+    } else {
+	fix24_descriptor = fopen(filename, "r");
+	if (fix24_descriptor == 0) {
+	    interp->result = "error opening file";
+	    return TCL_ERROR;
+	}
     }
-    filetype = TYPE_FIX;
+    filetype = TYPE_FIX24;
     return TCL_OK;
 }
 
