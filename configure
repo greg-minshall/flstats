@@ -1,4 +1,5 @@
-#!/bin/csh -fx
+#!/bin/csh
+# !/bin/csh -fx
 
 # cheap hack to make things portable (but, note this is csh!)
 
@@ -30,7 +31,6 @@ endif
 set sawtclxy=0
 set sawtclxDOTy=0
 foreach i (`echo $ld_path | sed "s/:/ /g"`)
-    echo $i
     if ( -e $i/lib$nmtclxDOTy.a ) then
 	set sawtclxDOTy=1
     endif
