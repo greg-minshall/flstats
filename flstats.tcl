@@ -73,7 +73,7 @@ starttimeout { class flowtype flowid }\
 proc\
 deleteflow {cookie class ftype flowid time FLOW args}\
 {
-    global CL_SWITCHED CL_TO_BE_SWITCHED
+    global CL_SWITCHED CL_TO_BE_SWITCHED CL_NONSWITCHED
     global flowsdeleted
 
     # ahh, dr. regsub... 
