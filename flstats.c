@@ -124,7 +124,6 @@ typedef struct clstats {
 	    cls_deleted,		/* flows deleted */
 	    cls_active,			/* flows active this interval */
 	    cls_packets,		/* packets read */
-	    cls_packetsnewflows,	/* packets arriving for new flows */
 	    cls_fragments,		/* fragments seen (using ports) */
 	    cls_runts,			/* runt (too short) packets seen */
 	    cls_noports;		/* packet had no ports (but needed) */
@@ -826,9 +825,6 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
 	hent->last_bin_active = binno;
 	clsp->cls_active++;
     }
-    if (hent->created_bin == binno) {
-	clsp->cls_packetsnewflows++;
-    }
 }
 
 static void
@@ -1125,10 +1121,21 @@ teho_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 
 
 static int
+do_class_summary(Tcl_Interp *interp, clstats_p clsp)
+{
+    char summary[100];
+    clstats_p clsp;
+
+    sprintf(summary, "%d %d %d %d %d",
+		    clsp->cls_created, clsp->cls_deleted, clsp->cls_active, clsp->cls_packets, clsp->cls_fragments);
+    Tcl_SetResult(interp, summary, TCL_VOLATILE);
+    return TCL_OK;
+}
+
+static int
 teho_class_summary(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
-    char summary[100];
     clstats_p clsp;
 
     if (argc != 2) {
@@ -1143,11 +1150,7 @@ teho_class_summary(ClientData clientData, Tcl_Interp *interp,
 
     clsp = &clstats[atoi(argv[1])];
 
-    sprintf(summary, "%d %d %d %d %d",
-		    clsp->cls_created, clsp->cls_active, clsp->cls_packets,
-		    clsp->cls_packetsnewflows, clsp->cls_fragments);
-    Tcl_SetResult(interp, summary, TCL_VOLATILE);
-    return TCL_OK;
+    return do_class_summary(interp, clsp);
 }
 
 
@@ -1162,10 +1165,11 @@ teho_summary(ClientData clientData, Tcl_Interp *interp,
 	return TCL_ERROR;
     }
 
+    return do_class_summary(interp, &clstats[0]);
     sprintf(summary, "%d %d %d %d %d %d",
 		    clstats[0].cls_created, clstats[0].cls_active,
-		    clstats[0].cls_packets, clstats[0].cls_packetsnewflows,
-		    clstats[0].cls_runts, clstats[0].cls_fragments);
+		    clstats[0].cls_packets, clstats[0].cls_runts,
+		    clstats[0].cls_fragments);
     Tcl_SetResult(interp, summary, TCL_VOLATILE);
     return TCL_OK;
 }
