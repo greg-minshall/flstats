@@ -52,7 +52,7 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.82 1997/03/09 23:15:12 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.83 1997/04/24 21:24:55 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -2282,9 +2282,17 @@ fl_version(ClientData clientData, Tcl_Interp *interp,
 int
 Tcl_AppInit(Tcl_Interp *interp)
 {
+
+#if	0
+    /* We *don't* call Tcl_Init(), since that requires Tcl to be
+     * installed on the execution machine (and, we want to run
+     * on lots of execution machines, requiring as little as
+     * possible on each machine).
+     */
     if (Tcl_Init(interp) == TCL_ERROR) {
 	return TCL_ERROR;
     }
+#endif	/* 0 */
 
     Tcl_CreateCommand(interp, "fl_class_stats", fl_class_stats,
 								NULL, NULL);
