@@ -1,0 +1,59 @@
+<html><head>
+<title> Extract flow statistics from a tcpdump -w file
+</title></head><body>
+<!--$Id$ -->
+<h1>
+<em>FLSTATS</em>
+</h1>
+<dl>
+<dt>
+<b>Description</b>
+<dd>
+<em>Flstats</em> is program for extracting flow statistics
+from trace files created using the <b>-w</b> argument to
+<a href=ftp://ftp.ee.lbl.gov/tcpdump.tar.Z><em>tcpdump</em></a>.
+<dt>
+<b>Requirements</b>
+<dd>
+<em>Flstats</em> is fairly modest in its requirements.  It does, however,
+require the <a href=ftp://ftp.ee.lbl.gov/libpcap.tar.Z><em>packet capture
+library (libpcap)</em></a>.
+<dt>
+<b>Limitations</b>
+<dd>
+It would be good if flstats understood more trace file formats.
+<br>
+<em>Flstats</em> should work on more platforms.
+<br>
+<em>Flstats</em> could run substantially faster.
+<dt>
+<b>Acknowledgements</b>
+<dd>
+Written by Greg Minshall of Ipsilon Networks, Inc.
+<br>
+Report bugs to
+<a href=mailto:minshall@ipsilon.com><em>minshall@ipsilon.com</em></a>.
+<dt>
+<b>Version</b>
+<dd>
+The current release is __VERSION__, dated __DATE__.
+<dt>
+<b>Restrictions</b>
+<dd>
+The software is copyrighted by Ipsilon Networks, Inc.
+(a "BSD-style" copyright).  See the beginning of the source file
+<em>flstats.c</em> for details.
+This copyright essentially means you can redistribute
+the software freely, provided you keep the authorship information intact.
+<dt>
+<b>Documentation</b>
+<dd>
+A
+<a href=http:flstats.0.txt>man page</a>.
+<dt>
+<b>Distribution</b>
+<dd>
+Available in
+<a href="flstats-__VERSION__.tar.Z"> compressed <em>tar</em></a> format.
+</dl>
+</body></html>
