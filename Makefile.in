@@ -1,3 +1,9 @@
+# $Id$
+
+# version for distribution...
+VERS=`cat VERSION`
+
+
 LIBPATH = -L../libpcap/libpcap-0.0.6 \
 			-L../lib_`uname -m` \
 			-L/usr/local/lib
@@ -20,9 +26,48 @@ DISTRIBUTION = ${SOURCES} flstats.0 flstats.0.txt
 
 all:	flstats
 
-distribution:	flstats.tar.Z flstats.shar
+distribution:	fixrev tar.Z shar web.tar
 
-web:	flstats.web.tar
+clean:
+	-rm -f flstats flstats.char flstats.o flstats.0 flstats.0.txt \
+		flstats-*.tar flstats-*.tar.Z flstats-*.web.tar flstats-*.shar
+
+# keep version numbers going... (assume always at least "x.y")
+
+# 1.y.z -> 2.0
+majorrev:
+	co -l VERSION
+	awk '{ \
+	    n = split($$0,x,"."); \
+	    print (x[1]+1)"."0 \
+	}' < VERSION > VERSION.new
+	mv VERSION.new VERSION
+	ci -u -m"new fix version" VERSION
+
+# x.2.z -> x.3
+minorrev:
+	co -l VERSION
+	awk '{ \
+	    n = split($$0,x,"."); \
+	    print x[1]"."(x[2]+1) \
+	}' < VERSION > VERSION.new
+	mv VERSION.new VERSION
+	ci -u -m"new fix version" VERSION
+
+# x.y.3 -> x.y.4
+fixrev:
+	co -l VERSION
+	awk '{ \
+	    n = split($$0,x,"."); \
+	    if (n == 2) { \
+	        print x[1]"."x[2]".1" \
+	    } else { \
+	        print x[1]"."x[2]"."(x[3]+1) \
+	    } \
+	}' < VERSION > VERSION.new
+	mv VERSION.new VERSION
+	ci -u -m"new fix version" VERSION
+
 
 flstats:		flstats.o
 	${CC} ${CFLAGS} -o flstats ${LDFLAGS} flstats.o \
@@ -35,24 +80,25 @@ flstats.char:	flstats.tcl
 	sed 's/\\/\\\\/g' < flstats.tcl | sed 's/"/\\"/g' | \
 				sed 's/^/"/' | sed 's/$$/\\n"/' > flstats.char
 
-clean:
-	-rm -f flstats flstats.char flstats.o flstats.0 flstats.0.txt \
-		flstats.tar flstats.tar.Z flstats.web.tar flstats.shar
-
 flstats.0:	flstats.1
 	nroff -man flstats.1 > flstats.0
 
 flstats.0.txt:	flstats.0
 	colcrt < flstats.0 > flstats.0.txt
 
-flstats.tar.Z:	${DISTRIBUTION}
-	tar cf flstats.tar ${DISTRIBUTION}
-	rm -f flstats.tar.Z
-	compress flstats.tar
+flstats.html:  flstats.vtml VERSION
+	sed -e "s/__VERSION__/${VERS}/g" -e "s/__DATE__/`date "+%d %h %y"`/g" \
+					    flstats.vtml > flstats.html
 
-flstats.shar:	${DISTRIBUTION}
-	rm -f flstats.shar
-	shar ${DISTRIBUTION} > flstats.shar
+tar.Z:	${DISTRIBUTION}
+	tar cf flstats-${VERS}.tar ${DISTRIBUTION}
+	rm -f flstats-${VERS}.tar.Z
+	compress flstats-${VERS}.tar
 
-flstats.web.tar:	flstats.tar.Z flstats.html flstats.0.txt
-	tar cf flstats.web.tar flstats.tar.Z flstats.html flstats.0.txt
+shar:	${DISTRIBUTION}
+	rm -f flstats-${VERS}.shar
+	shar ${DISTRIBUTION} > flstats-${VERS}.shar
+
+web.tar:	tar.Z flstats.html flstats.0.txt
+	tar cf flstats.web-${VERS}.tar \
+			    flstats-${VERS}.tar.Z flstats.html flstats.0.txt
