@@ -1,5 +1,32 @@
 \documentclass{article}
 
+\flushbottom
+
+\setlength{\parskip}{1ex}
+
+\setlength{\textheight}{220mm}%         {9.5in}
+\setlength{\topmargin}{-5mm}%           {-13mm}
+%\setlength{\headheight}{0in}
+%\setlength{\headsep}{0in}
+\setlength{\textwidth}{175mm}%          {189mm}
+\setlength{\oddsidemargin}{-0.2in}%     {-0.5in}
+\setlength{\columnsep}{4mm}
+
+\renewcommand{\topfraction}{.9}
+\renewcommand{\bottomfraction}{.9}
+\renewcommand{\textfraction}{.1}
+\renewcommand{\floatpagefraction}{.8}
+\renewcommand{\dbltopfraction}{.9}
+\renewcommand{\dblfloatpagefraction}{.8}
+\renewcommand{\floatsep}{0mm}
+\renewcommand{\textfloatsep}{4mm}%       {2mm}
+\renewcommand{\dbltextfloatsep}{4mm}%    {2mm}
+
+% \renewcommand{\baselinestretch}{1.4}
+% \renewcommand{\textfloatsep}{8mm}
+% \renewcommand{\dbltextfloatsep}{8mm}
+
+
 \begin{document}
 
 \newcommand{\NAME}{\item[NAME]}
@@ -9,8 +36,11 @@
 \newcommand{\SEEALSO}{\item[SEE ALSO]}
 \newcommand{\BUGS}{\item[BUGS]}
 
+\newcommand{\man}[2]{\newpage\subsection{#1}\renewcommand{\cmdname}{\cmd{#1}}\begin{description}\NAME #1 --- #2}
+\newcommand{\manend}{\end{description}}
 \newcommand{\cmd}[1]{\textbf{#1}}
 \newcommand{\cmdarg}[1]{\textit{#1}}
+\newcommand{\cmdname}{WHERE IS THE COMMAND NAME?}
 
 \title{A User's Guide to Flowsim, a Simulator for Measuring Flow Statistics}
 
@@ -77,6 +107,12 @@ member of a class.  (The situation is in fact slightly more
 complicated, in that flow types are actually split into two levels; we
 shall visit this complication shortly.)
 
+There are a small number of flow types and classes available (currently
+10 each); there are a large number of flow entries.  In general, one
+can count things in a flow entry or in a class.  The decision is
+normally based on the order of magnitude of different \emph{things} one
+wants to count.  If it is a handfull, counting in classes makes sense;
+if it is a large number, then count in flows.
 \subsection{Basic operation of flowsim}
 
 The basic flow of flowsim is that a packet trace file (and format) is
@@ -181,16 +217,14 @@ together.
 
 The following are in flowsim.c:
 
-\subsection{fsim\_class\_summary}
-\begin{description}
+\clearpage
+\man{fsim\_class\_summary} {return class statistics}
 
-\NAME fsim\_class\_summary - return class statistics
-
-\SYNOPSIS \cmd{fsim\_class\_summary} class
+\SYNOPSIS \cmdname\ class
 
 \DESCRIPTION
 
-\cmd{fsim\_class\_summary} returns statistics for the class \cmdarg{class}
+\cmdname\ returns statistics for the class \cmdarg{class}
 (specified as a number).  The statistics are returned in a string with
 a "name value" format.  I.e., each value is preceded by the name of
 that value.  The statistics returned are:
@@ -235,19 +269,15 @@ microseconds).
 
 Probably the fragpkts, etc., should be retrieved in a separate call.
 
-\end{description}
+\manend
 
-\subsection{fsim\_continue\_enumeration}
-\begin{description}
+\man{fsim\_continue\_enumeration}{enumerate flow entries, returning per-flow-entry statistics}
 
-\NAME fsim\_continue\_enumeration - enumerate flow entries, returning
-per-flow-entry statistics
-
-\SYNOPSIS \cmd{fsim\_continue\_enumeration}
+\SYNOPSIS \cmdname\
 
 \DESCRIPTION
 
-\cmd{fsim\_continue\_enumeration} continues an enumeration started by
+\cmdname\ continues an enumeration started by
 \cmd{fsim\_start\_enumeration} (see~\ref{sec:fsimstartenumeration}).
 The flow type, class, level, and id for the next flow entry are
 returned, along with the statistics associated with that flow entry.
@@ -263,18 +293,15 @@ statistics are:
 entry
 \end{description}
 
-\end{description}
+\manend
 
-\subsection{fsim\_read\_one\_bin}
-\begin{description}
+\man{fsim\_read\_one\_bin}{run the simulator for one time interval}
 
-\NAME fsim\_read\_one\_bin - run the simulator for one time interval
-
-\SYNOPSIS \cmd{fsim\_read\_one\_bin} ?binsecs?
+\SYNOPSIS \cmdname\ ?binsecs?
 
 \DESCRIPTION
 
-\cmd{fsim\_read\_one\_bin} is called to run the simulator for one time
+\cmdname\ is called to run the simulator for one time
 interval.  The interval of time is specified using the \cmdarg{binsecs}
 argument; if this argument is omitted, the most recently passed value
 is used.  If binsecs is passed as zero (0), or never passed, the entire
@@ -285,27 +312,23 @@ The value of \cmdarg{binsecs} divides the trace up into various
 at any given point of time is $(currenttime-tracestarttime)/binsecs$
 (assuming \cmdarg{binsecs} is not zero).
 
-The effect of \cmd{fsim\_read\_one\_bin} is to read the \emph{next}
+The effect of \cmdname\ is to read the \emph{next}
 packet in the trace file and all the rest of the packets in the trace
 file whose bin number is the same as that packet.  A subtle effect of
-this is that the previous invocation of \cmd{fsim\_read\_one\_bin} may
+this is that the previous invocation of \cmdname\ may
 have ended at bin number 100 while the current invocation may end with
 bin number 150; this means there were no packets during bin numbers
 101--149.
 
-\end{description}
+\manend
 
-\subsection{fsim\_set\_fix\_file}
+\man{fsim\_set\_fix\_file}{specify the name and format of a trace input file}
 
-\begin{description}
-\NAME fsim\_set\_fix\_file - specify the name and format of a trace
-input file
-
-\SYNOPSIS \cmd{fsim\_set\_fix\_file} filename
+\SYNOPSIS \cmdname\ filename
 
 \DESCRIPTION
 
-\cmd{fsim\_set\_fix\_file} directs flowsim to use \cmdarg{filename} as
+\cmdname\ directs flowsim to use \cmdarg{filename} as
 its input file, and that this is a 24-byte per packet FIX-West data
 set.
 
@@ -313,33 +336,278 @@ set.
 
 \cmd{fsim\_set\_tcpd\_file}
 
+\manend
+
+\man{fsim\_set\_flow\_type}
+
+\SYNOPSIS \cmdname\ ?-f flow\_type? ?-n new\_flow\_command? ?-r recv\_command? ?-t timeout\_command? flowstring
+
+\DESCRIPTION
+
+\cmdname\ is used to define a new flow type and, optionally, associate
+certain attributes with the new flow type.
+
+\cmdarg{flowstring} specifies the flow type as a series of header field
+names separated by a slash ("/").  For example, \begin{verbatim}
+ihv/ihl/tos/ttl/prot/src/dst\end{verbatim} defines a flow type that
+uses the internet header version, internet header length, type of
+service, time to live, protocol, source, and address fields.
+
+The current list of header fields supported is:
+\begin{description}
+\item[ihv] The internet header version number (4 for IPv4, 6 for IPv6).
+\item[ihl] The internet header length (in units of 8 octets; 5 for an
+IPv4 packet with no IP options).
+\item[tos] The type of service field.
+\item[len] The length of the packet.
+\item[id] The identification field of the IP header.
+\item[foff] The fragmentation offset field (including the DF and MF
+flags).
+\item[ttl] The time to live field.
+\item[prot] The protocol field (6 for TCP, 17 for UDP, etc.).
+\item[sum] The checksum of the IP header.
+\item[src] The IP address of the source.
+\item[dst] The IP address of the destination.
+\item[sport] The source port in the TCP or UDP header.
+\item[dport] The destination port in the TCP or UDP header.
 \end{description}
 
-\subsection{fsim\_set\_flow\_type}
+The optional arguments are as follows:
 
-\subsection{fsim\_set\_tcpd\_file}
+\begin{description}
+\item[--f] An integer used to refer to this flow type in the future.
+If this is unspecified, flow type 0 is used.
+\item[--n] The name of the procedure to receive the flow creation
+upcall.  See~\ref{sec:upcallnewflow}.  If
+this value is unspecified, no flow creation upcall will be made for
+flows created in this flow type.
+\item[--r] The name of the procedure to receive the packet reception
+upcall.  See~\ref{sec:upcallpktrecvd}.  If this value is unspecified,
+no packet reception upcall will be made for packets received for flows
+in this flow type.
+\item[--t] The name of the procedure to receive the timeout upcall.
+See~\ref{sec:upcalltimeout}.  If this value is unspecified,
+no timeout upcall will be made for flows in this flow type.
+\end{description}
 
-\subsection{fsim\_start\_enumeration}
+\BUGS
 
-\subsection{fsim\_summary}
+The MF and DF bits should be separate from the foff field.
+
+This \emph{only} works for IPv4; IPv6 is not (yet) supported.
+
+\manend
+
+\man{fsim\_set\_tcpd\_file}
+
+\SYNOPSIS \cmdname\ filename
+
+\DESCRIPTION
+
+\cmdname\ directs flowsim to use \cmdarg{filename} as
+its input file, and that this is a file created by tcpdump(1) using the
+-w flag.
+
+\SEEALSO
+
+\cmd{fsim\_set\_fix\_file}
+
+\manend
+
+\man{fsim\_start\_enumeration}
+
+\SYNOPSIS \cmdname\
+
+\DESCRIPTION
+
+\cmdname\ is called to initialize the state before enumerating the flow
+entries.
+
+\SEEALSO
+
+\cmd{fsim\_continue\_enumeration}
+
+\manend
+
+\man{fsim\_summary}
+
+\SYNOPSIS \cmdname\
+
+\DESCRIPTION
+
+\cmdname\ returns the class statistics for class 0, which is the class
+into which all otherwise unclassified packets fall.
+
+\BUGS
+
+Probably this should be removed, in favor of
+\cmd{fsim\_class\_summary}.
+
+\SEEALSO
+
+\cmd{fsim\_class\_summary}
+
+\manend
 
 The following are in flowsim.tcl:
-\subsection{fsim\_startup}
+
+\man{fsim\_startup}
+
+\SYNOPSIS \cmdname\
+
+\DESCRIPTION
+
+\cmdname\ is called during initialization.  Its only effect (currently)
+is to set the Tcl variable \emph{tcl\_RcFileName} to the string
+\begin{verbatim}\~/.flowsim.tcl\end{verbatim}.  (Note that Tcl only
+runs the .flowsim.tcl script only if running interactively, i.e.
+if no script file was specified on the flowsim command line.)
+
+\BUGS
+
+There should be a method of invoking flowsim such that all the embedded
+Tcl code is printed on standard output.
+
+\manend
 
 The following are in simul.tcl:
-\subsection{simul}
 
-\subsection{fsim\_class\_details}
+\man{fsim\_class\_details}
 
-\subsection{fsim\_flow\_details}
+\SYNOPSIS \cmdname\ fixortcpd filename ?binsecs? ?classifier?
+?classifiertype? ?ulflows?
 
-\subsection{fsim\_setup}
+\cmdname\ is a high level entry into the simulator (so high level, in
+fact, that it probably should not be considered part of the simulator,
+but part of user code).
 
-\subsection{fsim\_setft}
+For the list and definition of the arguments, see \cmd{fsim\_setup}
+(\ref{sec:fsimsetup}).
+
+\cmdname\ runs the entire trace, printing out a line of class
+statistics at the end of each bin.  Each line has the following format:
+\begin{verbatim}
+binno pktsrouted bytesrouted pktsswitched bytesswitched
+pktsdropped bytesdropped created deleted numflows
+\end{verbatim}
+(where \emph{created} and \emph{deleted} refer to flows created and
+deleted).
+
+\SEEALSO
+
+\cmd{fsim\_flow\_details}
+
+\manend
+
+\man{fsim\_flow\_details}
+
+\SYNOPSIS \cmdname\ fixortcpd filename ?binsecs? ?classifier?
+?classifiertype? ?ulflows?
+
+\cmdname\ is a high level entry into the simulator (so high level, in
+fact, that it probably should not be considered to be part of the
+simulator, but rather part of the user code).
+
+For an explanation of the arguments, see \cmd{fsim\_class\_details}.
+
+\cmdname\ runs the entire trace file in bins of duration
+\cmdarg{binsecs}.  At the end of each bin, it uses
+\cmd{fsim\_start\_enumeration} and \cmd{fsim\_continue\_enumeration} to
+print out statistics for each flow.
+
+\SEEALSO
+
+\cmd{fsim\_class\_details}
+\cmd{fsim\_start\_enumeration}
+\cmd{fsim\_continue\_enumeration}
+
+\manend
+
+\man{fsim\_setup}
+
+\SYNOPSIS \cmdname\ fixortcpd filename ?binsecs? ?classifier?
+?classifiertype? ?ulflows?
+
+\cmdname\ is used as an interface to \cmd{fsim\_set\_tcpd\_file} or
+\cmd{fsim\_set\_fix\_file} and to \cmd{fsim\_setft}.  It also generates
+a few lines of output describing the input file and the binsecs
+parameter.
+
+The arguments to \cmdname\ are as follows:
+\begin{description}
+\item[fixortcpd] Is either "fix" or "tcpd", i.e., the format of the
+input file.
+\item[filename] The name of the input file.
+\item[binsecs] The number of seconds for the time slices in the run.
+The default is one (1).  The value zero (0) implies run the entire run
+at once.
+\item[classifier] The procedure name of the user-level classifier,
+i.e., the name of the procedure which will used for the flow creation
+upcall when new low level flows are created.  If no classifier is
+specified, the internal classifier \cmd{fsim\_classifier} is used
+(see~\ref{sec:fsimclassifier}).
+\item[classifiertype] In order for the low level flows to be of fine
+enough resolution to allow the classifier to distinguish between
+packets, classifier type is a flow type specifier
+(see~\ref{sec:fsimsetflowtype}) containing all the header fields the
+classifier needs access to.  This is a bit confusing.  The point is
+that the classifier is called when a new low level flow is created, and
+this happens when a packet arrives that doesn't match any currently
+existing low level flow.  However, if a packet arrives and \emph{does}
+match an existing low level flow, it won't be shown to the classifier.
+Thus, the classifier needs to make sure that the low level flows are
+of fine enough granularity so that two packets from what the
+\emph{classifier} thinks of as \emph{two} flows are not treated by the
+low level code as \emph{one} flow.
+\item[ulflows]  \cmdarg{ulflows} is a complex data structure (expressed
+as a string!) which describes the various upper level flows and the
+default behaviour to be associated with those flows.  \cmdarg{ulflows}
+is a Tcl array of flow descriptions.  Each flow description is, itself,
+an array with components in the following order:
+\begin{description}
+\item[flowtypespecifier] See~\ref{sec:fsimsetflowtype}.
+\item[flowtypereference] The integer used to refer to this flow type.
+\item[flowcreation] The flow creation upcall routine.
+\item[receive] The packet received upcall routine.
+\item[timer] The timer expired upcall routine.
+\end{description}
+There is a default set of upper level flows:
+\begin{verbatim}
+{
+    {   ihv/ihl/tos/ttl/prot/src/dst
+	FT_UL_NOPORT
+	teho_starttimeout
+	-
+	teho_deleteflow
+    }
+    {	ihv/ihl/tos/ttl/prot/src/dst/sport/dport
+	FT_UL_PORT
+	teho_starttimeout
+	-
+	teho_deleteflow}
+}
+\end{verbatim}
+\end{description}
+
+\SEEALSO
+
+\cmd{fsim\_set\_tcpd\_file}
+\cmd{fsim\_set\_fix\_file}
+\cmd{fsim\_setft}
+
+\manend
+
+\man{fsim\_setft}
+
+\manend
 
 The following are upcalls:
-\subsection{upcall\_flow\_creation}
 
-\subsection{upcall\_packet\_reception}
+\man{upcall\_flow\_creation}
 
+\manend
+
+\man{upcall\_packet\_reception}
+
+\manend
 \end{document}
