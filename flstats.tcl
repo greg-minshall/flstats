@@ -1,15 +1,17 @@
 ### PARAMETERS ###
 
 # some DEFINES
-set CL_NONSWITCHED	3
-set CL_TO_BE_SWITCHED	4
-set CL_SWITCHED		5
+set CL_LL_NONSWITCHED		1
+set CL_LL_TO_BE_SWITCHED	2
+set CL_NONSWITCHED		3
+set CL_TO_BE_SWITCHED		4
+set CL_SWITCHED			5
 
-set FT_LL_PORT		0
-set FT_LL_NOPORT	1
-set FT_GUARD		2
-set FT_UL_PORT		3
-set FT_UL_NOPORT	4
+set FT_LL_PORT			0
+set FT_LL_NOPORT		1
+set FT_GUARD			2
+set FT_UL_PORT			3
+set FT_UL_NOPORT		4
 
 proc switchtime {} { return 0.300000 }	; # time to switch
 
@@ -28,15 +30,15 @@ proc switchtime {} { return 0.300000 }	; # time to switch
 proc\
 classifier { class flowtype flowid }\
 {
-    global CL_NONSWITCHED CL_TO_BE_SWITCHED CL_SWITCHED
+    global CL_LL_NONSWITCHED CL_LL_TO_BE_SWITCHED
     global FT_UL_PORT FT_UL_NOPORT FT_LL_NOPORT
 
 #    6 {return "$CL_SWITCHED $FT_LL_NOPORT"}
     regexp {/prot/([^/]*)/} $flowid match prot
     switch -exact -- $prot {
-    6 {return "$CL_TO_BE_SWITCHED $FT_UL_NOPORT - 0.0 deleteflow 2.0 0x2"}
-    11 {return "$CL_NONSWITCHED $FT_LL_NOPORT - 0.0 deleteflow 2.0 0x2"}
-    default {return "$CL_NONSWITCHED $FT_LL_NOPORT - 0.0 deleteflow 2.0 0x2"}
+    6 {return "$CL_LL_TO_BE_SWITCHED $FT_UL_NOPORT - 0.0 deleteflow 2.0 0x2"}
+    11 {return "$CL_LL_NONSWITCHED $FT_UL_NOPORT - 0.0 deleteflow 2.0 0x2"}
+    default {return "$CL_LL_NONSWITCHED $FT_UL_NOPORT - 0.0 deleteflow 2.0 0x2"}
     }
 }
 
@@ -49,12 +51,15 @@ classifier { class flowtype flowid }\
 proc\
 starttimeout { class flowtype flowid }\
 {
-    global CL_TO_BE_SWITCHED
+puts "starttimeout $class $flowtype"
+    global CL_TO_BE_SWITCHED CL_NONSWITCHED
+    global CL_LL_TO_BE_SWITCHED CL_LL_NONSWITCHED
 
-    if {$class == $CL_TO_BE_SWITCHED} {
-	return "$class $flowtype getswitched [switchtime] deleteflow 2.0 0x2"
+    if {$class == $CL_LL_TO_BE_SWITCHED} {
+	return "$CL_TO_BE_SWITCHED $flowtype getswitched [switchtime] \
+							deleteflow 2.0 0x2"
     } else {
-	return "$class $flowtype - 0.0  deleteflow 2.0 0x2"
+	return "$CL_NONSWITCHED $flowtype - 0.0  deleteflow 2.0 0x2"
     }
 }
 
@@ -87,6 +92,7 @@ deleteflow {cookie class ftype flowid time FLOW args}\
 proc\
 getswitched { class flowtype flowid args}\
 {
+puts getswitched
     global CL_SWITCHED
 
     return "$CL_SWITCHED -"
