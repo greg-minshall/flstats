@@ -72,7 +72,7 @@ struct hentry {
     u_char
 	flow_type,		/* which flow type is this? */
 	parent_ftype,		/* parent's flow type index */
-	class;			/* where are statistics recorded? */
+	class;			/* class of this flow */
     u_long
 	packets,		/* number of packets received */
 	created_bin,
@@ -705,12 +705,7 @@ packetinflow(Tcl_Interp *interp, hentry_p fe)
     clstats_p cl;
 
     /* do we need to callout? */
-    if (fe->pkt_recv_cmd && TIME_LT(&curtime, &fe->pkt_recv_cmd_time)) {
-	char buf[60];
-	int n;
-	struct timeval outtime;
 
-	sprintf(buf, " %d %d ", fe->class, fe->flow_type);
 	/*
 	 * i can think of a few things this might be good for:
 	 *
@@ -741,15 +736,25 @@ packetinflow(Tcl_Interp *interp, hentry_p fe)
 	 *	this can make the deletion "data driven" (by the
 	 *	*next* packet received in the same flow).
 	 */
+
+    if (fe->pkt_recv_cmd && TIME_LT(&curtime, &fe->pkt_recv_cmd_time)) {
+	char buf[60];
+	int n;
+	struct timeval outtime;
+
+	sprintf(buf, " %d %d ", fe->class, fe->flow_type);
+
 	if (Tcl_VarEval(interp, fe->pkt_recv_cmd,
 		    buf, flow_id_to_string(ft, fe->key), 0) != TCL_OK) {
 	    packet_error = TCL_ERROR;
 	    return;
 	}
+
 	n = sscanf(interp->result, "%d %s %d.%d",
 				    &fe->class, buf,
 				    &fe->pkt_recv_cmd_time.tv_sec,
 				    &fe->pkt_recv_cmd_time.tv_usec);
+
 	if (n >= 2) {
 	    free(fe->pkt_recv_cmd);
 	    if (buf[0] != '-') {
@@ -763,7 +768,6 @@ packetinflow(Tcl_Interp *interp, hentry_p fe)
 	}
     }
 
-    ft = &ftinfo[fe->flow_type];
     cl = &clstats[fe->class];
     /* update counters (after callout has had a chance to change things) */
     cl->cls_packets++;
