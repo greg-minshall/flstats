@@ -52,14 +52,13 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.80 1996/11/10 00:06:09 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.81 1996/11/29 23:40:28 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include <sys/types.h>
-#include <netinet/in.h>
 
 #include <pcap.h>
 #include <tcl.h>
@@ -1378,13 +1377,23 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
 		 * aren't fragmented, this is fine.
 		 */
 		if (FTI_USES_PORTS(llft)) {
-		    if (pktprotohasports && (!packet[6]&0x1fff)) {
-			break;
+		    if (pktprotohasports &&
+				((PICKUP_NETSHORT(&packet[6])&0x1fff) == 0)) {
+			/*
+			 * needed ports and the protocol in packet
+			 * has ports and this isn't a fragment
+			 */
+			break;	  /* accept this packet in this class */
 		    } else {
-			fragmented = 1;	/* needed ports, but got a fragment */
+			/*
+			 * needed ports, but got a packet with a protocol
+			 * which doesn't have ports or got a fragment
+			 */
+			fragmented = 1;
 		    }
 		} else {
-		    break;
+		    /* don't need to worry about ports... */
+		    break;    /* accept this packet in this class */
 		}
 	    }
 	}
