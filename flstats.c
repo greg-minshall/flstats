@@ -54,7 +54,7 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.77 1996/07/29 21:12:33 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.78 1996/08/01 00:53:42 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -460,6 +460,8 @@ struct fix24pkt {
             dport;
 };
 
+#define	FIX24_PACKET_SIZE   24
+
 /* global variables */
 
 u_char protohasports[256];
@@ -495,9 +497,67 @@ clstats_p class_enum_state;
 int flow_types = 0;
 
 pcap_t *pcap_descriptor;
+
+int pcap_dlt,		/* data link type of input file */
+    pcap_snap;		/* snap length of input file */
+
+pcap_handler pcap_receiver;
+
 char pcap_errbuf[PCAP_ERRBUF_SIZE];
 
-int fddipad = 0;
+/* FDDI stuff */
+
+/*
+ * This is a place where pcap is a bit messed up (should be two DLTs).
+ */
+
+
+#if defined(ultrix) || defined(__alpha)
+#define FDDIPAD 3
+#else
+#define FDDIPAD 0
+#endif
+
+int fddipad = FDDIPAD;
+
+#if !defined(FDDIFC_LLC_ASYNC)
+/*
+ * if we can't find any FDDI header files...
+ */     
+        
+struct fddi_header {
+    u_char  fddi_fc; 
+    u_char  fddi_dhost[6];              /* destination */
+    u_char  fddi_shost[6];              /* source */
+};      
+
+#define FDDIFC_LLC_ASYNC    0x50
+#endif  /* !defined(FDDIFC_LLC_ASYNC) */
+ 
+#if !defined(FDDIFC_CLFF)
+#define FDDIFC_CLFF         0xf0        /* length/class/format bits */
+#endif /* !defined(FDDIFC_CLFF) */
+
+            
+#if !defined(LLC_UI)
+/*              
+ * if we can't find LLC header files...
+ *                  
+ * (this is a very minimal LLC header, sufficient only for our
+ * limited needs.)
+ */
+
+struct llc {
+    u_char  llc_dsap;                   /* source SAP (service access point) */
+    u_char  llc_ssap;                   /* destination SAP */
+    u_char  llc_control;                /* control byte (in some frames) */
+};
+
+#define LLC_UI          0x03            /* this is an unnumbered info frame */
+#define LLC_SNAP_LSAP   0xaa            /* SNAP SAP */
+#endif /* !defined(LLC_UI) */
+
+
 
 FILE *fix24_descriptor;
 
@@ -506,7 +566,7 @@ FILE *fix44_descriptor;
 int packet_error = 0;
 
 int pending, pendingcaplen, pendingpktlen;
-u_char *pending_packet[MAX_PACKET_SIZE];
+u_char *pending_packet, *pktbuffer;;
 
 flowentry_t timers[150];
 
@@ -541,41 +601,47 @@ strsave(char *s)
  * a new file is being opened, so clean up from the last one.
  */
 
-static void
-newfile(void)
+static int
+newfile(Tcl_Interp *interp, int maxpktlen)
 {
     flowentry_p fe, nfe;
     clstats_p cl;
+    extern int errno;
 
     fileeof = 0;
     flow_enum_state = 0;
     class_enum_state = 0;
+
     switch (filetype) {
     case TYPE_PCAP:
-	filetype = TYPE_UNKNOWN;
-	pcap_close(pcap_descriptor);
+	if (pcap_descriptor != 0) {
+	    pcap_close(pcap_descriptor);
+	    pcap_descriptor = 0;
+	}
 	break;
     case TYPE_FIX24:
-	filetype = TYPE_UNKNOWN;
-	if (fclose(fix24_descriptor) == EOF) {
-	    perror("fclose");
-	    exit(2);
+	if ((fix24_descriptor != 0) && (fclose(fix24_descriptor) == EOF)) {
+	    sprintf(interp->result, "fclose: %s", strerror(errno));
+	    return TCL_ERROR;
 	}
 	break;
     case TYPE_FIX44:
-	filetype = TYPE_UNKNOWN;
-	if (fclose(fix44_descriptor) == EOF) {
-	    perror("fclose");
-	    exit(2);
+	if ((fix44_descriptor != 0) && (fclose(fix44_descriptor) == EOF)) {
+	    sprintf(interp->result, "fclose: %s", strerror(errno));
+	    return TCL_ERROR;
 	}
 	break;
     case TYPE_UNKNOWN:
 	/* nothing to do */
 	break;
     default:
-	fprintf(stderr, "%s.%d: filetype %d unknown!\n", __FILE__, __LINE__, filetype);
-	exit(2);
+	sprintf(interp->result, "%s.%d: filetype %d unknown!\n",
+					__FILE__, __LINE__, filetype);
+	return TCL_ERROR;
     }
+
+    filetype = TYPE_UNKNOWN;		/* go into neutral... */
+
     memset(&clstats[0], 0, sizeof clstats);
     for (cl = &clstats[0]; cl < &clstats[NUM(clstats)]; cl++) {
 	cl->cls_last_bin_active = 0xffffffff;
@@ -591,7 +657,35 @@ newfile(void)
     table = table_last = 0;
     memset(buckets, 0, sizeof buckets);
     memset(onebehinds, 0, sizeof onebehinds);
+
+    /* if pending buffer is already set, free it */
+    if (pending_packet) {
+	free(pending_packet);
+	pending_packet = 0; 	    /* empty the water bucket */
+    }
+
+    /* allocate packet for pending buffer */
+    pending_packet = malloc(maxpktlen);            /* room for packet */
+    if (pending_packet == 0) {
+	sprintf(interp->result, "no room for %d-byte packet buffer", maxpktlen);
+	return TCL_ERROR;
+    }
+
+    /* if we've already allocated a packet buffer, free it */
+    if (pktbuffer) {
+	free(pktbuffer);
+	pktbuffer = 0;
+    }
+
+    pktbuffer = malloc(maxpktlen);		/* room for alignment */
+    if (pktbuffer == 0) {
+	sprintf(interp->result, "no room for %d-byte packet buffer", maxpktlen);
+	return TCL_ERROR;
+    }
+
+    return TCL_OK;
 }
+
 
 /*
  * Compute a checksum on a contiguous area of storage
@@ -1398,34 +1492,158 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
     }
 }
 
+/*
+ * receive an ethernet frame.
+ */
+
 static void
-receive_tcpd(u_char *user, const struct pcap_pkthdr *h, const u_char *buffer)
+receive_tcpd_en10mb(u_char *user, const struct pcap_pkthdr *h,
+						const u_char *buffer)
 {
-        u_short type;
-	Tcl_Interp *interp = (Tcl_Interp *)user;
+    u_short type;
+    Tcl_Interp *interp = (Tcl_Interp *)user;
 
-	set_time(interp, h->ts.tv_sec, h->ts.tv_usec);
+    set_time(interp, h->ts.tv_sec, h->ts.tv_usec);
 
-        if (h->caplen < 14) {
-		/* need to call packetin to set counters, etc. */
-		packetin(interp, buffer, 0, 0);
-                return;
-        }
+    if (h->caplen < 14) {
+	/* need to call packetin to set counters, etc. */
+	packetin(interp, buffer, 0, 0);
+	return;
+    }
 
-        type = buffer[12]<<8|buffer[13];
+    type = buffer[12]<<8|buffer[13];
 
-        if (type != IPtype) {
-                return;         /* only IP packets */
-        }
+    if (type != IPtype) {
+	return;         /* only IP packets */
+    }
 
-        packetin(interp, buffer+14, h->caplen-14, h->len-14);
+    packetin(interp, buffer+14, h->caplen-14, h->len-14);
 }
 
+/*
+ * receive a slip frame
+ */
+
+static void
+receive_tcpd_slip(u_char *user, const struct pcap_pkthdr *h,
+						const u_char *buffer)
+{
+#if !defined(SLIP_HDRLEN)
+#define SLIP_HDRLEN     16
+#endif /* !defined(SLIP_HDRLEN) */
+
+    Tcl_Interp *interp = (Tcl_Interp *)user;
+
+    set_time(interp, h->ts.tv_sec, h->ts.tv_usec);
+
+    if (h->caplen < SLIP_HDRLEN) {
+	packetin(interp, buffer, 0, 0);
+	return;
+    }
+    packetin(interp, buffer+SLIP_HDRLEN,
+			h->caplen-SLIP_HDRLEN, h->len-SLIP_HDRLEN);
+}
+
+
+/*
+ * receive a PPP frame
+ */
+
+static void
+receive_tcpd_ppp(u_char *user, const struct pcap_pkthdr *h,
+						const u_char *buffer)
+{
+#define PPP_HDRLEN 4
+    Tcl_Interp *interp = (Tcl_Interp *)user;
+
+    set_time(interp, h->ts.tv_sec, h->ts.tv_usec);
+
+    if (h->caplen < PPP_HDRLEN) {
+	packetin(interp, buffer, 0, 0);
+	return;
+    }
+    packetin(interp, buffer+PPP_HDRLEN,
+			h->caplen-PPP_HDRLEN, h->len-PPP_HDRLEN);
+}
+
+/*
+ * receive a FDDI frame
+ */
+
+
+static void
+receive_tcpd_fddi(u_char *user, const struct pcap_pkthdr *h,
+						const u_char *buffer)
+{
+#define FDDI_HDRLEN 13
+    int caplen = h->caplen, length = h->len;
+    u_short type;
+    Tcl_Interp *interp = (Tcl_Interp *)user;
+    struct fddi_header *fddip;
+    static u_char SNAPHDR[] = { LLC_SNAP_LSAP, LLC_SNAP_LSAP, LLC_UI, 0, 0, 0 };
+
+    set_time(interp, h->ts.tv_sec, h->ts.tv_usec);
+
+    if (caplen < FDDI_HDRLEN) {
+	packetin(interp, buffer, 0, 0);
+	return;
+    }
+
+    fddip = (struct fddi_header *)buffer;
+    length -= FDDI_HDRLEN;
+    buffer += FDDI_HDRLEN;
+    caplen -= FDDI_HDRLEN;
+    if ((fddip->fddi_fc&FDDIFC_CLFF) == FDDIFC_LLC_ASYNC) {
+	if (caplen < sizeof SNAPHDR+2) {
+	    packetin(interp, buffer, 0, 0);
+	    return;
+	}
+	if (memcmp(buffer, SNAPHDR, sizeof SNAPHDR) == 0) {
+	    type = buffer[sizeof SNAPHDR]<<8|buffer[sizeof SNAPHDR+1];
+	    if (type == 0x0800) {
+		caplen -= (sizeof SNAPHDR+2);
+		length -= (sizeof SNAPHDR+2);
+		buffer += (sizeof SNAPHDR+2);
+		packetin(interp, buffer, caplen, length);
+	    } else {
+		return;
+	    }  
+	} else {
+	    return;
+	}
+    } else {
+	return;
+    }
+}
+
+
+/*
+ * receive a null packet
+ */
+
+
+static void
+receive_tcpd_null(u_char *user, const struct pcap_pkthdr *h,
+						const u_char *buffer)
+{
+#define	NULL_HDRLEN 4
+    Tcl_Interp *interp = (Tcl_Interp *)user;
+
+    set_time(interp, h->ts.tv_sec, h->ts.tv_usec);
+
+    if (h->caplen < NULL_HDRLEN) {
+	packetin(interp, buffer, 0, 0);
+	return;
+    }
+
+    packetin(interp, buffer+NULL_HDRLEN,
+			h->caplen-NULL_HDRLEN, h->len-NULL_HDRLEN);
+}
 
 static void
 receive_fix24(Tcl_Interp *interp, struct fix24pkt *pkt)
 {
-    static char pseudopkt[24] = {
+    static char pseudopkt[FIX24_PACKET_SIZE] = {
 	0x45, 0, 0, 0, 0, 0, 0, 0,
 	0x22, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0};
@@ -1469,7 +1687,7 @@ process_one_packet(Tcl_Interp *interp)
 	switch (filetype) {
 	case TYPE_PCAP:
 	    if (pcap_dispatch(pcap_descriptor, 1,
-				receive_tcpd, (u_char *)interp) == 0) {
+				pcap_receiver, (u_char *)interp) == 0) {
 		fileeof = 1;
 		filetype = TYPE_UNKNOWN;
 	    }
@@ -1879,12 +2097,49 @@ fl_continue_flow_enumeration(ClientData clientData, Tcl_Interp *interp,
 static int
 set_tcpd_file(ClientData clientData, Tcl_Interp *interp, char *filename)
 {
-    newfile();
+    /*
+     * need to do this here (rather than in newfile()), because
+     * we are about to overwrite pcap_descriptor.
+     */
+    if (filetype == TYPE_PCAP) {
+	pcap_close(pcap_descriptor);
+	pcap_descriptor = 0;
+    }
+
     pcap_descriptor = pcap_open_offline(filename, pcap_errbuf);
     if (pcap_descriptor == 0) {
 	sprintf(interp->result, "%s", pcap_errbuf);
 	return TCL_ERROR;
     }
+
+    pcap_dlt = pcap_datalink(pcap_descriptor);
+    pcap_snap = pcap_snapshot(pcap_descriptor);
+
+    switch (pcap_dlt) {
+    case DLT_EN10MB:
+	pcap_receiver = receive_tcpd_en10mb;
+	break;
+    case DLT_SLIP:
+	pcap_receiver = receive_tcpd_slip;
+	break;
+    case DLT_PPP:
+	pcap_receiver = receive_tcpd_ppp;
+	break;
+    case DLT_FDDI:
+	pcap_receiver = receive_tcpd_fddi;
+	break;
+    case DLT_NULL:
+	pcap_receiver = receive_tcpd_null;
+	break;
+    default:
+	sprintf(interp->result, "unknown data link type %d", pcap_dlt);
+	return TCL_ERROR;
+    }
+
+    if (newfile(interp, pcap_snap) != TCL_OK) {
+	return TCL_ERROR;
+    }
+
     filetype = TYPE_PCAP;
     return TCL_OK;
 }
@@ -1892,7 +2147,9 @@ set_tcpd_file(ClientData clientData, Tcl_Interp *interp, char *filename)
 static int
 set_fix24_file(ClientData clientData, Tcl_Interp *interp, char *filename)
 {
-    newfile();
+    if (newfile(interp, FIX24_PACKET_SIZE) != TCL_OK) {
+	return TCL_ERROR;
+    }
     if ((filename[0] == '-') && (filename[1] == 0)) {
 	fix24_descriptor = stdin;
     } else {
@@ -1909,7 +2166,10 @@ set_fix24_file(ClientData clientData, Tcl_Interp *interp, char *filename)
 static int
 set_fix44_file(ClientData clientData, Tcl_Interp *interp, char *filename)
 {
-    newfile();
+    if (newfile(interp, FIX44_PACKET_SIZE) != TCL_OK) {
+	return TCL_ERROR;
+    }
+
     if ((filename[0] == '-') && (filename[1] == 0)) {
 	fix44_descriptor = stdin;
     } else {
