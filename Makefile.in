@@ -1,4 +1,4 @@
-# $Id$
+# $Id: Makefile.in,v 1.15 1996/03/28 04:06:41 minshall Exp minshall $
 
 # version for distribution...
 VERS=`cat VERSION`
@@ -100,5 +100,5 @@ shar:	${DISTRIBUTION}
 	shar ${DISTRIBUTION} > flstats-${VERS}.shar
 
 web.tar:	tar.Z flstats.html flstats.0.txt
-	tar cf flstats.web-${VERS}.tar \
+	tar cf flstats-${VERS}.web.tar \
 			    flstats-${VERS}.tar.Z flstats.html flstats.0.txt
