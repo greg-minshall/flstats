@@ -1,18 +1,56 @@
-#!/bin/csh -f
+#!/bin/csh -fx
 
 # cheap hack to make things portable (but, note this is csh!)
 
+# what versions of TCL library do we look for?
+# (this is what needs to change, together with some lines
+# in Makefile.in, in order to use a different version of Tcl.)
+set nmtclxy=tcl74
+set nmtclxDOTy=tcl7.4
+
 set gcc
 set SVR4
+set tclxy
 
-set bpf='-e s/^#have-bpf#//'
+# determine gcc status
 gcc -v >& /dev/null
 if ( $status == 0 ) set gcc='-e s/^#have-gcc#//'
 
+# determine if SVR4
 if ( `uname -s` == "SunOS" ) then
 	if ( `uname -r | sed "s/\..*//"` == "5" ) set SVR4='-e s/^#have-SVR4#//'
 	if ( $gcc == "" ) echo "compile errors?  maybe because you need an ANSI-compatible compiler like gcc..."
 endif
 
-sed -e 's/^#have-none#//' $gcc $SVR4 Makefile.in > Makefile
+# determine name of TCL library...
+set ld_path="/lib:/usr/lib:/usr/local/lib:/usr/X11/lib"
+if ($?LD_LIBRARY_PATH) then
+    set ld_path=($ld_path $LD_LIBRARY_PATH)
+endif
+set sawtclxy=0
+set sawtclxDOTy=0
+foreach i (`echo $ld_path | sed "s/:/ /g"`)
+    echo $i
+    if ( -e $i/lib$nmtclxDOTy.a ) then
+	set sawtclxDOTy=1
+    endif
+    if ( -e $i/lib$nmtclxy.a ) then
+	set sawtclxy=1
+    endif
+end
+
+if ( $sawtclxDOTy == 0 ) then
+    if ( $sawtclxy == 0 ) then
+	echo "Cannot find lib$tclxDOTy.a or lib$tclxy.a!  Aborting..."
+	exit 1
+    endif
+    set tclxy='-e s/^#have-tclxy#//'
+endif
+
+# prepare Makefile
+echo "# THIS FILE IS CREATED BY ./configure -- DO NOT HAND EDIT!" > Makefile
+echo "# (Edit Makefile.in and then rerun ./configure instead.)" >> Makefile
+
+# now, edit Makefile.in...
+sed -e 's/^#have-none#//' $gcc $SVR4 $tclxy Makefile.in >> Makefile
 chmod ug+w Makefile
