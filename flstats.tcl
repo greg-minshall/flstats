@@ -1,7 +1,7 @@
 #
 # Tcl script as part of flstats
 #
-# $Id: flstats.tcl,v 1.38 1996/03/13 23:33:14 minshall Exp minshall $
+# $Id: flstats.tcl,v 1.39 1996/03/14 02:55:57 minshall Exp minshall $
 #
 #
 
@@ -345,15 +345,17 @@ fl_setft { {classifier {}} {ulflows {}} } \
 	}
     }
 
-    # now, make sure we get all the stuff the classifier needs
-    # (the point being to produce the union of everything)
-    set classifiertype [split [$classifier.specifier] /]
-    foreach type $classifiertype {
-	if {[lsearch -exact $alltags $type] == -1} {
-	    lappend alltags $type
+    if {$classifier != ""} {
+	# now, make sure we get all the stuff the classifier needs
+	# (the point being to produce the union of everything)
+	set classifiertype [split [$classifier.specifier] /]
+	foreach type $classifiertype {
+	    if {[lsearch -exact $alltags $type] == -1} {
+		lappend alltags $type
+	    }
 	}
     }
-    
+
     # now, know all the tags, build the flow type(s)
     set type1 {}
     set type2 {}
@@ -369,44 +371,58 @@ fl_setft { {classifier {}} {ulflows {}} } \
     }
     set type1 [join $type1 /]
     set type2 [join $type2 /]
-    puts "# flowtype $ftindex $type1 $classifier"
-    fl_set_flow_type -f $ftindex -n $classifier -t flll_delete $type1
-    incr ftindex
-    if {$portsseen != 0} {
-	puts "# flowtype $ftindex $type2 $classifier"
-	fl_set_flow_type -f $ftindex -n $classifier -t flll_delete $type2
+    if {$classifier != ""} {
+	puts "# flowtype $ftindex $type1 $classifier"
+	fl_set_flow_type -f $ftindex -n $classifier -t flll_delete $type1
 	incr ftindex
+	if {$portsseen != 0} {
+	    puts "# flowtype $ftindex $type2 $classifier"
+	    fl_set_flow_type -f $ftindex -n $classifier -t flll_delete $type2
+	    incr ftindex
+	}
+    } else {
+	puts "# flowtype $ftindex $type1"
+	fl_set_flow_type -f $ftindex -t flll_delete $type1
+	incr ftindex
+	if {$portsseen != 0} {
+	    puts "# flowtype $ftindex $type2"
+	    fl_set_flow_type -f $ftindex -t flll_delete $type2
+	    incr ftindex
+	}
     }
 
     incr ftindex			; # leave a gap between LL and UL
 
-    # now, scan thru the input list again, setting flows...
-    for {set whichflow 0} {$whichflow < [llength $ulflows]} \
-					{ incr whichflow; incr ftindex } {
-	set flow [lindex $ulflows $whichflow]
-	puts "# flowtype $ftindex $flow"
-	set len [llength $flow]
-	if {$len >= 2} {
-	    global [lindex $flow 1]
-	    set [lindex $flow 1] $ftindex
+    # do UL flows (but, only if there is a classifier!)
+    if {$classifier != ""} {
+	# now, scan thru the input list again, setting upper level flows...
+	for {set whichflow 0} {$whichflow < [llength $ulflows]} \
+					    { incr whichflow; incr ftindex } {
+	    set flow [lindex $ulflows $whichflow]
+	    puts "# flowtype $ftindex $flow"
+	    set len [llength $flow]
+	    if {$len >= 2} {
+		global [lindex $flow 1]
+		set [lindex $flow 1] $ftindex
+	    }
+	    if {$len >= 3} {
+		set newflow "-n [lindex $flow 2]"
+	    } else {
+		set newflow ""
+	    }
+	    if {$len >= 4} {
+		set recv "-r [lindex $flow 3]"
+	    } else {
+		set recv ""
+	    }
+	    if {$len >= 5} {
+		set timeout "-t [lindex $flow 4]"
+	    } else {
+		set timeout ""
+	    }
+	    eval "fl_set_flow_type -f $ftindex -c $ftindex $newflow \
+					$recv $timeout [lindex $flow 0"
 	}
-	if {$len >= 3} {
-	    set newflow "[lindex $flow 2]"
-	} else {
-	    set newflow "-"
-	}
-	if {$len >= 4} {
-	    set recv "[lindex $flow 3]"
-	} else {
-	    set recv "-"
-	}
-	if {$len >= 5} {
-	    set timeout "[lindex $flow 4]"
-	} else {
-	    set timeout "-"
-	}
-	fl_set_flow_type -f $ftindex -n $newflow \
-				-r $recv -t $timeout [lindex $flow 0]
     }
 }
 
@@ -455,38 +471,26 @@ fl_set_parameters {argc argv}\
 {
     global flstats
 
-    # set various defaults before processing command line...
-
-    set flstats(classifier) flclassifier
-    set flstats(binsecs) 1
-
-    # default UL flows...
-    set flstats(ulflows) { \
-	{   ihv/ihl/tos/ttl/prot/src/dst \
-	    FT_UL_NOPORT \
-	    flstarttimeout \
-	    - \
-	    fldeleteflow} \
-	{   ihv/ihl/tos/ttl/prot/src/dst/sport/dport \
-	    FT_UL_PORT \
-	    flstarttimeout \
-	    - \
-	    fldeleteflow}}
-
-
     set arg [lindex $argv 0]
     while {$argc && ([string length $arg] > 1) &&
 				([string range $arg 0 0] == "-")} {
-	if {[string first $arg -tracefile] == 0} {
-	    if {$argc < 3} {
+	if {[string first $arg -tracefile] == 0} { ; # trace file name
+	    if {$argc < 2} {
 		error "not enough arguments for -tracefile in $argv\nlooking\
-			for '-tracefile filename { fix24 | tcpd }'"
+			for '-tracefile filename'"
 	    }
 	    set flstats(tracefile.filename) [lindex $argv 1]
-	    set flstats(tracefile.format) [lindex $argv 2]
-	    incr argc -3
-	    set argv [lrange $argv 3 end]
-	} elseif {[string first $arg -binsecs] == 0} {
+	    incr argc -2
+	    set argv [lrange $argv 2 end]
+	} elseif {[string first $arg -format] == 0} { ; # trace file format
+	    if {$argc < 2} {
+		error "not enough arguments for -format in $argv\nlooking for\
+			    '-format [tracefileformat]'"
+	    }
+	    set flstats(tracefile.format) [lindex $argv 1]
+	    incr argc -2
+	    set argv [lrange $argv 2 end]
+	} elseif {[string first $arg -binsecs] == 0} { ; # bin time (seconds)
 	    if {$argc < 2} {
 		error "not enough arguments for -binsecs in $argv\nlooking for\
 			    '-binsecs number'"
@@ -494,18 +498,10 @@ fl_set_parameters {argc argv}\
 	    set flstats(binsecs) [lindex $argv 1]
 	    incr argc -2
 	    set argv [lrange $argv 2 end]
-	} elseif {[string first $arg -classifier] == 0} {
-	    if {$argc < 2} {
-		error "not enough arguments for -classifier in $argv\nlooking\
-		    for '-classifier procedurename'"
-	    }
-	    set flstats(classifier) [lindex $argv 1]
-	    incr argc -2
-	    set argv [lrange $argv 2 end]
-	} elseif {[string first $arg -flows] == 0} {
+	} elseif {[string first $arg -flowtypes] == 0} { ; # flow types
 	    if {$argc < 3} {
-		error "not enough arguments for -flows in $argv\nlooking for\
-				'-flows {file filename|script script}'"
+		error "not enough arguments for -flowtypes in $argv\nlooking \
+				for '-flows {file filename|script script}'"
 	    }
 	    switch -exact -- [lindex $argv 1] \
 	    file {
@@ -519,7 +515,7 @@ fl_set_parameters {argc argv}\
 	    }
 	    incr argc -3
 	    set argv [lrange $argv 3 end]
-	} elseif {[string first $arg -script] == 0} {
+	} elseif {[string first $arg -script] == 0} { ; # execute tcl script
 	    uplevel #0 [lindex $argv 1]
 	    incr argc -2
 	    set argv [lrange $argv 2 end]
@@ -547,6 +543,14 @@ fl_startup { }\
     set argc [lindex $ret 0]
     set argv [lindex $ret 1]
 }
+
+# set some defaults...
+set flstats(classifier) {}
+set flstats(binsecs) 0
+# default UL flows...
+set flstats(ulflows) { \
+    {   ihv/ihl/tos/ttl/prot/src/dst - - - - } \
+    {   ihv/ihl/tos/ttl/prot/src/dst/sport/dport - - - - }}
 
 # if {!$tcl_interactive} {
 #     if [catch {

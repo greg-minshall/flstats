@@ -27,7 +27,7 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.61 1996/03/13 23:33:14 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.62 1996/03/14 02:55:57 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -228,7 +228,9 @@ struct ftinfo {
     int	    fti_bytes_and_mask_len,
 	    fti_type_indicies_len,
 	    fti_id_len,		/* length of a flow id for this type */
-	    fti_id_covers;	/* how far into pkt hdr the flow id reaches */
+	    fti_id_covers,	/* how far into pkt hdr the flow id reaches */
+	    fti_class,		/* default class (overridable by upcall) */
+	    fti_parent_ftype;	/* default PARENT flow type (ditto) */
     char    *fti_new_flow_upcall;
 	    /*
 	     * routine:	fti_new_flow_upcall
@@ -873,8 +875,8 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int level, int class)
 	return 0;
     }
     fe->fe_flow_type = ft-ftinfo;
-    fe->fe_parent_ftype = fe->fe_flow_type;	/* default */
-    fe->fe_parent_class = class;		/* default */
+    fe->fe_parent_ftype = ft->fti_parent_ftype;			 /* default */
+    fe->fe_parent_class = ftinfo[ft->fti_parent_ftype].fti_class;/* default */
     fe->fe_class = class;
     fe->fe_pkts = 0;
     fe->fe_bytes = 0;
@@ -1153,7 +1155,7 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
 
     if (llfe == 0) {
 	/* the lower level flow doesn't exist, so will need to be created */
-	llfe = new_flow(interp, llft, llfid, LEVEL_LOWER, 0);
+	llfe = new_flow(interp, llft, llfid, LEVEL_LOWER, llft->fti_class);
 	if (llfe == 0) {
 	    if (packet_error == 0) {
 		interp->result = "unable to create a new lower level flow";
@@ -1165,54 +1167,56 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
 
     /* now, need to find ulfe from llfe */
 
-    ulft = &ftinfo[llfe->fe_parent_ftype];		/* get ll's parent flow type */
+    if (llfe->fe_parent_ftype != 0) {
+	ulft = &ftinfo[llfe->fe_parent_ftype];	/* get ll's parent flow type */
 
-    /* create the ulfid */
-    FLOW_ID_FROM_HDR(ulfid, packet, ulft);
+	/* create the ulfid */
+	FLOW_ID_FROM_HDR(ulfid, packet, ulft);
 
-    /* lookup the upper level flow entry */
-    ulfe = tbl_lookup(ulfid, ulft->fti_id_len, LEVEL_UPPER);
+	/* lookup the upper level flow entry */
+	ulfe = tbl_lookup(ulfid, ulft->fti_id_len, LEVEL_UPPER);
 
-    if (ulfe == 0) {
-	/* the upper level flow doesn't exist -- create it */
-	ulfe = new_flow(interp, ulft, ulfid, LEVEL_UPPER,
-					llfe->fe_parent_class);
 	if (ulfe == 0) {
-	    if (packet_error == 0) {
-		interp->result = "unable to create a new upper level flow";
-		packet_error = TCL_ERROR;
+	    /* the upper level flow doesn't exist -- create it */
+	    ulfe = new_flow(interp, ulft, ulfid, LEVEL_UPPER,
+					    llfe->fe_parent_class);
+	    if (ulfe == 0) {
+		if (packet_error == 0) {
+		    interp->result = "unable to create a new upper level flow";
+		    packet_error = TCL_ERROR;
+		}
+		return;
 	    }
-	    return;
 	}
+
+	/*
+	 * there is a situation in which a UL flow is shared by
+	 * various LL flow types.  in this case, it may be that
+	 * the class of the UL flow depends on which LL flows are
+	 * using it.  this *could* cause us to call out every time
+	 * a new packet arrives (or, a packet arrives with a new
+	 * UL class, or ...).
+	 *
+	 * we use the following hack XXX :  we infer a priority based
+	 * on the class number.  if a packet comes in and the class
+	 * number in its parent_class field is greater than the class
+	 * numberin its parent, then the parent is "reclassed".
+	 *
+	 * i really don't know how to do this "right", sigh.
+	 */
+
+	if (llfe->fe_parent_class > ulfe->fe_class) {
+	    /* class is changing --- update statistics */
+	    clstats[ulfe->fe_class].cls_removed++;
+	    ulfe->fe_class = llfe->fe_parent_class;
+	    clstats[ulfe->fe_class].cls_added++;
+	}
+
+	/* now, track packets in both the lower and upper flows */
+	/* (notice this doesn't happen if any error above occurs...) */
+	packetinflow(interp, ulfe, pktlen);
     }
-
-    /*
-     * there is a situation in which a UL flow is shared by
-     * various LL flow types.  in this case, it may be that
-     * the class of the UL flow depends on which LL flows are
-     * using it.  this *could* cause us to call out every time
-     * a new packet arrives (or, a packet arrives with a new
-     * UL class, or ...).
-     *
-     * we use the following hack XXX :  we infer a priority based
-     * on the class number.  if a packet comes in and the class
-     * number in its parent_class field is greater than the class
-     * numberin its parent, then the parent is "reclassed".
-     *
-     * i really don't know how to do this "right", sigh.
-     */
-
-    if (llfe->fe_parent_class > ulfe->fe_class) {
-	/* class is changing --- update statistics */
-	clstats[ulfe->fe_class].cls_removed++;
-	ulfe->fe_class = llfe->fe_parent_class;
-	clstats[ulfe->fe_class].cls_added++;
-    }
-
-    /* now, track packets in both the lower and upper flows */
-    /* (notice this doesn't happen if any error above occurs...) */
     packetinflow(interp, llfe, pktlen);
-    packetinflow(interp, ulfe, pktlen);
 }
 
 static void
@@ -1349,7 +1353,8 @@ fl_read_one_bin(ClientData clientData, Tcl_Interp *interp,
 }
 
 static int
-set_flow_type(Tcl_Interp *interp, int ftype, char *name, char *new_flow_upcall,
+set_flow_type(Tcl_Interp *interp, int ftype, int Ftype, int class,
+				char *name, char *new_flow_upcall,
 				char *recv_upcall, char *timer_upcall)
 {
     char initial[MAX_FLOW_ID_BYTES*5], after[MAX_FLOW_ID_BYTES*5]; /* 5 rndm */
@@ -1375,7 +1380,7 @@ set_flow_type(Tcl_Interp *interp, int ftype, char *name, char *new_flow_upcall,
 	int j, n;
 	n = sscanf(curdesc, "%[a-zA-Z]%s", initial, after);
 	if (n == 0) {
-	    goto goodout;
+	    break;
 	}
 	if (n == 1) {
 	    curdesc = "";
@@ -1427,22 +1432,29 @@ set_flow_type(Tcl_Interp *interp, int ftype, char *name, char *new_flow_upcall,
 	    return TCL_ERROR;
 	}
     }
-goodout:
+
     fti->fti_bytes_and_mask_len = bandm;
     fti->fti_id_len = bandm/2;
     fti->fti_type_indicies_len = indicies;
+
+    fti->fti_class = class;
+    fti->fti_parent_ftype = Ftype;
+
     if (fti->fti_new_flow_upcall) {
 	free(fti->fti_new_flow_upcall);
     }
     fti->fti_new_flow_upcall = new_flow_upcall;
+
     if (fti->fti_recv_upcall) {
 	free(fti->fti_recv_upcall);
     }
     fti->fti_recv_upcall = recv_upcall;
+
     if (fti->fti_timer_upcall) {
 	free(fti->fti_timer_upcall);
     }
     fti->fti_timer_upcall = timer_upcall;
+
     return TCL_OK;
 }
 
@@ -1461,33 +1473,39 @@ fl_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 					    int argc, char *argv[])
 {
     int error;
-    int ftype;
+    int ftype, Ftype, class;
     char *new_flow_upcall, *recv_upcall, *timer_upcall;
     static char result[20];
     static char *usage =
 		"Usage: fl_set_flow_type "
 		"?-n new_flow_command? ?-r recv_command? "
-		"?-t timer_command? ?-f flow_type? flowstring";
+		"?-t timer_command?  ?-c default_class? ?-f flow_type? "
+		"?-F default_parent_flow_type? specifier";
     int op;
     extern char *optarg;
     extern int optind, opterr, optreset;
 
     ftype = 0;
+    Ftype = 0;
+    class = 0;
     new_flow_upcall = 0;
     recv_upcall = 0;
     timer_upcall = 0;
     opterr = 0;
     optreset = 1;
     optind = 1;
-    while ((op = getopt(argc, argv, "f:n:r:t:")) != EOF) {
+    while ((op = getopt(argc, argv, "c:f:F:n:r:t:")) != EOF) {
 	switch (op) {
+	    case 'c':
+		    class = atoi(optarg);
+		    break;
 	    case 'f':
 		    ftype = atoi(optarg);
 		    break;
+	    case 'F':
+		    Ftype = atoi(optarg);
+		    break;
 	    case 'n':
-		    if (optarg[0] == '-') {
-			break;
-		    }
 		    new_flow_upcall = strsave(optarg);
 		    if (new_flow_upcall == 0) {
 			interp->result = "malloc failed";
@@ -1495,9 +1513,6 @@ fl_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 		    }
 		    break;
 	    case 'r':
-		    if (optarg[0] == '-') {
-			break;
-		    }
 		    recv_upcall = strsave(optarg);
 		    if (recv_upcall == 0) {
 			interp->result = "malloc failed";
@@ -1505,9 +1520,6 @@ fl_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 		    }
 		    break;
 	    case 't':
-		    if (optarg[0] == '-') {
-			break;
-		    }
 		    timer_upcall = strsave(optarg);
 		    if (timer_upcall == 0) {
 			interp->result = "malloc failed";
@@ -1534,7 +1546,7 @@ fl_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 	return TCL_ERROR;
     }
 
-    error = set_flow_type(interp, ftype, argv[0],
+    error = set_flow_type(interp, ftype, Ftype, class, argv[0],
 				new_flow_upcall, recv_upcall, timer_upcall);
     if (error != TCL_OK) {
 	return error;
