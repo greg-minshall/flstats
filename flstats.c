@@ -113,9 +113,10 @@ struct hentry {
     u_char  key_len,		/* length of key */
 	    level;		/* "level" - to allow same key at diff */
     hentry_p
-	    next_in_bucket;
-    hentry_p
-	    next_in_table;
+	    next_in_bucket,
+	    prev_in_bucket,
+	    next_in_table,
+	    prev_in_table;
     u_char  key[1];		/* variable sized (KEEP AT END!) */
 };
 
@@ -479,7 +480,7 @@ static hentry_p
 tbl_add(u_char *key, int key_len, int level)
 {
     u_short sum = cksum(key, key_len, level);
-    hentry_p *bucket = &buckets[sum%NUM(buckets)];
+    hentry_p *hbucket = &buckets[sum%NUM(buckets)];
     hentry_p hent;
 
     hent = (hentry_p) malloc(sizeof *hent+key_len-1);
@@ -489,12 +490,57 @@ tbl_add(u_char *key, int key_len, int level)
     hent->sum = sum;
     hent->key_len = key_len;
     hent->level = level;
-    hent->next_in_bucket = *bucket;
-    *bucket = hent;
-    hent->next_in_table = table;
-    table = hent;
     memcpy(hent->key, key, key_len);
+
+    hent->next_in_bucket = *hbucket;
+    if (hent->next_in_bucket) {
+	hent->next_in_bucket->prev_in_bucket = hent;
+    }
+    hent->prev_in_bucket = 0;
+    *hbucket = hent;
+
+    hent->next_in_table = table;
+    if (hent->next_in_table) {
+	hent->next_in_table->prev_in_table = hent;
+    }
+    hent->prev_in_table = 0;
+    table = hent;
+
     return hent;
+}
+
+
+static void
+tbl_delete(hentry_p fe)
+{
+    u_short sum = cksum(fe->key, fe->key_len, fe->level);
+    hentry_p *hbucket = &buckets[sum%NUM(buckets)];
+    hentry_p *honebehind = &onebehinds[sum%NUM(onebehinds)];
+
+    /* dequeue the silly thing... */
+    if (fe->prev_in_bucket) {
+	fe->prev_in_bucket->next_in_bucket = fe->next_in_bucket;
+    } else {
+	*hbucket = fe->next_in_bucket;
+    }
+    if (fe->next_in_bucket) {
+	fe->next_in_bucket->prev_in_bucket = fe->prev_in_bucket;
+    }
+
+    if (fe->prev_in_table) {
+	fe->prev_in_table->next_in_table = fe->next_in_table;
+    } else {
+	table = fe->next_in_table;
+    }
+    if (fe->next_in_table) {
+	fe->next_in_table->prev_in_table = fe->prev_in_table;
+    }
+
+    if (*honebehind == fe) {
+	*honebehind = *hbucket;
+    }
+
+    free(fe);
 }
 
 
@@ -638,6 +684,20 @@ class_statistics(clstats_p clsp)
 
 
 
+static void
+delete_flow(hentry_p fe)
+{
+    clstats[fe->class].cls_removed++;
+    if (fe->pkt_recv_cmd) {
+	free(fe->pkt_recv_cmd);
+    }
+    if (fe->timeout_cmd) {
+	free(fe->timeout_cmd);
+    }
+    tbl_delete(fe);
+}
+
+
 static hentry_p
 new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int level)
 {
@@ -699,8 +759,6 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int level)
 	 */
 	if (buf[0] && (buf[0] != '-')) {
 	    fe->pkt_recv_cmd = strsave(buf);
-	} else {
-	    fe->pkt_recv_cmd = 0;
 	}
 	if (n >= 4) {
 	    /* returned value is relative to now, so make absolute */
@@ -710,8 +768,6 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int level)
 
 	if (buf2[0] && (buf2[0] != '-')) {
 	    fe->timeout_cmd = strsave(buf2);
-	} else {
-	    fe->timeout_cmd = 0;
 	}
 	if (n >= 7) {
 	    /* returned value is relative to now, so make absolute */
@@ -1339,11 +1395,12 @@ static int
 teho_run_timeouts(ClientData clientData, Tcl_Interp *interp,
 		int argc, char *argv[])
 {
-    hentry_p fe = table;
+    hentry_p nfe, fe = table;
     char buf[100], buf2[100];
-    int n;
+    int n, i = 0;
 
     while (fe) {
+	nfe = fe->next_in_table;
 	if (fe->timeout_cmd && TIME_LT(&fe->timeout_time, &curtime)) {
 	    /*
 	     * call:	"timeout_cmd cookie class ftype flowid FLOW flowstats"
@@ -1377,10 +1434,16 @@ teho_run_timeouts(ClientData clientData, Tcl_Interp *interp,
 	    if (n >= 3) {
 		TIME_ADD(&fe->timeout_time, &fe->timeout_time, &curtime);
 	    }
+	    if ((n >= 1) && !strcmp(buf, "DELETE")) {
+		delete_flow(fe);
+	    }
 	}
-	fe = fe->next_in_table;
+	fe = nfe;
+	i++;
     }
 
+    sprintf(buf, "%d", i);
+    Tcl_SetResult(interp, buf, TCL_VOLATILE);
     return TCL_OK;
 }
 
