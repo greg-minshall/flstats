@@ -194,9 +194,9 @@ simul { fixortcpd filename {binsecs 1} } \
 				ihv/ihl/tos/ttl/prot/src/dst
 
 
-    puts \
-"# plotvars 1 binno 2 pktsrouted 3 pktsswitched 4 created 5 deleted 6 numflows"
-    puts "# plotvars 7 totalflows 8 bintime 9 timeouttime 10 vsz 11 rsz 12 cputime"
+    puts "# plotvars 1 binno 2 pktsrouted 3 pktsswitched 4 dropped"
+    puts "# plotvars 5 created 6 deleted 7 numflows 8 totalflows"
+    puts "# plotvars 9 bintime 10 timeouttime 11 vsz 12 rsz 13 cputime"
 
     # we are looking at 3 classes: 3, 4, 5
     #	3	non-switched flows
@@ -232,10 +232,12 @@ simul { fixortcpd filename {binsecs 1} } \
 	set diffgstats [vec_difference $gstats $ogstats]
 	set xx [exec ps lp$pid]
 	set xx [lrange [split [join $xx]] 19 24]
-	puts [format "%-7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %s" \
+	puts [format "%-7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %7d %s" \
 			$binno\
 			[expr [lindex $diffnon 3] + [lindex $diffwaiting 3]] \
 			[lindex $diffswitched 3] \
+			[expr [lindex $diffgstats 4] + [lindex $diffgstats 5] \
+				+ [lindex $diffgstats 6]] \
 			[expr $flowscreated - $oflowscreated] \
 			[expr $flowsdeleted - $oflowsdeleted] \
 			[expr ([lindex $waiting 0] + [lindex $switched 0]) - \
