@@ -1,17 +1,13 @@
-# $Id: Makefile.in,v 1.15 1996/03/28 04:06:41 minshall Exp minshall $
+# $Id: Makefile.in,v 1.16 1996/03/28 04:08:52 minshall Exp minshall $
 
 # version for distribution...
 VERS=`cat VERSION`
 
 
-LIBPATH = -L../libpcap/libpcap-0.0.6 \
-			-L../lib_`uname -m` \
-			-L/usr/local/lib
-
 LIBPCAP = -lpcap
 LIBTCL = -ltcl7.4
 
-INCLUDES	= -I/usr/local/include -I../include
+INCLUDES	= -I/usr/local/include -I../../usr/include
 
 #have-gcc#CC = gcc
 #have-gcc#WARNINGS	= -Wall
