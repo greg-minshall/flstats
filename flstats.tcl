@@ -1,3 +1,14 @@
+# for compatibility...
+
+proc \
+simul { fixortcpd filename {binsecs 1} {classifier {}} \
+				{classifiertype {}} { ulflows {} }} \
+{
+    fsim_class_details $fixortcpd $filename \
+			$binsecs $classifier $classifiertype $ulflows
+}
+
+
 ### PARAMETERS ###
 
 # some DEFINES
@@ -426,13 +437,10 @@ fsim_class_details { fixortcpd filename {binsecs 1} {classifier {}} \
     }
 }
 
-
-# for compatibility...
-
-proc \
-simul { fixortcpd filename {binsecs 1} {classifier {}} \
-				{classifiertype {}} { ulflows {} }} \
+proc\
+fsim_startup { }\
 {
-    fsim_class_details $fixortcpd $filename \
-			$binsecs $classifier $classifiertype $ulflows
+    global tcl_RcFileName
+
+    set tcl_RcFileName "~/.flowsim.tcl"
 }
