@@ -97,6 +97,54 @@ typedef struct clstats {
 	    cls_noports;		/* packet had no ports (but needed) */
 } clstats_t, *clstats_p;
 
+
+
+/*
+ * The following represents a flow type.  A flow type defines
+ * the bits in the header used to separate packets into different
+ * flows (within the same flow type).
+ *
+ * The way things work here is that the lower level turns incoming
+ * packets into flows within a given flow type (based on a very
+ * simple classifier which tries to match the packet with the most
+ * specific flow type; this classifier knows about port numbers,
+ * for example).  Then, if this is
+ * a new flow, it will call into the upper level.  The upper level
+ * can then specify a *different* flow type for packets of this
+ * flow (in addition to some other parameters for this flow).
+ * In essence, the more specific lower level flow is used to map
+ * incoming packets into a higher level flow type.  One constraint
+ * in doing this is that two packets which are in the same
+ * *lower level* flow * cannot be in two *different* higher
+ * level flows.
+ *
+ * The lower level *keeps* its specific flow entry, and points
+ * it at the flow entry specified by the upper level.  Future
+ * packets received at the specific flow are thus correlated
+ * with the higher level flow without any interaction with the
+ * higher level.
+ *
+ * When the upper level enumerates flows, it doesn't see any of
+ * these more-specific lower level flows.
+ *
+ * (Note, however, that the upper level can indicate that the
+ * flow type used by the lower level is the same flow type which
+ * the upper level would like to use for a flow.  In this case,
+ * enumerating the flows will cause that flow entry to be revealed.)
+ *
+ * To aid in this separation between lower-level and higher-level
+ * flow types, the low-level classifier tries to fit the packet
+ * into flow types starting at index 0, and stops when it runs
+ * into a flow type that hasn't been initialized.  Thus, the
+ * application can initialize the lower-level flow types, leave
+ * a gap, and then initialize upper-level flow types, knowing
+ * that the packet receive routine won't ever use "its" flow
+ * types.  (In practice, this may not be needed at all.)
+ * Fragmentation is painful here, since packets that *should* be
+ * in a more-specific (i.e., including ports) flow type will be
+ * classified in a less-specific flow type.
+ */
+
 typedef struct ftinfo ftinfo_t, *ftinfo_p;
 
 struct ftinfo {
@@ -111,6 +159,7 @@ struct ftinfo {
 };
 
 #define	FTI_USES_PORTS(p) ((p)->fti_id_covers > 20)
+#define	FTI_UNUSED(p)		((p)->fti_id_len == 0)
 
 
 /*
@@ -519,7 +568,9 @@ packetin(Tcl_Interp *interp, const u_char *packet, int len)
     if (pending == 0) {
 	pkthasports = protohasports[packet[9]];
 	bigenough = 0;
-	for (ftype = 0; ftype < NUM(ftinfo); ftype++) {
+	for (ftype = 0;
+		    (ftype < NUM(ftinfo)) && !FTI_UNUSED(&ftinfo[ftype]);
+								    ftype++) {
 	    if (len >= ftinfo[ftype].fti_id_covers) {
 		bigenough = 1;
 		if (pkthasports || !FTI_USES_PORTS(&ftinfo[ftype])) {
