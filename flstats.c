@@ -1262,7 +1262,8 @@ process_one_packet(Tcl_Interp *interp)
 		    interp->result = "error on read";
 		    return TCL_ERROR;
 		}
-	    } else {
+	    } else if (ntohs(fixpacket.len) != 65535) {
+		/* 65535 ==> not IP packet (ethertype in dport) */
 		receive_fix(interp, &fixpacket);
 	    }
 	}
