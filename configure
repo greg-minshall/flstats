@@ -4,10 +4,9 @@
 # cheap hack to make things portable (but, note this is csh!)
 
 # what versions of TCL library do we look for?
-# (this is what needs to change, together with some lines
-# in Makefile.in, in order to use a different version of Tcl.)
-set nmtclxy=tcl74
-set nmtclxDOTy=tcl7.4
+# (this is what needs to change in order to use a different version of Tcl.)
+set nmtclxy=tcl75
+set nmtclxDOTy=tcl7.5
 
 set gcc
 set SVR4
@@ -31,20 +30,24 @@ endif
 set sawtclxy=0
 set sawtclxDOTy=0
 foreach i (`echo $ld_path | sed "s/:/ /g"`)
-    if ( -e $i/lib$nmtclxDOTy.a ) then
+    ls $i/lib$nmtclxDOTy* >& /dev/null
+    if ($status == 0) then
 	set sawtclxDOTy=1
     endif
-    if ( -e $i/lib$nmtclxy.a ) then
+    ls $i/lib$nmtclxy* >& /dev/null
+    if ($status == 0) then
 	set sawtclxy=1
     endif
 end
 
-if ( $sawtclxDOTy == 0 ) then
-    if ( $sawtclxy == 0 ) then
-	echo "Cannot find lib$nmtclxDOTy.a or lib$nmtclxy.a!  Aborting..."
-	exit 1
-    endif
-    set tclxy='-e s/^#have-tclxy#//'
+if ($sawtclxDOTy) then
+    set tclxy="-e s/__CONFIGURE__TCLXY__/$nmtclxDOTy/"
+else if ($sawtclxy) then
+    set tclxy="-e s/__CONFIGURE__TCLXY__/$nmtclxy/"
+else
+    echo "Cannot find lib$nmtclxDOTy.a or lib$nmtclxy.a!  Aborting..."
+    echo "(to change to a different version of tcl, edit 'configure')"
+    exit 1
 endif
 
 # prepare Makefile
