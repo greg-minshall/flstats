@@ -52,12 +52,14 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.87 1997/05/08 04:43:47 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.88 2000/06/27 17:06:31 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+#include <arpa/inet.h>
 
 #include <sys/types.h>
 
@@ -1728,8 +1730,8 @@ receive_fix44(Tcl_Interp *interp, struct fix44pkt *pkt)
     set_time(interp, ntohl(pkt->secs), ntohl(pkt->usecs));
 
     /* src and dst are in ??? intel order ??? */
-    NTOHL(pkt->ip.src);
-    NTOHL(pkt->ip.dst);
+    pkt->ip.src = ntohl(pkt->ip.src);
+    pkt->ip.dst = ntohl(pkt->ip.dst);
 
     packetin(interp, FIX44_TO_PACKET(pkt),
 				FIX44_PACKET_SIZE, ntohs(pkt->ip.len));
