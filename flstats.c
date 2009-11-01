@@ -52,7 +52,7 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.89 2006/08/09 23:28:32 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.90 2009/11/01 18:00:41 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -591,6 +591,20 @@ char fl_tclprogram[] =
 #include "flstats.char"
 ;
 
+
+/*
+ * return the microseconds from a struct timeval
+ */
+
+static long
+tvusecs(struct timeval *tv)
+{
+    long usecs = tv->tv_usec;
+
+    return usecs;
+}
+
+    
 /*
  * save a string
  */
@@ -876,8 +890,8 @@ flow_statistics(flowentry_p fe)
 	    flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_id),
 	    fe->fe_pkts-fe->fe_pkts_last_enum, fe->fe_bytes,
 	    SIPG_TO_SECS(fe->fe_sipg), SIPG_TO_USECS(fe->fe_sipg),
-	    fe->fe_created.tv_sec, fe->fe_created.tv_usec,
-	    fe->fe_last_pkt_rcvd.tv_sec, fe->fe_last_pkt_rcvd.tv_usec);
+            fe->fe_created.tv_sec, tvusecs(&fe->fe_created),
+            fe->fe_last_pkt_rcvd.tv_sec, tvusecs(&fe->fe_last_pkt_rcvd));
 
     return summary;
 }
@@ -902,7 +916,7 @@ class_statistics(clstats_p clsp)
 	clsp->cls_fragbytes, clsp->cls_toosmallpkts, clsp->cls_toosmallbytes,
 	clsp->cls_runtpkts, clsp->cls_runtbytes, clsp->cls_noportpkts,
 	clsp->cls_noportbytes, clsp->cls_last_pkt_rcvd.tv_sec,
-	clsp->cls_last_pkt_rcvd.tv_usec);
+            tvusecs(&clsp->cls_last_pkt_rcvd));
 
     return summary;
 }
@@ -977,7 +991,7 @@ do_timers(Tcl_Interp *interp)
 	     * call:	"timer_upcall timesecs.usecs FLOW flowstats"
 	     * result:  "command secs.usecs"
 	     */
-	    sprintf(buf, " %ld.%06ld ", curtime.tv_sec, curtime.tv_usec);
+	    sprintf(buf, " %ld.%06ld ", curtime.tv_sec, tvusecs(&curtime));
 	    if (Tcl_VarEval(interp,
 		    ftinfo[fe->fe_flow_type].fti_timer_upcall, buf,
 		    " FLOW ", flow_statistics(fe), 0) != TCL_OK) {
