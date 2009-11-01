@@ -52,7 +52,7 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.91 2009/11/01 18:08:36 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.92 2009/11/01 18:12:23 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -77,13 +77,13 @@ static char *rcsid =
 #define PICKUP_NETSHORT(p)       ((((u_char *)p)[0]<<8)|((u_char *)p)[1])
 
 #define	TIME_ADD(r,a,b)	{ \
-		(r)->tv_sec = (a)->tv_sec + (b)->tv_sec; \
-		(r)->tv_usec = (a)->tv_usec + (b)->tv_usec; \
-		if ((r)->tv_usec >= 1000000) { /* deal with carry */ \
-		    (r)->tv_sec++; \
-		    (r)->tv_usec -= 1000000; \
-		} \
-	    }
+		(r)->tv_sec = (a)->tv_sec + (b)->tv_sec;                \
+		(r)->tv_usec = (a)->tv_usec + (b)->tv_usec;             \
+		if ((r)->tv_usec >= 1000000) { /* deal with carry */    \
+		    (r)->tv_sec++;                                      \
+		    (r)->tv_usec -= 1000000;                            \
+		}                                                       \
+    }
 
 #define	TIME_LE(a,b) \
 		(((a)->tv_sec < (b)->tv_sec) \
@@ -109,11 +109,11 @@ static char *rcsid =
 		(TIMEDIFFSECS(&curtime, &starttime)/binsecs))
 
 #define	FLOW_ID_FROM_HDR(fid,hdr,ftip) { \
-	int i, j; \
-	for (i = 0, j = 0; j < ftip->fti_bytes_and_mask_len; i++, j += 2) { \
-	    (fid)[i] = (hdr)[ftip->fti_bytes_and_mask[j]] \
-					&ftip->fti_bytes_and_mask[j+1]; \
-	} \
+        int i, j;                                                       \
+        for (i = 0, j = 0; j < ftip->fti_bytes_and_mask_len; i++, j += 2) { \
+            (fid)[i] = (hdr)[ftip->fti_bytes_and_mask[j]]               \
+                &ftip->fti_bytes_and_mask[j+1];                         \
+        }                                                               \
     }
 
 #define	SIPG_TO_SECS(x)	    (((x)>>3)/1000000)
@@ -137,30 +137,30 @@ typedef struct flowentry flowentry_t, *flowentry_p;
 struct flowentry {
     /* fields for application use */
     u_short
-	fe_flow_type,		/* which flow type is this? */
-	fe_class,		/* class of this flow */
-	fe_parent_ftype,	/* parent's flow type */
-	fe_parent_class;	/* parent's class */
+        fe_flow_type,		/* which flow type is this? */
+        fe_class,		/* class of this flow */
+        fe_parent_ftype,	/* parent's flow type */
+        fe_parent_class;	/* parent's class */
     u_long
-	fe_pkts,		/* number of packets received */
-	fe_pkts_last_enum,	/* number of packets *last* time enum done */
-	fe_bytes,		/* number of bytes received */
-	fe_sipg,		/* smoothed interpacket gap (units of 8 usec) */
-	fe_last_bin_active,	/* last bin this saw activity */
-	fe_upcall_when_pkts_ge,	/* num pkts needs to be >= m */
-	fe_upcall_when_sipg_lt;	/* sipg needs to be < p */
-				/* (0xffffffff ==> ignore sipg) */
-				/* (0 ==> never call out) */
+        fe_pkts,		/* number of packets received */
+        fe_pkts_last_enum,	/* number of packets *last* time enum done */
+        fe_bytes,		/* number of bytes received */
+        fe_sipg,		/* smoothed interpacket gap (units of 8 usec) */
+        fe_last_bin_active,	/* last bin this saw activity */
+        fe_upcall_when_pkts_ge,	/* num pkts needs to be >= m */
+        fe_upcall_when_sipg_lt;	/* sipg needs to be < p */
+    /* (0xffffffff ==> ignore sipg) */
+    /* (0 ==> never call out) */
     struct timeval
-	fe_created,		/* time created */
-	fe_last_pkt_rcvd,	/* time most recent packet seen */
-	fe_upcall_when_secs_ge,	/* recv_upcall won't run till this time */
-	fe_timer_time;	    	/* time to run timer routine */
+	    fe_created,		/* time created */
+        fe_last_pkt_rcvd,	/* time most recent packet seen */
+        fe_upcall_when_secs_ge,	/* recv_upcall won't run till this time */
+        fe_timer_time;	    	/* time to run timer routine */
     /* fields for hashing */
     u_short fe_sum;		/* hash of id, speeds up searching */
     u_char  fe_id_len;		/* length of id */
     flowentry_p
-	    fe_next_in_bucket,
+        fe_next_in_bucket,
 	    fe_prev_in_bucket,
 	    fe_next_in_table,
 	    fe_prev_in_table,
@@ -184,7 +184,7 @@ struct flowentry {
 
 typedef struct clstats {
     u_long
-	    cls_last_bin_active,	/* last bin this class saw activity */
+        cls_last_bin_active,	/* last bin this class saw activity */
 	    cls_created,		/* num flows created in this class */
 	    cls_deleted,		/* num flows created in this class */
 	    cls_added,			/* num flows added to this class */
@@ -202,7 +202,7 @@ typedef struct clstats {
 	    cls_noportpkts,		/* packet had no ports (but needed) */
 	    cls_noportbytes;		/* bytes seen in those frags */
     struct timeval
-	    cls_last_pkt_rcvd;		/* time last packet received in class */
+        cls_last_pkt_rcvd;		/* time last packet received in class */
 } clstats_t, *clstats_p;
 
 
@@ -257,7 +257,7 @@ typedef struct ftinfo ftinfo_t, *ftinfo_p;
 
 struct ftinfo {
     u_char  fti_type_indicies[MAX_FLOW_ID_BYTES],
-            fti_bytes_and_mask[2*MAX_FLOW_ID_BYTES];
+        fti_bytes_and_mask[2*MAX_FLOW_ID_BYTES];
     int	    fti_bytes_and_mask_len,
 	    fti_type_indicies_len,
 	    fti_id_len,		/* length of a flow id for this type */
@@ -265,46 +265,46 @@ struct ftinfo {
 	    fti_class,		/* default class (overridable by upcall) */
 	    fti_parent_ftype;	/* default PARENT flow type (ditto) */
     char    *fti_new_flow_upcall;
-	    /*
-	     * routine:	fti_new_flow_upcall
-	     * call:	"fti_new_flow_upcall class flowindex flowtype flowid"
-	     * result:	"class upper_class upper_ftype recvsecs.usecs"
-	     *			revcpkts recvsipg.usecs timersecs.usecs" 
-	     *
-	     * 'class' is the class of the new flow.  'upper_class'
-	     * is the class for any parent flow that might be created.
-	     * 'upper_ftype' is the flow type for a created parent flow.
-	     * recvsecs.usecs after the current time in the output flow,
-	     * a received packet will cause the flow types receive routine
-	     * to be called if recvpkts have been received and the smoothed
-	     * inter-packet gap is less that recvsipg.usecs.  timersecs.usecs
-	     * from now, the flow type's timer routine will be called for
-	     * this flow.
-	     */
+    /*
+     * routine:	fti_new_flow_upcall
+     * call:	"fti_new_flow_upcall class flowindex flowtype flowid"
+     * result:	"class upper_class upper_ftype recvsecs.usecs"
+     *			revcpkts recvsipg.usecs timersecs.usecs" 
+     *
+     * 'class' is the class of the new flow.  'upper_class'
+     * is the class for any parent flow that might be created.
+     * 'upper_ftype' is the flow type for a created parent flow.
+     * recvsecs.usecs after the current time in the output flow,
+     * a received packet will cause the flow types receive routine
+     * to be called if recvpkts have been received and the smoothed
+     * inter-packet gap is less that recvsipg.usecs.  timersecs.usecs
+     * from now, the flow type's timer routine will be called for
+     * this flow.
+     */
     char    *fti_recv_upcall;	/* command to call when a pkt received */
-	    /*
-	     * routine:	recv_upcall
-	     * call:	"recv_upcall FLOW flowstats"
-	     * result:	"class recvsecs.usecs recvpkts sipgsecs.usecs" 
-	     *
-	     * if, on output, recvsecs is null (i.e., not returned),
-	     * then the recv_upcall will be made when the next packet
-	     * in this flow is received.
-	     */
+    /*
+     * routine:	recv_upcall
+     * call:	"recv_upcall FLOW flowstats"
+     * result:	"class recvsecs.usecs recvpkts sipgsecs.usecs" 
+     *
+     * if, on output, recvsecs is null (i.e., not returned),
+     * then the recv_upcall will be made when the next packet
+     * in this flow is received.
+     */
     char    *fti_timer_upcall;	/* timer command (if registered) */
-	    /*
-	     * routine: timer_upcall
-	     * call:	"timer_upcall timesecs.usecs FLOW flowstats"
-	     * result:  "command secs.usecs"
-	     *
-	     * if "command" is "DELETE", the associated flow will be
-	     * deleted.  if "command" starts with '-', it will be ignored.
-	     * other values for "command" are TBD.
-	     *
-	     * if the flow is not deleted, the next timer upcall will
-	     * be made "secs.usecs" from the current time.  (A returned
-	     * value of "0" inhibits future timer upcalls for this flow.)
-	     */
+    /*
+     * routine: timer_upcall
+     * call:	"timer_upcall timesecs.usecs FLOW flowstats"
+     * result:  "command secs.usecs"
+     *
+     * if "command" is "DELETE", the associated flow will be
+     * deleted.  if "command" starts with '-', it will be ignored.
+     * other values for "command" are TBD.
+     *
+     * if the flow is not deleted, the next timer upcall will
+     * be made "secs.usecs" from the current time.  (A returned
+     * value of "0" inhibits future timer upcalls for this flow.)
+     */
 };
 
 #define	FTI_USES_PORTS(p) ((p)->fti_id_covers > 20)
@@ -394,43 +394,43 @@ struct fix44pkt {
     /* IP header */
     struct {
 #if	(BYTE_ORDER == BIG_ENDIAN)
-	u_char  vers:4,
-		ihl:4,
+        u_char  vers:4,
+            ihl:4,
 #else
-	u_char  ihl:4,
-		vers:4,
+            u_char  ihl:4,
+            vers:4,
 #endif
-		tos;
-	u_short len,
-		id,
-		foff;
-	u_char  ttl,
-		prot;
-	u_short sum;
-	u_long  src,
-		dst;
+            tos;
+        u_short len,
+            id,
+            foff;
+        u_char  ttl,
+            prot;
+        u_short sum;
+        u_long  src,
+            dst;
     } ip;
     /* TCP/UDP header */
     union {
-	struct {
-	u_short sport,
-		dport;
-	} udp;
-	struct {
-	    u_short sport,
-		    dport;
-	    u_long  seq,
-		    ack;
+        struct {
+            u_short sport,
+                dport;
+        } udp;
+        struct {
+            u_short sport,
+                dport;
+            u_long  seq,
+                ack;
 #if	(BYTE_ORDER == BIG_ENDIAN)
-	    u_char  doff:4,
-		    resv:4,
+            u_char  doff:4,
+                resv:4,
 #else
-	    u_char  resv:4,
-		    doff:4,
+                u_char  resv:4,
+                doff:4,
 #endif
-		    flags;
-	    u_short window;
-	} tcp;
+                flags;
+            u_short window;
+        } tcp;
     } tcpudp;
 };
 
@@ -461,15 +461,15 @@ struct fix44pkt {
             
 struct fix24pkt {
     long    secs,
-            usecs;
+        usecs;
     u_long
-            src,
-            dst;
+    src,
+        dst;
     u_short len;
     u_char  prot,
-            tflags;
+        tflags;
     u_short sport,
-            dport;
+        dport;
 };
 
 #define	FIX24_PACKET_SIZE   24
@@ -617,7 +617,7 @@ strsave(char *s)
 
     new = (char *) malloc(n+1);
     if (new) {
-	strncpy(new, s, n+1);
+        strncpy(new, s, n+1);
     }
     return new;
 }
@@ -653,45 +653,45 @@ newfile(Tcl_Interp *interp, int maxpktlen)
 
     switch (filetype) {
     case TYPE_PCAP:
-	if (pcap_descriptor != 0) {
-	    pcap_close(pcap_descriptor);
-	    pcap_descriptor = 0;
-	}
-	break;
+        if (pcap_descriptor != 0) {
+            pcap_close(pcap_descriptor);
+            pcap_descriptor = 0;
+        }
+        break;
     case TYPE_FIX24:
-	if ((fix24_descriptor != 0) && (fclose(fix24_descriptor) == EOF)) {
-	    sprintf(interp->result, "fclose: %s", strerror(errno));
-	    return TCL_ERROR;
-	}
-	break;
+        if ((fix24_descriptor != 0) && (fclose(fix24_descriptor) == EOF)) {
+            sprintf(interp->result, "fclose: %s", strerror(errno));
+            return TCL_ERROR;
+        }
+        break;
     case TYPE_FIX44:
-	if ((fix44_descriptor != 0) && (fclose(fix44_descriptor) == EOF)) {
-	    sprintf(interp->result, "fclose: %s", strerror(errno));
-	    return TCL_ERROR;
-	}
-	break;
+        if ((fix44_descriptor != 0) && (fclose(fix44_descriptor) == EOF)) {
+            sprintf(interp->result, "fclose: %s", strerror(errno));
+            return TCL_ERROR;
+        }
+        break;
     case TYPE_UNKNOWN:
-	/* nothing to do */
-	break;
+        /* nothing to do */
+        break;
     default:
-	sprintf(interp->result, "%s.%d: filetype %d unknown!\n",
-					__FILE__, __LINE__, filetype);
-	return TCL_ERROR;
+        sprintf(interp->result, "%s.%d: filetype %d unknown!\n",
+                __FILE__, __LINE__, filetype);
+        return TCL_ERROR;
     }
 
     filetype = TYPE_UNKNOWN;		/* go into neutral... */
 
     memset(&clstats[0], 0, sizeof clstats);
     for (cl = &clstats[0]; cl < &clstats[NUM(clstats)]; cl++) {
-	cl->cls_last_bin_active = 0xffffffff;
+        cl->cls_last_bin_active = 0xffffffff;
     }
     curtime = ZERO;
     starttime = ZERO;
     pending = 0;
 
     for (fe = table; fe; fe = nfe) {
-	nfe = fe->fe_next_in_table;
-	free(fe);
+        nfe = fe->fe_next_in_table;
+        free(fe);
     }
     table = table_last = 0;
     memset(buckets, 0, sizeof buckets);
@@ -699,27 +699,27 @@ newfile(Tcl_Interp *interp, int maxpktlen)
 
     /* if pending buffer is already set, free it */
     if (pending_packet) {
-	free(pending_packet);
-	pending_packet = 0; 	    /* empty the water bucket */
+        free(pending_packet);
+        pending_packet = 0; 	    /* empty the water bucket */
     }
 
     /* allocate packet for pending buffer */
     pending_packet = malloc(maxpktlen);            /* room for packet */
     if (pending_packet == 0) {
-	sprintf(interp->result, "no room for %d-byte packet buffer", maxpktlen);
-	return TCL_ERROR;
+        sprintf(interp->result, "no room for %d-byte packet buffer", maxpktlen);
+        return TCL_ERROR;
     }
 
     /* if we've already allocated a packet buffer, free it */
     if (pktbuffer) {
-	free(pktbuffer);
-	pktbuffer = 0;
+        free(pktbuffer);
+        pktbuffer = 0;
     }
 
     pktbuffer = malloc(maxpktlen);		/* room for alignment */
     if (pktbuffer == 0) {
-	sprintf(interp->result, "no room for %d-byte packet buffer", maxpktlen);
-	return TCL_ERROR;
+        sprintf(interp->result, "no room for %d-byte packet buffer", maxpktlen);
+        return TCL_ERROR;
     }
 
     return TCL_OK;
@@ -740,19 +740,19 @@ cksum(u_char *p, int len)
     u_long sum = 0;
 
     while (shorts > 4) {
-/* 0*/	sum += PICKUP_NETSHORT(p); p += 2; sum += PICKUP_NETSHORT(p); p += 2;
-/* 2*/	sum += PICKUP_NETSHORT(p); p += 2; sum += PICKUP_NETSHORT(p); p += 2;
-/* 4*/	shorts -= 4;
+        /* 0*/	sum += PICKUP_NETSHORT(p); p += 2; sum += PICKUP_NETSHORT(p); p += 2;
+        /* 2*/	sum += PICKUP_NETSHORT(p); p += 2; sum += PICKUP_NETSHORT(p); p += 2;
+        /* 4*/	shorts -= 4;
     }
 
     while (shorts > 0) {
-	sum += PICKUP_NETSHORT(p);
-	p += 2;
-	shorts--;
+        sum += PICKUP_NETSHORT(p);
+        p += 2;
+        shorts--;
     }
 
     if (len&1) {
-	sum += p[0]<<8;
+        sum += p[0]<<8;
     }
 
     /*
@@ -778,9 +778,9 @@ flow_type_to_string(ftinfo_p ft)
 
     result[0] = 0;
     for (i = 0; i < ft->fti_type_indicies_len; i++) {
-	xp = &atoft[ft->fti_type_indicies[i]];
-	sprintf(result+strlen(result), "%s%s", sep, xp->name);
-	sep = "/";
+        xp = &atoft[ft->fti_type_indicies[i]];
+        sprintf(result+strlen(result), "%s%s", sep, xp->name);
+        sep = "/";
     }
     return result;
 }
@@ -799,61 +799,61 @@ flow_id_to_string(ftinfo_p ft, u_char *id)
 
     result[0] = 0;
     for (i = 0; i < ft->fti_type_indicies_len; i++) {
-	xp = &atoft[ft->fti_type_indicies[i]];
-	fidp = fidstring;
-	dot = "";			/* for dotted decimal */
-	decimal = 0;			/* for decimal */
-	switch (xp->fmt) {
-	case FMT_DECIMAL:
-	    break;			/* done in for loop (sigh) */
-	case FMT_DOTTED:
-	    fmt0xff = "%s%d";
-	    fmt0xf = "%s%d";
-	    break;
-	case FMT_HEX:
-	    fmt0xff = "%s%02x";
-	    fmt0xf = "%s%x";
-	    break;
-	default:
-	    fprintf(stderr, "%s:%d:  %d is bad fmt\n",
-				__FILE__, __LINE__, xp->fmt);
-	    break;
-	}
+        xp = &atoft[ft->fti_type_indicies[i]];
+        fidp = fidstring;
+        dot = "";			/* for dotted decimal */
+        decimal = 0;			/* for decimal */
+        switch (xp->fmt) {
+        case FMT_DECIMAL:
+            break;			/* done in for loop (sigh) */
+        case FMT_DOTTED:
+            fmt0xff = "%s%d";
+            fmt0xf = "%s%d";
+            break;
+        case FMT_HEX:
+            fmt0xff = "%s%02x";
+            fmt0xf = "%s%x";
+            break;
+        default:
+            fprintf(stderr, "%s:%d:  %d is bad fmt\n",
+                    __FILE__, __LINE__, xp->fmt);
+            break;
+        }
 
-	firstbit = xp->firstbit;
-	numbits = xp->numbits;
-	while (numbits > 0) {
-	    byte = *id++;
-	    lastbit = (firstbit+numbits) > 8 ? 7 : firstbit+numbits-1;
-	    if (firstbit > 0) {
-		byte = (byte<<(firstbit+24))>>(firstbit+24);
-	    }
-	    if (lastbit < 7) {
-		byte = (byte>>(7-lastbit))<<(7-lastbit);
-	    }
-	    if (xp->fmt == FMT_DECIMAL) {
-		decimal = (decimal<<(lastbit-firstbit+1))+(byte>>(7-lastbit));
-	    } else {
-		if (firstbit < 4) {
-		    sprintf(fidp, fmt0xff, dot, byte);
-		} else {
-		    sprintf(fidp, fmt0xf, dot, byte);
-		}
-		fidp += strlen(fidp);
-	    }
-	    numbits -= (8-firstbit);
-	    firstbit = 0;
-	    if (xp->fmt == FMT_DOTTED) {
-		dot = ".";
-	    }
-	}
-	if (xp->fmt == FMT_DECIMAL) {
-	    sprintf(fidstring, "%ld", decimal);
-	} else {
-	    *fidp = 0;
-	}
-	sprintf(result+strlen(result), "%s%s", sep, fidstring);
-	sep = "/";
+        firstbit = xp->firstbit;
+        numbits = xp->numbits;
+        while (numbits > 0) {
+            byte = *id++;
+            lastbit = (firstbit+numbits) > 8 ? 7 : firstbit+numbits-1;
+            if (firstbit > 0) {
+                byte = (byte<<(firstbit+24))>>(firstbit+24);
+            }
+            if (lastbit < 7) {
+                byte = (byte>>(7-lastbit))<<(7-lastbit);
+            }
+            if (xp->fmt == FMT_DECIMAL) {
+                decimal = (decimal<<(lastbit-firstbit+1))+(byte>>(7-lastbit));
+            } else {
+                if (firstbit < 4) {
+                    sprintf(fidp, fmt0xff, dot, byte);
+                } else {
+                    sprintf(fidp, fmt0xf, dot, byte);
+                }
+                fidp += strlen(fidp);
+            }
+            numbits -= (8-firstbit);
+            firstbit = 0;
+            if (xp->fmt == FMT_DOTTED) {
+                dot = ".";
+            }
+        }
+        if (xp->fmt == FMT_DECIMAL) {
+            sprintf(fidstring, "%ld", decimal);
+        } else {
+            *fidp = 0;
+        }
+        sprintf(result+strlen(result), "%s%s", sep, fidstring);
+        sep = "/";
     }
     return result;
 }
@@ -869,9 +869,9 @@ flow_type_to_string(int ftype)
 
     result[0] = 0;
     for (i = 0; i < ftinfo[ftype].fti_type_indicies_len; i++) {
-	sprintf(result+strlen(result), "%s%s",
-			sep, atoft[ftinfo[ftype].fti_type_indicies[i]].name);
-	sep = "/";
+        sprintf(result+strlen(result), "%s%s",
+                sep, atoft[ftinfo[ftype].fti_type_indicies[i]].name);
+        sep = "/";
     }
     return result;
 }
@@ -883,13 +883,13 @@ flow_statistics(flowentry_p fe)
     static char summary[200];
 
     sprintf(summary,
-	    "type %d class %d type %s id %s pkts %lu bytes %lu sipg %lu.%06lu "
-					"created %ld.%06ld last %ld.%06ld",
-	    fe->fe_flow_type, fe->fe_class,
-	    flow_type_to_string(&ftinfo[fe->fe_flow_type]),
-	    flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_id),
-	    fe->fe_pkts-fe->fe_pkts_last_enum, fe->fe_bytes,
-	    SIPG_TO_SECS(fe->fe_sipg), SIPG_TO_USECS(fe->fe_sipg),
+            "type %d class %d type %s id %s pkts %lu bytes %lu sipg %lu.%06lu "
+            "created %ld.%06ld last %ld.%06ld",
+            fe->fe_flow_type, fe->fe_class,
+            flow_type_to_string(&ftinfo[fe->fe_flow_type]),
+            flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_id),
+            fe->fe_pkts-fe->fe_pkts_last_enum, fe->fe_bytes,
+            SIPG_TO_SECS(fe->fe_sipg), SIPG_TO_USECS(fe->fe_sipg),
             fe->fe_created.tv_sec, tvusecs(&fe->fe_created),
             fe->fe_last_pkt_rcvd.tv_sec, tvusecs(&fe->fe_last_pkt_rcvd));
 
@@ -904,18 +904,18 @@ class_statistics(clstats_p clsp)
     static char summary[100];
 
     sprintf(summary, "class %d created %lu deleted %lu added %lu removed %lu "
-	"active %lu pkts %lu bytes %lu sipg %lu.%06lu "
-	"fragpkts %lu fragbytes %lu "
-	"toosmallpkts %lu toosmallbytes %lu runtpkts %lu runtbytes %lu "
-        "noportpkts %lu noportbytes %lu lastrecv %ld.%06ld",
-	clsp-clstats, clsp->cls_created, clsp->cls_deleted,
-	clsp->cls_added, clsp->cls_removed, clsp->cls_active,
-	clsp->cls_pkts, clsp->cls_bytes,
-	SIPG_TO_SECS(clsp->cls_sipg), SIPG_TO_USECS(clsp->cls_sipg),
-	clsp->cls_fragpkts,
-	clsp->cls_fragbytes, clsp->cls_toosmallpkts, clsp->cls_toosmallbytes,
-	clsp->cls_runtpkts, clsp->cls_runtbytes, clsp->cls_noportpkts,
-	clsp->cls_noportbytes, clsp->cls_last_pkt_rcvd.tv_sec,
+            "active %lu pkts %lu bytes %lu sipg %lu.%06lu "
+            "fragpkts %lu fragbytes %lu "
+            "toosmallpkts %lu toosmallbytes %lu runtpkts %lu runtbytes %lu "
+            "noportpkts %lu noportbytes %lu lastrecv %ld.%06ld",
+            clsp-clstats, clsp->cls_created, clsp->cls_deleted,
+            clsp->cls_added, clsp->cls_removed, clsp->cls_active,
+            clsp->cls_pkts, clsp->cls_bytes,
+            SIPG_TO_SECS(clsp->cls_sipg), SIPG_TO_USECS(clsp->cls_sipg),
+            clsp->cls_fragpkts,
+            clsp->cls_fragbytes, clsp->cls_toosmallpkts, clsp->cls_toosmallbytes,
+            clsp->cls_runtpkts, clsp->cls_runtbytes, clsp->cls_noportpkts,
+            clsp->cls_noportbytes, clsp->cls_last_pkt_rcvd.tv_sec,
             tvusecs(&clsp->cls_last_pkt_rcvd));
 
     return summary;
@@ -941,8 +941,8 @@ static void
 timer_remove(flowentry_p fe)
 {
     if (fe->fe_prev_in_timer) {
-	fe->fe_prev_in_timer->fe_next_in_timer = fe->fe_next_in_timer;
-	fe->fe_next_in_timer->fe_prev_in_timer = fe->fe_prev_in_timer;
+        fe->fe_prev_in_timer->fe_next_in_timer = fe->fe_next_in_timer;
+        fe->fe_next_in_timer->fe_prev_in_timer = fe->fe_prev_in_timer;
     }
 }
 
@@ -953,7 +953,7 @@ timer_get_slot()
     flowentry_p slot = timer->fe_next_in_timer;
 
     if (slot == timer->fe_prev_in_timer) {
-	return 0;		/* nothing */
+        return 0;		/* nothing */
     }
 
     /* keep ends from dangling */
@@ -980,43 +980,43 @@ do_timers(Tcl_Interp *interp)
     nfe = timer_get_slot();
 
     while ((fe = nfe) != 0) {
-	nfe = fe->fe_next_in_timer;
-	fe->fe_next_in_timer = fe->fe_prev_in_timer = 0;
-	if (TIME_LT(&fe->fe_timer_time, &curtime)) {
-	    fti = &ftinfo[fe->fe_flow_type];
-	    if ((fti->fti_timer_upcall == 0) ||
+        nfe = fe->fe_next_in_timer;
+        fe->fe_next_in_timer = fe->fe_prev_in_timer = 0;
+        if (TIME_LT(&fe->fe_timer_time, &curtime)) {
+            fti = &ftinfo[fe->fe_flow_type];
+            if ((fti->fti_timer_upcall == 0) ||
 				TIME_EQ(&fe->fe_timer_time, &ZERO)) {
-		continue;	/* maybe flow type changed? */
-	    }
-	    /*
-	     * call:	"timer_upcall timesecs.usecs FLOW flowstats"
-	     * result:  "command secs.usecs"
-	     */
-	    sprintf(buf, " %ld.%06ld ", curtime.tv_sec, tvusecs(&curtime));
-	    if (Tcl_VarEval(interp,
-		    ftinfo[fe->fe_flow_type].fti_timer_upcall, buf,
-		    " FLOW ", flow_statistics(fe), 0) != TCL_OK) {
-		packet_error = TCL_ERROR;
-		return;
-	    }
+                continue;	/* maybe flow type changed? */
+            }
+            /*
+             * call:	"timer_upcall timesecs.usecs FLOW flowstats"
+             * result:  "command secs.usecs"
+             */
+            sprintf(buf, " %ld.%06ld ", curtime.tv_sec, tvusecs(&curtime));
+            if (Tcl_VarEval(interp,
+                            ftinfo[fe->fe_flow_type].fti_timer_upcall, buf,
+                            " FLOW ", flow_statistics(fe), 0) != TCL_OK) {
+                packet_error = TCL_ERROR;
+                return;
+            }
 
-	    fe->fe_timer_time.tv_usec = 0;
-	    n = sscanf(interp->result, "%s %ld.%ld",
-			buf, &fe->fe_timer_time.tv_sec,
-                   &usecs);
-        fe->fe_timer_time.tv_usec = usecs;
-	    if ((n >= 1) && !strcmp(buf, "DELETE")) {
-		delete_flow(fe);
-	    } else if (n >= 2) {
-		if (!TIME_EQ(&fe->fe_timer_time, &ZERO)) {
-		    TIME_ADD(&fe->fe_timer_time,
-					&fe->fe_timer_time, &curtime);
-		    timer_insert(fe, &fe->fe_timer_time);
-		}
-	    }
-	} else {
-	    timer_insert(fe, &fe->fe_timer_time);
-	}
+            fe->fe_timer_time.tv_usec = 0;
+            n = sscanf(interp->result, "%s %ld.%ld",
+                       buf, &fe->fe_timer_time.tv_sec,
+                       &usecs);
+            fe->fe_timer_time.tv_usec = usecs;
+            if ((n >= 1) && !strcmp(buf, "DELETE")) {
+                delete_flow(fe);
+            } else if (n >= 2) {
+                if (!TIME_EQ(&fe->fe_timer_time, &ZERO)) {
+                    TIME_ADD(&fe->fe_timer_time,
+                             &fe->fe_timer_time, &curtime);
+                    timer_insert(fe, &fe->fe_timer_time);
+                }
+            }
+        } else {
+            timer_insert(fe, &fe->fe_timer_time);
+        }
     }
 }
 
@@ -1029,39 +1029,41 @@ set_time(Tcl_Interp *interp, long sec, long usec)
     now.tv_usec = usec;
 
     if (TIME_LT(&now, &ZERO)) {
-	sprintf(interp->result,
-		    "[%s] bad trace file format -- negative time in packet",
-								    pktloc());
-	packet_error = TCL_ERROR;
-	return;
+        sprintf(interp->result,
+                "[%s] bad trace file format -- negative time in packet",
+                pktloc());
+        packet_error = TCL_ERROR;
+        return;
     }
 
     if ((starttime.tv_sec == ZERO.tv_sec) && 
-				(starttime.tv_usec == ZERO.tv_usec)) {
-	starttime.tv_sec = now.tv_sec;
-	starttime.tv_usec = now.tv_usec;
-	curtime = starttime;
+        (starttime.tv_usec == ZERO.tv_usec)) {
+        starttime.tv_sec = now.tv_sec;
+        starttime.tv_usec = now.tv_usec;
+        curtime = starttime;
     } else {
-	if (TIME_LT(&now, &curtime)) {
+        if (TIME_LT(&now, &curtime)) {
 #if	0
-	    OK.  Vern's tcpslice(1) doesn't worry about this (but,
-	    like this #if 0, just doesn't update time for a while). hmm '
-	    sprintf(interp->result,
-		    "[%s] bad trace file format -- time goes backwards",
-								    pktloc());
-	    packet_error = TCL_ERROR;
+/*
+ * OK.  Vern's tcpslice(1) doesn't worry about this (but, like this
+ * #if 0, just doesn't update time for a while). hmm '
+ */
+            sprintf(interp->result,
+                    "[%s] bad trace file format -- time goes backwards",
+                    pktloc());
+            packet_error = TCL_ERROR;
 #endif	/* 0 */
-	    return;
-	}
-	/* call timers once per second */
-	while (curtime.tv_sec != now.tv_sec) {
-	    do_timers(interp);
-	    curtime.tv_sec++;		/* advance the time */
-	}
-	curtime.tv_usec = now.tv_usec;
+            return;
+        }
+        /* call timers once per second */
+        while (curtime.tv_sec != now.tv_sec) {
+            do_timers(interp);
+            curtime.tv_sec++;		/* advance the time */
+        }
+        curtime.tv_usec = now.tv_usec;
     }
     if (binno == -1) {
-	binno = NOW_AS_BINNO();
+        binno = NOW_AS_BINNO();
     }
 }
 
@@ -1076,20 +1078,20 @@ tbl_lookup(u_char *id, ftinfo_p ft)
     u_short sum = cksum(id, id_len);
     flowentry_p fe = buckets[sum%NUM(buckets)];
     flowentry_p onebehind = onebehinds[sum%NUM(onebehinds)];
-#define MATCH(id,len,sum,type_index,p) \
-	((sum == (p)->fe_sum) && (type_index == (p)->fe_flow_type) && \
-		(len == (p)->fe_id_len) && !memcmp(id, (p)->fe_id, len))
+#define MATCH(id,len,sum,type_index,p)                              \
+	((sum == (p)->fe_sum) && (type_index == (p)->fe_flow_type) &&   \
+     (len == (p)->fe_id_len) && !memcmp(id, (p)->fe_id, len))
 
     if (onebehind && MATCH(id, id_len, sum, type_index, onebehind)) {
-	return onebehind;
+        return onebehind;
     }
 
     while (fe) {
-	if (MATCH(id, id_len, sum, type_index, fe)) {
-	    onebehinds[sum%NUM(onebehinds)] = fe;
-	    break;
-	}
-	fe = fe->fe_next_in_bucket;
+        if (MATCH(id, id_len, sum, type_index, fe)) {
+            onebehinds[sum%NUM(onebehinds)] = fe;
+            break;
+        }
+        fe = fe->fe_next_in_bucket;
     }
     return fe;
 }
@@ -1103,7 +1105,7 @@ tbl_add(u_char *id, int id_len)
 
     fe = (flowentry_p) malloc(sizeof *fe+id_len-1);
     if (fe == 0) {
-	return 0;
+        return 0;
     }
     memset(fe, 0, sizeof *fe);
     fe->fe_sum = sum;
@@ -1112,7 +1114,7 @@ tbl_add(u_char *id, int id_len)
 
     fe->fe_next_in_bucket = *hbucket;
     if (fe->fe_next_in_bucket) {
-	fe->fe_next_in_bucket->fe_prev_in_bucket = fe;
+        fe->fe_next_in_bucket->fe_prev_in_bucket = fe;
     }
     fe->fe_prev_in_bucket = 0;
     *hbucket = fe;
@@ -1120,9 +1122,9 @@ tbl_add(u_char *id, int id_len)
     fe->fe_next_in_table = 0;
     fe->fe_prev_in_table = table_last;
     if (table_last) {
-	table_last->fe_next_in_table = fe;
+        table_last->fe_next_in_table = fe;
     } else {
-	table = fe;
+        table = fe;
     }
     table_last = fe;
 
@@ -1143,33 +1145,33 @@ tbl_delete(flowentry_p fe)
 
     /* out of timer */
     if (fe->fe_prev_in_timer) {
-	timer_remove(fe);
+        timer_remove(fe);
     }
 
     /* out of bucket */
     if (fe->fe_prev_in_bucket) {
-	fe->fe_prev_in_bucket->fe_next_in_bucket = fe->fe_next_in_bucket;
+        fe->fe_prev_in_bucket->fe_next_in_bucket = fe->fe_next_in_bucket;
     } else {
-	*hbucket = fe->fe_next_in_bucket;
+        *hbucket = fe->fe_next_in_bucket;
     }
     if (fe->fe_next_in_bucket) {
-	fe->fe_next_in_bucket->fe_prev_in_bucket = fe->fe_prev_in_bucket;
+        fe->fe_next_in_bucket->fe_prev_in_bucket = fe->fe_prev_in_bucket;
     }
 
     if (*honebehind == fe) {
-	*honebehind = *hbucket;
+        *honebehind = *hbucket;
     }
 
     /* out of table */
     if (fe->fe_prev_in_table) {
-	fe->fe_prev_in_table->fe_next_in_table = fe->fe_next_in_table;
+        fe->fe_prev_in_table->fe_next_in_table = fe->fe_next_in_table;
     } else {
-	table = fe->fe_next_in_table;
+        table = fe->fe_next_in_table;
     }
     if (fe->fe_next_in_table) {
-	fe->fe_next_in_table->fe_prev_in_table = fe->fe_prev_in_table;
+        fe->fe_next_in_table->fe_prev_in_table = fe->fe_prev_in_table;
     } else {
-	table_last = fe->fe_prev_in_table;
+        table_last = fe->fe_prev_in_table;
     }
 
     free(fe);
@@ -1194,7 +1196,7 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int class)
 
     fe = tbl_add(flowid, ft->fti_id_len);
     if (fe == 0) {
-	return 0;
+        return 0;
     }
     fe->fe_flow_type = ft-ftinfo;
     fe->fe_parent_ftype = ft->fti_parent_ftype;			 /* default */
@@ -1215,54 +1217,54 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int class)
      */
 
     if (ft->fti_new_flow_upcall) {
-	int n;
-	u_long sipgsecs, sipgusecs;
-    long usecs1, usecs2;
-	char buf[100];
+        int n;
+        u_long sipgsecs, sipgusecs;
+        long usecs1, usecs2;
+        char buf[100];
 
-	sprintf(buf, " %d %d ", fe->fe_class, ft-ftinfo);
-	if (Tcl_VarEval(interp, ft->fti_new_flow_upcall,
-		buf, flow_type_to_string(ft),
-		" ", flow_id_to_string(ft, fe->fe_id), 0) != TCL_OK) {
-	    packet_error = TCL_ERROR;
-	    return 0;
-	}
+        sprintf(buf, " %d %d ", fe->fe_class, ft-ftinfo);
+        if (Tcl_VarEval(interp, ft->fti_new_flow_upcall,
+                        buf, flow_type_to_string(ft),
+                        " ", flow_id_to_string(ft, fe->fe_id), 0) != TCL_OK) {
+            packet_error = TCL_ERROR;
+            return 0;
+        }
 
-	fe->fe_upcall_when_secs_ge.tv_usec = 0;
-	fe->fe_timer_time.tv_usec = 0;
-	sipgusecs = 0;
+        fe->fe_upcall_when_secs_ge.tv_usec = 0;
+        fe->fe_timer_time.tv_usec = 0;
+        sipgusecs = 0;
 
-	n = sscanf(interp->result, "%hd %hd %hd %ld.%ld %ld %lu.%lu %ld.%ld",
-		&fe->fe_class, &fe->fe_parent_class, &fe->fe_parent_ftype,
-               &fe->fe_upcall_when_secs_ge.tv_sec, &usecs1,
-			    &fe->fe_upcall_when_pkts_ge,
-			    &sipgsecs, &sipgusecs,
-               &fe->fe_timer_time.tv_sec, &usecs2);
+        n = sscanf(interp->result, "%hd %hd %hd %ld.%ld %ld %lu.%lu %ld.%ld",
+                   &fe->fe_class, &fe->fe_parent_class, &fe->fe_parent_ftype,
+                   &fe->fe_upcall_when_secs_ge.tv_sec, &usecs1,
+                   &fe->fe_upcall_when_pkts_ge,
+                   &sipgsecs, &sipgusecs,
+                   &fe->fe_timer_time.tv_sec, &usecs2);
 
-    fe->fe_upcall_when_secs_ge.tv_usec = usecs1;
-    fe->fe_timer_time.tv_usec = usecs2;
-	/*
-	 * (yes, these "if" stmts could be nested, and thus
-	 * be more efficient; but, they would be less legible,
-	 * so...)
-	 */
-	if (n >= 4) {
-	    if (!TIME_EQ(&fe->fe_upcall_when_secs_ge, &ZERO)) {
-		/* returned value is relative to now, so make absolute */
-		TIME_ADD(&fe->fe_upcall_when_secs_ge,
-				&fe->fe_upcall_when_secs_ge, &curtime);
-	    }
-	}
-	if (n >= 7) {
-	    fe->fe_upcall_when_sipg_lt = SECS_USECS_TO_SIPG(sipgsecs,sipgusecs);
-	}
-	if (n >= 9) {
-	    if (!TIME_EQ(&fe->fe_timer_time, &ZERO)) {
-		/* returned value is relative to now, so make absolute */
-		TIME_ADD(&fe->fe_timer_time, &fe->fe_timer_time, &curtime);
-		timer_insert(fe, &fe->fe_timer_time);
-	    }
-	}
+        fe->fe_upcall_when_secs_ge.tv_usec = usecs1;
+        fe->fe_timer_time.tv_usec = usecs2;
+        /*
+         * (yes, these "if" stmts could be nested, and thus
+         * be more efficient; but, they would be less legible,
+         * so...)
+         */
+        if (n >= 4) {
+            if (!TIME_EQ(&fe->fe_upcall_when_secs_ge, &ZERO)) {
+                /* returned value is relative to now, so make absolute */
+                TIME_ADD(&fe->fe_upcall_when_secs_ge,
+                         &fe->fe_upcall_when_secs_ge, &curtime);
+            }
+        }
+        if (n >= 7) {
+            fe->fe_upcall_when_sipg_lt = SECS_USECS_TO_SIPG(sipgsecs,sipgusecs);
+        }
+        if (n >= 9) {
+            if (!TIME_EQ(&fe->fe_timer_time, &ZERO)) {
+                /* returned value is relative to now, so make absolute */
+                TIME_ADD(&fe->fe_timer_time, &fe->fe_timer_time, &curtime);
+                timer_insert(fe, &fe->fe_timer_time);
+            }
+        }
     }
     clstats[fe->fe_class].cls_created++;
     clstats[fe->fe_class].cls_last_bin_active = binno;
@@ -1290,31 +1292,31 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
     cl->cls_pkts++;
     cl->cls_bytes += len;
     if (cl->cls_last_pkt_rcvd.tv_sec) {		/* sipg */
-	register u_long ipg;
-	ipg = (curtime.tv_sec-cl->cls_last_pkt_rcvd.tv_sec)*1000000UL;
-	ipg += (curtime.tv_usec - cl->cls_last_pkt_rcvd.tv_usec);
-	/* two lines from VJ '88 SIGCOMM */
-	ipg -= (cl->cls_sipg>>3);
-	cl->cls_sipg += ipg;
+        register u_long ipg;
+        ipg = (curtime.tv_sec-cl->cls_last_pkt_rcvd.tv_sec)*1000000UL;
+        ipg += (curtime.tv_usec - cl->cls_last_pkt_rcvd.tv_usec);
+        /* two lines from VJ '88 SIGCOMM */
+        ipg -= (cl->cls_sipg>>3);
+        cl->cls_sipg += ipg;
     }
     cl->cls_last_pkt_rcvd = curtime;
 
     fe->fe_pkts++;
     fe->fe_bytes += len;
     if (fe->fe_last_pkt_rcvd.tv_sec) {		/* sipg */
-	register u_long ipg;
-	ipg = (curtime.tv_sec-fe->fe_last_pkt_rcvd.tv_sec)*1000000UL;
-	ipg += (curtime.tv_usec - fe->fe_last_pkt_rcvd.tv_usec);
-	/* two lines from VJ '88 SIGCOMM */
-	ipg -= (fe->fe_sipg>>3);
-	fe->fe_sipg += ipg;
+        register u_long ipg;
+        ipg = (curtime.tv_sec-fe->fe_last_pkt_rcvd.tv_sec)*1000000UL;
+        ipg += (curtime.tv_usec - fe->fe_last_pkt_rcvd.tv_usec);
+        /* two lines from VJ '88 SIGCOMM */
+        ipg -= (fe->fe_sipg>>3);
+        fe->fe_sipg += ipg;
     }
     fe->fe_last_pkt_rcvd = curtime;
 
     /* count activity in this bin */
     if (fe->fe_last_bin_active != binno) {
-	fe->fe_last_bin_active = binno;
-	cl->cls_active++;
+        fe->fe_last_bin_active = binno;
+        cl->cls_active++;
     }
 
 
@@ -1340,42 +1342,42 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
 		(fe->fe_pkts >= fe->fe_upcall_when_pkts_ge) &&
 		(fe->fe_sipg < fe->fe_upcall_when_sipg_lt) &&
 		TIME_GE(&curtime, &fe->fe_upcall_when_secs_ge)) {
-	int n, outcls;
-	u_long sipgsecs, sipgusecs;
-    long usecs;
-	struct timeval outtime;
+        int n, outcls;
+        u_long sipgsecs, sipgusecs;
+        long usecs;
+        struct timeval outtime;
 
-	if (Tcl_VarEval(interp, ftinfo[fe->fe_flow_type].fti_recv_upcall,
-				" FLOW ", flow_statistics(fe), 0) != TCL_OK) {
-	    packet_error = TCL_ERROR;
-	    return;
-	}
+        if (Tcl_VarEval(interp, ftinfo[fe->fe_flow_type].fti_recv_upcall,
+                        " FLOW ", flow_statistics(fe), 0) != TCL_OK) {
+            packet_error = TCL_ERROR;
+            return;
+        }
 
-	fe->fe_upcall_when_secs_ge.tv_usec = 0;
-	sipgusecs = 0;
-	outcls = fe->fe_class;
-	n = sscanf(interp->result, "%d %ld.%ld %ld %lu.%lu", &outcls,
-               &fe->fe_upcall_when_secs_ge.tv_sec, &usecs,
-				    &fe->fe_upcall_when_pkts_ge,
-				    &sipgsecs, &sipgusecs);
+        fe->fe_upcall_when_secs_ge.tv_usec = 0;
+        sipgusecs = 0;
+        outcls = fe->fe_class;
+        n = sscanf(interp->result, "%d %ld.%ld %ld %lu.%lu", &outcls,
+                   &fe->fe_upcall_when_secs_ge.tv_sec, &usecs,
+                   &fe->fe_upcall_when_pkts_ge,
+                   &sipgsecs, &sipgusecs);
 
-    fe->fe_upcall_when_secs_ge.tv_usec = usecs;
+        fe->fe_upcall_when_secs_ge.tv_usec = usecs;
 
-	if (outcls != fe->fe_class) {
-	    /* class is changing --- update statistics */
-	    clstats[fe->fe_class].cls_removed++;
-	    fe->fe_class = outcls;
-	    clstats[fe->fe_class].cls_added++;
-	    clstats[fe->fe_class].cls_last_bin_active = binno;
-	}
-	if (n >= 2) {
-	    if (!TIME_EQ(&fe->fe_upcall_when_secs_ge, &ZERO)) {
-		TIME_ADD(&fe->fe_upcall_when_secs_ge, &curtime, &outtime);
-	    }
-	}
-	if (n >= 5) {
-	    fe->fe_upcall_when_sipg_lt = SECS_USECS_TO_SIPG(sipgsecs,sipgusecs);
-	}
+        if (outcls != fe->fe_class) {
+            /* class is changing --- update statistics */
+            clstats[fe->fe_class].cls_removed++;
+            fe->fe_class = outcls;
+            clstats[fe->fe_class].cls_added++;
+            clstats[fe->fe_class].cls_last_bin_active = binno;
+        }
+        if (n >= 2) {
+            if (!TIME_EQ(&fe->fe_upcall_when_secs_ge, &ZERO)) {
+                TIME_ADD(&fe->fe_upcall_when_secs_ge, &curtime, &outtime);
+            }
+        }
+        if (n >= 5) {
+            fe->fe_upcall_when_sipg_lt = SECS_USECS_TO_SIPG(sipgsecs,sipgusecs);
+        }
     }
 }
 
@@ -1402,25 +1404,25 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
 
     /* check for a pending packet */
     if (pending) {
-	if (caplen) {	/* shouldn't happen! */
-	    interp->result = "invalid condition in packetin";
-	    packet_error = TCL_ERROR;
-	    return;
-	}
-	pending = 0;
-	binno = NOW_AS_BINNO();
-	/* use the pending packet */
-	packet = (const u_char *)pending_packet;
-	caplen = pendingcaplen;
-	pktlen = pendingpktlen;
+        if (caplen) {	/* shouldn't happen! */
+            interp->result = "invalid condition in packetin";
+            packet_error = TCL_ERROR;
+            return;
+        }
+        pending = 0;
+        binno = NOW_AS_BINNO();
+        /* use the pending packet */
+        packet = (const u_char *)pending_packet;
+        caplen = pendingcaplen;
+        pktlen = pendingpktlen;
     } else if (binno != NOW_AS_BINNO()) {
-	/* if we've gone over to another bin number... */
-	pending = 1;
-	memcpy(pending_packet, packet, MIN(caplen, sizeof pending_packet));
-	pendingcaplen = caplen;
-	pendingpktlen = pktlen;
-	/* wait till next time */
-	return;
+        /* if we've gone over to another bin number... */
+        pending = 1;
+        memcpy(pending_packet, packet, MIN(caplen, sizeof pending_packet));
+        pendingcaplen = caplen;
+        pendingpktlen = pktlen;
+        /* wait till next time */
+        return;
     }
 
     pktcount++;
@@ -1431,68 +1433,68 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
     capbigenough = 0;
     fragmented = 0;
     for (llclindex = 0;
-	    llclindex < NUM(llclasses) && !LLCL_UNUSED(&llclasses[llclindex]);
-								  llclindex++) {
-	llft = &ftinfo[llclasses[llclindex].llcl_fti];
-	if (pktlen >= llft->fti_id_covers) {
-	    pktbigenough = 1;		/* packet was big enough */
-	    if (caplen >= llft->fti_id_covers) {
-		capbigenough = 1;	/* and, we captured enough */
-		/*
-		 * if ft doesn't use ports, or this protocol has ports and we
-		 * aren't fragmented, this is fine.
-		 */
-		if (FTI_USES_PORTS(llft)) {
-		    if (pktprotohasports &&
-				((PICKUP_NETSHORT(&packet[6])&0x1fff) == 0)) {
-			/*
-			 * needed ports and the protocol in packet
-			 * has ports and this isn't a fragment
-			 */
-			break;	  /* accept this packet in this class */
-		    } else {
-			/*
-			 * needed ports, but got a packet with a protocol
-			 * which doesn't have ports or got a fragment
-			 */
-			fragmented = 1;
-		    }
-		} else {
-		    /* don't need to worry about ports... */
-		    break;    /* accept this packet in this class */
-		}
-	    }
-	}
+         llclindex < NUM(llclasses) && !LLCL_UNUSED(&llclasses[llclindex]);
+         llclindex++) {
+        llft = &ftinfo[llclasses[llclindex].llcl_fti];
+        if (pktlen >= llft->fti_id_covers) {
+            pktbigenough = 1;		/* packet was big enough */
+            if (caplen >= llft->fti_id_covers) {
+                capbigenough = 1;	/* and, we captured enough */
+                /*
+                 * if ft doesn't use ports, or this protocol has ports and we
+                 * aren't fragmented, this is fine.
+                 */
+                if (FTI_USES_PORTS(llft)) {
+                    if (pktprotohasports &&
+                        ((PICKUP_NETSHORT(&packet[6])&0x1fff) == 0)) {
+                        /*
+                         * needed ports and the protocol in packet
+                         * has ports and this isn't a fragment
+                         */
+                        break;	  /* accept this packet in this class */
+                    } else {
+                        /*
+                         * needed ports, but got a packet with a protocol
+                         * which doesn't have ports or got a fragment
+                         */
+                        fragmented = 1;
+                    }
+                } else {
+                    /* don't need to worry about ports... */
+                    break;    /* accept this packet in this class */
+                }
+            }
+        }
     }
 
     if (llclindex >= NUM(llclasses)) {
-	clstats[0].cls_pkts++;
-	clstats[0].cls_bytes += pktlen;
-	clstats[0].cls_last_bin_active = binno;
-	if (pktbigenough) {	/* packet was big enough, but... */
-	    if (capbigenough) {
-		if (packet[6]&0x1fff) {
-		    clstats[0].cls_fragpkts++;
-		    clstats[0].cls_fragbytes += pktlen;
-		} else {
-		    /*
-		     * this means there is no flow type for protocols
-		     * which don't have a port number field (i.e., this
-		     * is probably a bug...
-		     */
-		    clstats[0].cls_noportpkts++;
-		    clstats[0].cls_noportbytes += pktlen;
-		}
-	    } else {
-		clstats[0].cls_runtpkts++;
-		clstats[0].cls_runtbytes += pktlen;
-	    }
-	} else {
-	    /* never found a flow type into which it fit */
-	    clstats[0].cls_toosmallpkts++;
-	    clstats[0].cls_toosmallbytes += pktlen;
-	}
-	return;
+        clstats[0].cls_pkts++;
+        clstats[0].cls_bytes += pktlen;
+        clstats[0].cls_last_bin_active = binno;
+        if (pktbigenough) {	/* packet was big enough, but... */
+            if (capbigenough) {
+                if (packet[6]&0x1fff) {
+                    clstats[0].cls_fragpkts++;
+                    clstats[0].cls_fragbytes += pktlen;
+                } else {
+                    /*
+                     * this means there is no flow type for protocols
+                     * which don't have a port number field (i.e., this
+                     * is probably a bug...
+                     */
+                    clstats[0].cls_noportpkts++;
+                    clstats[0].cls_noportbytes += pktlen;
+                }
+            } else {
+                clstats[0].cls_runtpkts++;
+                clstats[0].cls_runtbytes += pktlen;
+            }
+        } else {
+            /* never found a flow type into which it fit */
+            clstats[0].cls_toosmallpkts++;
+            clstats[0].cls_toosmallbytes += pktlen;
+        }
+        return;
     }
 
     /* create lower level flow id for this packet */
@@ -1502,15 +1504,15 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
     llfe = tbl_lookup(llfid, llft);
 
     if (llfe == 0) {
-	/* the lower level flow doesn't exist, so will need to be created */
-	llfe = new_flow(interp, llft, llfid, llft->fti_class);
-	if (llfe == 0) {
-	    if (packet_error == 0) {
-		interp->result = "unable to create a new lower level flow";
-		packet_error = TCL_ERROR;
-	    }
-	    return;
-	}
+        /* the lower level flow doesn't exist, so will need to be created */
+        llfe = new_flow(interp, llft, llfid, llft->fti_class);
+        if (llfe == 0) {
+            if (packet_error == 0) {
+                interp->result = "unable to create a new lower level flow";
+                packet_error = TCL_ERROR;
+            }
+            return;
+        }
     }
 
     /* track packet stats */
@@ -1519,57 +1521,57 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
     /* now, need to find ulfe from llfe */
 
     while ((llfe->fe_parent_ftype != 0) &&
-			(llfe->fe_parent_ftype != llfe->fe_flow_type)) {
-	ulft = &ftinfo[llfe->fe_parent_ftype];	/* get ll's parent flow type */
+           (llfe->fe_parent_ftype != llfe->fe_flow_type)) {
+        ulft = &ftinfo[llfe->fe_parent_ftype];	/* get ll's parent flow type */
 
-	/* create the ulfid */
-	FLOW_ID_FROM_HDR(ulfid, packet, ulft);
+        /* create the ulfid */
+        FLOW_ID_FROM_HDR(ulfid, packet, ulft);
 
-	/* lookup the upper level flow entry */
-	ulfe = tbl_lookup(ulfid, ulft);
+        /* lookup the upper level flow entry */
+        ulfe = tbl_lookup(ulfid, ulft);
 
-	if (ulfe == 0) {
-	    /* the upper level flow doesn't exist -- create it */
-	    ulfe = new_flow(interp, ulft, ulfid, llfe->fe_parent_class);
-	    if (ulfe == 0) {
-		if (packet_error == 0) {
-		    interp->result = "unable to create a new upper level flow";
-		    packet_error = TCL_ERROR;
-		}
-		return;
-	    }
-	}
+        if (ulfe == 0) {
+            /* the upper level flow doesn't exist -- create it */
+            ulfe = new_flow(interp, ulft, ulfid, llfe->fe_parent_class);
+            if (ulfe == 0) {
+                if (packet_error == 0) {
+                    interp->result = "unable to create a new upper level flow";
+                    packet_error = TCL_ERROR;
+                }
+                return;
+            }
+        }
 
-	/*
-	 * there is a situation in which a UL flow is shared by
-	 * various LL flow types.  in this case, it may be that
-	 * the class of the UL flow depends on which LL flows are
-	 * using it.  this *could* cause us to call out every time
-	 * a new packet arrives (or, a packet arrives with a new
-	 * UL class, or ...).
-	 *
-	 * we use the following hack XXX :  we infer a priority based
-	 * on the class number.  if a packet comes in and the class
-	 * number in its parent_class field is greater than the class
-	 * numberin its parent, then the parent is "reclassed".
-	 *
-	 * i really don't know how to do this "right", sigh.
-	 */
+        /*
+         * there is a situation in which a UL flow is shared by
+         * various LL flow types.  in this case, it may be that
+         * the class of the UL flow depends on which LL flows are
+         * using it.  this *could* cause us to call out every time
+         * a new packet arrives (or, a packet arrives with a new
+         * UL class, or ...).
+         *
+         * we use the following hack XXX :  we infer a priority based
+         * on the class number.  if a packet comes in and the class
+         * number in its parent_class field is greater than the class
+         * numberin its parent, then the parent is "reclassed".
+         *
+         * i really don't know how to do this "right", sigh.
+         */
 
-	if (llfe->fe_parent_class > ulfe->fe_class) {
-	    /* class is changing --- update statistics */
-	    clstats[ulfe->fe_class].cls_removed++;
-	    clstats[ulfe->fe_class].cls_last_bin_active = binno;
-	    ulfe->fe_class = llfe->fe_parent_class;
-	    clstats[ulfe->fe_class].cls_added++;
-	    clstats[ulfe->fe_class].cls_last_bin_active = binno;
-	}
+        if (llfe->fe_parent_class > ulfe->fe_class) {
+            /* class is changing --- update statistics */
+            clstats[ulfe->fe_class].cls_removed++;
+            clstats[ulfe->fe_class].cls_last_bin_active = binno;
+            ulfe->fe_class = llfe->fe_parent_class;
+            clstats[ulfe->fe_class].cls_added++;
+            clstats[ulfe->fe_class].cls_last_bin_active = binno;
+        }
 
-	/* track packet stats */
-	packetinflow(interp, ulfe, pktlen);
+        /* track packet stats */
+        packetinflow(interp, ulfe, pktlen);
 
-	/* OK, old ulfe is new llfe, and loop... */
-	llfe = ulfe;
+        /* OK, old ulfe is new llfe, and loop... */
+        llfe = ulfe;
     }
 }
 
@@ -1587,15 +1589,15 @@ receive_tcpd_en10mb(u_char *user, const struct pcap_pkthdr *h,
     set_time(interp, h->ts.tv_sec, h->ts.tv_usec);
 
     if (h->caplen < 14) {
-	/* need to call packetin to set counters, etc. */
-	packetin(interp, buffer, 0, 0);
-	return;
+        /* need to call packetin to set counters, etc. */
+        packetin(interp, buffer, 0, 0);
+        return;
     }
 
     type = buffer[12]<<8|buffer[13];
 
     if (type != IPtype) {
-	return;         /* only IP packets */
+        return;         /* only IP packets */
     }
 
     packetin(interp, buffer+14, h->caplen-14, h->len-14);
@@ -1618,11 +1620,11 @@ receive_tcpd_slip(u_char *user, const struct pcap_pkthdr *h,
     set_time(interp, h->ts.tv_sec, h->ts.tv_usec);
 
     if (h->caplen < SLIP_HDRLEN) {
-	packetin(interp, buffer, 0, 0);
-	return;
+        packetin(interp, buffer, 0, 0);
+        return;
     }
     packetin(interp, buffer+SLIP_HDRLEN,
-			h->caplen-SLIP_HDRLEN, h->len-SLIP_HDRLEN);
+             h->caplen-SLIP_HDRLEN, h->len-SLIP_HDRLEN);
 }
 
 
@@ -1640,11 +1642,11 @@ receive_tcpd_ppp(u_char *user, const struct pcap_pkthdr *h,
     set_time(interp, h->ts.tv_sec, h->ts.tv_usec);
 
     if (h->caplen < PPP_HDRLEN) {
-	packetin(interp, buffer, 0, 0);
-	return;
+        packetin(interp, buffer, 0, 0);
+        return;
     }
     packetin(interp, buffer+PPP_HDRLEN,
-			h->caplen-PPP_HDRLEN, h->len-PPP_HDRLEN);
+             h->caplen-PPP_HDRLEN, h->len-PPP_HDRLEN);
 }
 
 /*
@@ -1666,8 +1668,8 @@ receive_tcpd_fddi(u_char *user, const struct pcap_pkthdr *h,
     set_time(interp, h->ts.tv_sec, h->ts.tv_usec);
 
     if (caplen < FDDI_HDRLEN) {
-	packetin(interp, buffer, 0, 0);
-	return;
+        packetin(interp, buffer, 0, 0);
+        return;
     }
 
     fddip = (struct fddi_header *)buffer;
@@ -1675,25 +1677,25 @@ receive_tcpd_fddi(u_char *user, const struct pcap_pkthdr *h,
     buffer += FDDI_HDRLEN;
     caplen -= FDDI_HDRLEN;
     if ((fddip->fddi_fc&FDDIFC_CLFF) == FDDIFC_LLC_ASYNC) {
-	if (caplen < sizeof SNAPHDR+2) {
-	    packetin(interp, buffer, 0, 0);
-	    return;
-	}
-	if (memcmp(buffer, SNAPHDR, sizeof SNAPHDR) == 0) {
-	    type = buffer[sizeof SNAPHDR]<<8|buffer[sizeof SNAPHDR+1];
-	    if (type == 0x0800) {
-		caplen -= (sizeof SNAPHDR+2);
-		length -= (sizeof SNAPHDR+2);
-		buffer += (sizeof SNAPHDR+2);
-		packetin(interp, buffer, caplen, length);
-	    } else {
-		return;
-	    }  
-	} else {
-	    return;
-	}
+        if (caplen < sizeof SNAPHDR+2) {
+            packetin(interp, buffer, 0, 0);
+            return;
+        }
+        if (memcmp(buffer, SNAPHDR, sizeof SNAPHDR) == 0) {
+            type = buffer[sizeof SNAPHDR]<<8|buffer[sizeof SNAPHDR+1];
+            if (type == 0x0800) {
+                caplen -= (sizeof SNAPHDR+2);
+                length -= (sizeof SNAPHDR+2);
+                buffer += (sizeof SNAPHDR+2);
+                packetin(interp, buffer, caplen, length);
+            } else {
+                return;
+            }  
+        } else {
+            return;
+        }
     } else {
-	return;
+        return;
     }
 }
 
@@ -1713,21 +1715,21 @@ receive_tcpd_null(u_char *user, const struct pcap_pkthdr *h,
     set_time(interp, h->ts.tv_sec, h->ts.tv_usec);
 
     if (h->caplen < NULL_HDRLEN) {
-	packetin(interp, buffer, 0, 0);
-	return;
+        packetin(interp, buffer, 0, 0);
+        return;
     }
 
     packetin(interp, buffer+NULL_HDRLEN,
-			h->caplen-NULL_HDRLEN, h->len-NULL_HDRLEN);
+             h->caplen-NULL_HDRLEN, h->len-NULL_HDRLEN);
 }
 
 static void
 receive_fix24(Tcl_Interp *interp, struct fix24pkt *pkt)
 {
     static char pseudopkt[FIX24_PACKET_SIZE] = {
-	0x45, 0, 0, 0, 0, 0, 0, 0,
-	0x22, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0};
+        0x45, 0, 0, 0, 0, 0, 0, 0,
+        0x22, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0};
 
     set_time(interp, ntohl(pkt->secs), ntohl(pkt->usecs));
 
@@ -1753,7 +1755,7 @@ receive_fix44(Tcl_Interp *interp, struct fix44pkt *pkt)
     pkt->ip.dst = ntohl(pkt->ip.dst);
 
     packetin(interp, FIX44_TO_PACKET(pkt),
-				FIX44_PACKET_SIZE, ntohs(pkt->ip.len));
+             FIX44_PACKET_SIZE, ntohs(pkt->ip.len));
 }
 
 
@@ -1763,57 +1765,57 @@ process_one_packet(Tcl_Interp *interp)
     packet_error = TCL_OK;
 
     if (pending) {
-	packetin(interp, 0, 0, 0);
+        packetin(interp, 0, 0, 0);
     } else {
-	switch (filetype) {
-	case TYPE_PCAP:
-	    if (pcap_dispatch(pcap_descriptor, 1,
-				pcap_receiver, (u_char *)interp) == 0) {
-		fileeof = 1;
-		filetype = TYPE_UNKNOWN;
-	    }
-	    break;
-	case TYPE_FIX24: {
-		struct fix24pkt fix24packet;
-		int count;
+        switch (filetype) {
+        case TYPE_PCAP:
+            if (pcap_dispatch(pcap_descriptor, 1,
+                              pcap_receiver, (u_char *)interp) == 0) {
+                fileeof = 1;
+                filetype = TYPE_UNKNOWN;
+            }
+            break;
+        case TYPE_FIX24: {
+            struct fix24pkt fix24packet;
+            int count;
 
-		count = fread(&fix24packet,
-				sizeof fix24packet, 1, fix24_descriptor);
-		if (count == 0) {
-		    if (feof(fix24_descriptor)) {
-			fileeof = 1;
-			filetype = TYPE_UNKNOWN;
-		    } else {
-			interp->result = "error on read";
-			return TCL_ERROR;
-		    }
-		} else if (ntohs(fix24packet.len) != 65535) {
-		    /* 65535 ==> not IP packet (ethertype in dport) */
-		    receive_fix24(interp, &fix24packet);
-		}
+            count = fread(&fix24packet,
+                          sizeof fix24packet, 1, fix24_descriptor);
+            if (count == 0) {
+                if (feof(fix24_descriptor)) {
+                    fileeof = 1;
+                    filetype = TYPE_UNKNOWN;
+                } else {
+                    interp->result = "error on read";
+                    return TCL_ERROR;
+                }
+            } else if (ntohs(fix24packet.len) != 65535) {
+                /* 65535 ==> not IP packet (ethertype in dport) */
+                receive_fix24(interp, &fix24packet);
+            }
 	    }
-	    break;
-	case TYPE_FIX44: {
-		struct fix44pkt fix44packet;
-		int count;
+            break;
+        case TYPE_FIX44: {
+            struct fix44pkt fix44packet;
+            int count;
 
-		count = fread(&fix44packet,
-				sizeof fix44packet, 1, fix44_descriptor);
-		if (count == 0) {
-		    if (feof(fix44_descriptor)) {
-			fileeof = 1;
-			filetype = TYPE_UNKNOWN;
-		    } else {
-			interp->result = "error on read";
-			return TCL_ERROR;
-		    }
-		} else if (ntohs(fix44packet.ip.len) != 65535) {
-		    /* 65535 ==> not IP packet (ethertype in dport) XXX */
-		    receive_fix44(interp, &fix44packet);
-		}
+            count = fread(&fix44packet,
+                          sizeof fix44packet, 1, fix44_descriptor);
+            if (count == 0) {
+                if (feof(fix44_descriptor)) {
+                    fileeof = 1;
+                    filetype = TYPE_UNKNOWN;
+                } else {
+                    interp->result = "error on read";
+                    return TCL_ERROR;
+                }
+            } else if (ntohs(fix44packet.ip.len) != 65535) {
+                /* 65535 ==> not IP packet (ethertype in dport) XXX */
+                receive_fix44(interp, &fix44packet);
+            }
 	    }
-	    break;
-	}
+            break;
+        }
     }
     return packet_error;
 }
@@ -1834,34 +1836,34 @@ fl_read_one_bin(ClientData clientData, Tcl_Interp *interp,
     char buf[20];
 
     if (argc > 2) {
-	interp->result = "Usage: fl_read_one_bin ?binsecs?";
-	return TCL_ERROR;
+        interp->result = "Usage: fl_read_one_bin ?binsecs?";
+        return TCL_ERROR;
     } else if (argc == 2) {
-	error = Tcl_GetInt(interp, argv[1], &binsecs);
-	if (error != TCL_OK) {
-	    return error;
-	}
+        error = Tcl_GetInt(interp, argv[1], &binsecs);
+        if (error != TCL_OK) {
+            return error;
+        }
     } else if (argc == 1) {
-	;		/* use old binsecs */
+        ;		/* use old binsecs */
     }
 
     binno = -1;
     if (!fileeof) {
-	if (filetype == TYPE_UNKNOWN) {
-	    interp->result = "need to call fl_set_{tcpd,fix{2,4}4}_file first";
-	    return TCL_ERROR;
-	}
-	if (flow_types == 0) {
-	    interp->result = "need to call fl_set_flow_type first";
-	    return TCL_ERROR;
-	}
+        if (filetype == TYPE_UNKNOWN) {
+            interp->result = "need to call fl_set_{tcpd,fix{2,4}4}_file first";
+            return TCL_ERROR;
+        }
+        if (flow_types == 0) {
+            interp->result = "need to call fl_set_flow_type first";
+            return TCL_ERROR;
+        }
 
-	while (((binno == -1) || (binno == NOW_AS_BINNO())) && !fileeof) {
-	    error = process_one_packet(interp);
-	    if (error != TCL_OK) {
-		return error;
-	    }
-	}
+        while (((binno == -1) || (binno == NOW_AS_BINNO())) && !fileeof) {
+            error = process_one_packet(interp);
+            if (error != TCL_OK) {
+                return error;
+            }
+        }
     }
 
     sprintf(buf, "%ld", binno);
@@ -1889,65 +1891,65 @@ set_flow_type(Tcl_Interp *interp, int ftype, int Ftype, int class,
     curdesc = name;
 
     if (strlen(name) >= NUM(initial)) {
-	interp->result = "flow name too long";
-	return TCL_ERROR;
+        interp->result = "flow name too long";
+        return TCL_ERROR;
     }
 
     while (*curdesc) {
-	int j, n;
-	n = sscanf(curdesc, "%[a-zA-Z0-9]%s", initial, after);
-	if (n == 0) {
-	    break;
-	}
-	if (n == 1) {
-	    curdesc = "";
-	} else {
-	    curdesc = after+1;	/* +1 to strip off delimiter */
-	}
-	for (j = 0, xp = atoft; j < NUM(atoft); j++, xp++) {
-	    if (strcasecmp(xp->name, initial) == 0) {
-		int off, firstbit, numbits, lastbit;
-		u_long mask;
-		off = xp->offset;
-		firstbit = xp->firstbit;
-		numbits = xp->numbits;
-		while (numbits > 0) {
-		    if (bandm >= (2*MAX_FLOW_ID_BYTES)) {
-			interp->result = "flow type specifier too long";
-			return TCL_ERROR;
-		    }
-		    if (off > fti->fti_id_covers) {
-			fti->fti_id_covers = off;
-		    }
-		    mask = 0xff;
-		    lastbit = (firstbit+numbits) > 8 ? 7 : (firstbit+numbits-1);
-		    if (firstbit > 0) {
-			mask = (mask<<(firstbit+24))>>(firstbit+24);
-		    }
-		    if (lastbit < 7) {
-			mask = (mask>>(7-lastbit))<<(7-lastbit);
-		    }
-		    numbits -= (8-firstbit);
-		    firstbit = 0;
-		    fti->fti_bytes_and_mask[bandm++] = off++;
-		    fti->fti_bytes_and_mask[bandm++] = mask;
-		}
-		if (indicies >= NUM(fti->fti_type_indicies)) {
-		    interp->result = "too many fields in flow type specifier";
-		    return TCL_ERROR;
-		}
-		fti->fti_type_indicies[indicies++] = j;
-		break;
-	    }
-	}
-	if (j >= NUM(atoft)) {
-	    static char errbuf[100];
+        int j, n;
+        n = sscanf(curdesc, "%[a-zA-Z0-9]%s", initial, after);
+        if (n == 0) {
+            break;
+        }
+        if (n == 1) {
+            curdesc = "";
+        } else {
+            curdesc = after+1;	/* +1 to strip off delimiter */
+        }
+        for (j = 0, xp = atoft; j < NUM(atoft); j++, xp++) {
+            if (strcasecmp(xp->name, initial) == 0) {
+                int off, firstbit, numbits, lastbit;
+                u_long mask;
+                off = xp->offset;
+                firstbit = xp->firstbit;
+                numbits = xp->numbits;
+                while (numbits > 0) {
+                    if (bandm >= (2*MAX_FLOW_ID_BYTES)) {
+                        interp->result = "flow type specifier too long";
+                        return TCL_ERROR;
+                    }
+                    if (off > fti->fti_id_covers) {
+                        fti->fti_id_covers = off;
+                    }
+                    mask = 0xff;
+                    lastbit = (firstbit+numbits) > 8 ? 7 : (firstbit+numbits-1);
+                    if (firstbit > 0) {
+                        mask = (mask<<(firstbit+24))>>(firstbit+24);
+                    }
+                    if (lastbit < 7) {
+                        mask = (mask>>(7-lastbit))<<(7-lastbit);
+                    }
+                    numbits -= (8-firstbit);
+                    firstbit = 0;
+                    fti->fti_bytes_and_mask[bandm++] = off++;
+                    fti->fti_bytes_and_mask[bandm++] = mask;
+                }
+                if (indicies >= NUM(fti->fti_type_indicies)) {
+                    interp->result = "too many fields in flow type specifier";
+                    return TCL_ERROR;
+                }
+                fti->fti_type_indicies[indicies++] = j;
+                break;
+            }
+        }
+        if (j >= NUM(atoft)) {
+            static char errbuf[100];
 
-	    interp->result = errbuf;
-	    sprintf(errbuf, "Bad flow field name %s in \"%s\"\n",
-							initial, name);
-	    return TCL_ERROR;
-	}
+            interp->result = errbuf;
+            sprintf(errbuf, "Bad flow field name %s in \"%s\"\n",
+                    initial, name);
+            return TCL_ERROR;
+        }
     }
 
     fti->fti_bytes_and_mask_len = bandm;
@@ -1958,17 +1960,17 @@ set_flow_type(Tcl_Interp *interp, int ftype, int Ftype, int class,
     fti->fti_parent_ftype = Ftype;
 
     if (fti->fti_new_flow_upcall) {
-	free(fti->fti_new_flow_upcall);
+        free(fti->fti_new_flow_upcall);
     }
     fti->fti_new_flow_upcall = new_flow_upcall;
 
     if (fti->fti_recv_upcall) {
-	free(fti->fti_recv_upcall);
+        free(fti->fti_recv_upcall);
     }
     fti->fti_recv_upcall = recv_upcall;
 
     if (fti->fti_timer_upcall) {
-	free(fti->fti_timer_upcall);
+        free(fti->fti_timer_upcall);
     }
     fti->fti_timer_upcall = timer_upcall;
 
@@ -2012,7 +2014,7 @@ fl_set_flow_type(ClientData clientData, Tcl_Interp *interp,
     optreset = 1;
     optind = 1;
     while ((op = getopt(argc, argv, "c:f:F:n:r:t:")) != EOF) {
-	switch (op) {
+        switch (op) {
 	    case 'c':
 		    class = atoi(optarg);
 		    break;
@@ -2025,48 +2027,48 @@ fl_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 	    case 'n':
 		    new_flow_upcall = strsave(optarg);
 		    if (new_flow_upcall == 0) {
-			interp->result = "malloc failed";
-			return TCL_ERROR;
+                interp->result = "malloc failed";
+                return TCL_ERROR;
 		    }
 		    break;
 	    case 'r':
 		    recv_upcall = strsave(optarg);
 		    if (recv_upcall == 0) {
-			interp->result = "malloc failed";
-			return TCL_ERROR;
+                interp->result = "malloc failed";
+                return TCL_ERROR;
 		    }
 		    break;
 	    case 't':
 		    timer_upcall = strsave(optarg);
 		    if (timer_upcall == 0) {
-			interp->result = "malloc failed";
-			return TCL_ERROR;
+                interp->result = "malloc failed";
+                return TCL_ERROR;
 		    }
 		    break;
 	    default:
 		    interp->result = usage;
 		    return TCL_ERROR;
 		    /*NOTREACHED*/
-	}
+        }
     }
 
     argc -= optind;
     argv += optind;
 
     if (argc != 1) {
-	interp->result = usage;
-	return TCL_ERROR;
+        interp->result = usage;
+        return TCL_ERROR;
     }
 
     if (ftype >= NUM(ftinfo)) {
-	interp->result = "flow_type higher than maximum";
-	return TCL_ERROR;
+        interp->result = "flow_type higher than maximum";
+        return TCL_ERROR;
     }
 
     error = set_flow_type(interp, ftype, Ftype, class, argv[0],
-				new_flow_upcall, recv_upcall, timer_upcall);
+                          new_flow_upcall, recv_upcall, timer_upcall);
     if (error != TCL_OK) {
-	return error;
+        return error;
     }
 
     flow_types = 1;		/* got a flow type */
@@ -2083,13 +2085,13 @@ fl_class_stats(ClientData clientData, Tcl_Interp *interp,
     clstats_p clsp;
 
     if (argc != 2) {
-	interp->result = "Usage: fl_class_stats class";
-	return TCL_ERROR;
+        interp->result = "Usage: fl_class_stats class";
+        return TCL_ERROR;
     }
 
     if (atoi(argv[1]) >= NUM(clstats)) {
-	interp->result = "class too high";
-	return TCL_ERROR;
+        interp->result = "class too high";
+        return TCL_ERROR;
     }
 
     clsp = &clstats[atoi(argv[1])];
@@ -2120,23 +2122,23 @@ fl_continue_class_enumeration(ClientData clientData, Tcl_Interp *interp,
     clstats_p cl;
 
     while (class_enum_state) {
-	cl = class_enum_state;
-	class_enum_state++;
-	if (class_enum_state >= &clstats[NUM(clstats)]) {
-	    class_enum_state = 0;
-	}
-	if (cl->cls_last_bin_active == binno) {
-	    Tcl_SetResult(interp, class_statistics(cl), TCL_VOLATILE);
-	    /* now, clear stats for next go round... */
-	    /* but, preserve sipg and last rcvd... */
-	    sipg = cl->cls_sipg;
-	    last_rcvd = cl->cls_last_pkt_rcvd;
-	    memset(cl, 0, sizeof *cl);
-	    cl->cls_last_bin_active = binno;
-	    cl->cls_sipg = sipg;
-	    cl->cls_last_pkt_rcvd = last_rcvd;
-	    return TCL_OK;
-	}
+        cl = class_enum_state;
+        class_enum_state++;
+        if (class_enum_state >= &clstats[NUM(clstats)]) {
+            class_enum_state = 0;
+        }
+        if (cl->cls_last_bin_active == binno) {
+            Tcl_SetResult(interp, class_statistics(cl), TCL_VOLATILE);
+            /* now, clear stats for next go round... */
+            /* but, preserve sipg and last rcvd... */
+            sipg = cl->cls_sipg;
+            last_rcvd = cl->cls_last_pkt_rcvd;
+            memset(cl, 0, sizeof *cl);
+            cl->cls_last_bin_active = binno;
+            cl->cls_sipg = sipg;
+            cl->cls_last_pkt_rcvd = last_rcvd;
+            return TCL_OK;
+        }
     }
     interp->result = "";
     return TCL_OK;
@@ -2161,14 +2163,14 @@ fl_continue_flow_enumeration(ClientData clientData, Tcl_Interp *interp,
 		int argc, const char *argv[])
 {
     while (flow_enum_state) {
-	if (flow_enum_state->fe_last_bin_active == binno) {
-	    Tcl_SetResult(interp,
-			    flow_statistics(flow_enum_state), TCL_VOLATILE);
-	    flow_enum_state->fe_pkts_last_enum = flow_enum_state->fe_pkts;
-	    flow_enum_state = flow_enum_state->fe_next_in_table;
-	    return TCL_OK;
-	}
-	flow_enum_state = flow_enum_state->fe_next_in_table;
+        if (flow_enum_state->fe_last_bin_active == binno) {
+            Tcl_SetResult(interp,
+                          flow_statistics(flow_enum_state), TCL_VOLATILE);
+            flow_enum_state->fe_pkts_last_enum = flow_enum_state->fe_pkts;
+            flow_enum_state = flow_enum_state->fe_next_in_table;
+            return TCL_OK;
+        }
+        flow_enum_state = flow_enum_state->fe_next_in_table;
     }
     interp->result = "";
     return TCL_OK;
@@ -2183,14 +2185,14 @@ set_tcpd_file(ClientData clientData, Tcl_Interp *interp, const char *filename)
      * we are about to overwrite pcap_descriptor.
      */
     if (filetype == TYPE_PCAP) {
-	pcap_close(pcap_descriptor);
-	pcap_descriptor = 0;
+        pcap_close(pcap_descriptor);
+        pcap_descriptor = 0;
     }
 
     pcap_descriptor = pcap_open_offline(filename, pcap_errbuf);
     if (pcap_descriptor == 0) {
-	sprintf(interp->result, "%s", pcap_errbuf);
-	return TCL_ERROR;
+        sprintf(interp->result, "%s", pcap_errbuf);
+        return TCL_ERROR;
     }
 
     pcap_dlt = pcap_datalink(pcap_descriptor);
@@ -2198,27 +2200,27 @@ set_tcpd_file(ClientData clientData, Tcl_Interp *interp, const char *filename)
 
     switch (pcap_dlt) {
     case DLT_EN10MB:
-	pcap_receiver = receive_tcpd_en10mb;
-	break;
+        pcap_receiver = receive_tcpd_en10mb;
+        break;
     case DLT_SLIP:
-	pcap_receiver = receive_tcpd_slip;
-	break;
+        pcap_receiver = receive_tcpd_slip;
+        break;
     case DLT_PPP:
-	pcap_receiver = receive_tcpd_ppp;
-	break;
+        pcap_receiver = receive_tcpd_ppp;
+        break;
     case DLT_FDDI:
-	pcap_receiver = receive_tcpd_fddi;
-	break;
+        pcap_receiver = receive_tcpd_fddi;
+        break;
     case DLT_NULL:
-	pcap_receiver = receive_tcpd_null;
-	break;
+        pcap_receiver = receive_tcpd_null;
+        break;
     default:
-	sprintf(interp->result, "unknown data link type %d", pcap_dlt);
-	return TCL_ERROR;
+        sprintf(interp->result, "unknown data link type %d", pcap_dlt);
+        return TCL_ERROR;
     }
 
     if (newfile(interp, pcap_snap) != TCL_OK) {
-	return TCL_ERROR;
+        return TCL_ERROR;
     }
 
     filetype = TYPE_PCAP;
@@ -2229,16 +2231,16 @@ static int
 set_fix24_file(ClientData clientData, Tcl_Interp *interp, const char *filename)
 {
     if (newfile(interp, FIX24_PACKET_SIZE) != TCL_OK) {
-	return TCL_ERROR;
+        return TCL_ERROR;
     }
     if ((filename[0] == '-') && (filename[1] == 0)) {
-	fix24_descriptor = stdin;
+        fix24_descriptor = stdin;
     } else {
-	fix24_descriptor = fopen(filename, "r");
-	if (fix24_descriptor == 0) {
-	    interp->result = "error opening file";
-	    return TCL_ERROR;
-	}
+        fix24_descriptor = fopen(filename, "r");
+        if (fix24_descriptor == 0) {
+            interp->result = "error opening file";
+            return TCL_ERROR;
+        }
     }
     filetype = TYPE_FIX24;
     return TCL_OK;
@@ -2248,17 +2250,17 @@ static int
 set_fix44_file(ClientData clientData, Tcl_Interp *interp, const char *filename)
 {
     if (newfile(interp, FIX44_PACKET_SIZE) != TCL_OK) {
-	return TCL_ERROR;
+        return TCL_ERROR;
     }
 
     if ((filename[0] == '-') && (filename[1] == 0)) {
-	fix44_descriptor = stdin;
+        fix44_descriptor = stdin;
     } else {
-	fix44_descriptor = fopen(filename, "r");
-	if (fix44_descriptor == 0) {
-	    interp->result = "error opening file";
-	    return TCL_ERROR;
-	}
+        fix44_descriptor = fopen(filename, "r");
+        if (fix44_descriptor == 0) {
+            interp->result = "error opening file";
+            return TCL_ERROR;
+        }
     }
     filetype = TYPE_FIX44;
     return TCL_OK;
@@ -2271,18 +2273,18 @@ fl_set_file(ClientData clientData, Tcl_Interp *interp,
     static char *usage = "Usage: fl_set_file filename [tcpd|fix24|fix44]";
 
     if ((argc < 2) || (argc > 3)) {
-	interp->result = usage;
-	return TCL_ERROR;
+        interp->result = usage;
+        return TCL_ERROR;
     }
     if ((argc == 2) || !strcmp(argv[2], "tcpd")) {
-	return set_tcpd_file(clientData, interp, argv[1]);
+        return set_tcpd_file(clientData, interp, argv[1]);
     } else if (!strcmp(argv[2], "fix24")) {
-	return set_fix24_file(clientData, interp, argv[1]);
+        return set_fix24_file(clientData, interp, argv[1]);
     } else if (!strcmp(argv[2], "fix44")) {
-	return set_fix44_file(clientData, interp, argv[1]);
+        return set_fix44_file(clientData, interp, argv[1]);
     } else {
-	interp->result = usage;
-	return TCL_ERROR;
+        interp->result = usage;
+        return TCL_ERROR;
     }
 }
 
@@ -2293,26 +2295,26 @@ fl_set_ll_classifier(ClientData clientData, Tcl_Interp *interp,
     llcl_p llcl;
 
     if ((argc < 2) || (argc > 3)) {
-	interp->result = "Usage: fl_set_ll_classifier ll_classifier_index "
-			    "[associated_flow_type_index]";
-	return TCL_ERROR;
+        interp->result = "Usage: fl_set_ll_classifier ll_classifier_index "
+            "[associated_flow_type_index]";
+        return TCL_ERROR;
     }
     llcl = &llclasses[atoi(argv[1])];
     if (llcl >= &llclasses[NUM(llclasses)]) {
-	interp->result = "fl_set_ll_classifier ll_classifier_index too high";
-	return TCL_ERROR;
+        interp->result = "fl_set_ll_classifier ll_classifier_index too high";
+        return TCL_ERROR;
     }
     if (argc == 3) {
-	llcl->llcl_inuse = 1;
-	llcl->llcl_fti = atoi(argv[2]);
-	if (llcl->llcl_fti >= NUM(ftinfo)) {
-	    llcl->llcl_inuse = 0;
-	    interp->result =
-		    "fl_set_ll_classifier associated_flow_type_index too high";
-	    return TCL_ERROR;
-	}
+        llcl->llcl_inuse = 1;
+        llcl->llcl_fti = atoi(argv[2]);
+        if (llcl->llcl_fti >= NUM(ftinfo)) {
+            llcl->llcl_inuse = 0;
+            interp->result =
+                "fl_set_ll_classifier associated_flow_type_index too high";
+            return TCL_ERROR;
+        }
     } else {
-	llcl->llcl_inuse = 0;
+        llcl->llcl_inuse = 0;
     }
     return TCL_OK;
 }
@@ -2322,8 +2324,8 @@ fl_tcl_code(ClientData clientData, Tcl_Interp *interp,
 		int argc, const char *argv[])
 {
     if (argc != 1) {
-	interp->result = "Usage: fl_set_version";
-	return TCL_ERROR;
+        interp->result = "Usage: fl_set_version";
+        return TCL_ERROR;
     }
     interp->result = fl_tclprogram;
     return TCL_OK;
@@ -2333,8 +2335,8 @@ fl_version(ClientData clientData, Tcl_Interp *interp,
 		int argc, const char *argv[])
 {
     if (argc != 1) {
-	interp->result = "Usage: fl_set_version";
-	return TCL_ERROR;
+        interp->result = "Usage: fl_set_version";
+        return TCL_ERROR;
     }
     interp->result = rcsid;
     return TCL_OK;
@@ -2352,36 +2354,36 @@ Tcl_AppInit(Tcl_Interp *interp)
      * possible on each machine).
      */
     if (Tcl_Init(interp) == TCL_ERROR) {
-	return TCL_ERROR;
+        return TCL_ERROR;
     }
 #endif	/* 0 */
 
     Tcl_CreateCommand(interp, "fl_class_stats", fl_class_stats,
-								NULL, NULL);
+                      NULL, NULL);
     Tcl_CreateCommand(interp, "fl_continue_class_enumeration",
-				 fl_continue_class_enumeration, NULL, NULL);
+                      fl_continue_class_enumeration, NULL, NULL);
     Tcl_CreateCommand(interp, "fl_continue_flow_enumeration",
-				  fl_continue_flow_enumeration, NULL, NULL);
+                      fl_continue_flow_enumeration, NULL, NULL);
     Tcl_CreateCommand(interp, "fl_read_one_bin", fl_read_one_bin,
-								NULL, NULL);
+                      NULL, NULL);
     Tcl_CreateCommand(interp, "fl_set_file", fl_set_file,
-								NULL, NULL);
+                      NULL, NULL);
     Tcl_CreateCommand(interp, "fl_set_flow_type", fl_set_flow_type,
-								NULL, NULL);
+                      NULL, NULL);
     Tcl_CreateCommand(interp, "fl_set_ll_classifier", fl_set_ll_classifier,
-								NULL, NULL);
+                      NULL, NULL);
     Tcl_CreateCommand(interp, "fl_start_class_enumeration",
-				    fl_start_class_enumeration, NULL, NULL);
+                      fl_start_class_enumeration, NULL, NULL);
     Tcl_CreateCommand(interp, "fl_start_flow_enumeration",
-				     fl_start_flow_enumeration, NULL, NULL);
+                      fl_start_flow_enumeration, NULL, NULL);
     Tcl_CreateCommand(interp, "fl_tcl_code", fl_tcl_code,
-								NULL, NULL);
+                      NULL, NULL);
     Tcl_CreateCommand(interp, "fl_version", fl_version,
-								NULL, NULL);
+                      NULL, NULL);
 
     /* call out to Tcl to set up whatever... */
     if (Tcl_GlobalEval(interp, fl_tclprogram) != TCL_OK) {
-	return TCL_ERROR;
+        return TCL_ERROR;
     }
 
     return Tcl_VarEval(interp, "fl_startup ", argcount, " { ", args, " }", 0);
@@ -2393,7 +2395,7 @@ main(int argc, char *argv[])
     int i;
 
     for (i = 0; i < NUM(timers); i++) {
-	timers[i].fe_next_in_timer = timers[i].fe_prev_in_timer = &timers[i];
+        timers[i].fe_next_in_timer = timers[i].fe_prev_in_timer = &timers[i];
     }
 
     protohasports[6] = protohasports[17] = 1;
