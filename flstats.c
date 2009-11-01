@@ -52,7 +52,7 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.90 2009/11/01 18:00:41 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.91 2009/11/01 18:08:36 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -975,6 +975,7 @@ do_timers(Tcl_Interp *interp)
     char buf[100];
     int n;
     static void delete_flow(flowentry_p fe);
+    long usecs;
 
     nfe = timer_get_slot();
 
@@ -1002,7 +1003,8 @@ do_timers(Tcl_Interp *interp)
 	    fe->fe_timer_time.tv_usec = 0;
 	    n = sscanf(interp->result, "%s %ld.%ld",
 			buf, &fe->fe_timer_time.tv_sec,
-			&fe->fe_timer_time.tv_usec);
+                   &usecs);
+        fe->fe_timer_time.tv_usec = usecs;
 	    if ((n >= 1) && !strcmp(buf, "DELETE")) {
 		delete_flow(fe);
 	    } else if (n >= 2) {
@@ -1215,6 +1217,7 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int class)
     if (ft->fti_new_flow_upcall) {
 	int n;
 	u_long sipgsecs, sipgusecs;
+    long usecs1, usecs2;
 	char buf[100];
 
 	sprintf(buf, " %d %d ", fe->fe_class, ft-ftinfo);
@@ -1231,13 +1234,13 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int class)
 
 	n = sscanf(interp->result, "%hd %hd %hd %ld.%ld %ld %lu.%lu %ld.%ld",
 		&fe->fe_class, &fe->fe_parent_class, &fe->fe_parent_ftype,
-			    &fe->fe_upcall_when_secs_ge.tv_sec,
-			    &fe->fe_upcall_when_secs_ge.tv_usec,
+               &fe->fe_upcall_when_secs_ge.tv_sec, &usecs1,
 			    &fe->fe_upcall_when_pkts_ge,
 			    &sipgsecs, &sipgusecs,
-			    &fe->fe_timer_time.tv_sec,
-			    &fe->fe_timer_time.tv_usec);
+               &fe->fe_timer_time.tv_sec, &usecs2);
 
+    fe->fe_upcall_when_secs_ge.tv_usec = usecs1;
+    fe->fe_timer_time.tv_usec = usecs2;
 	/*
 	 * (yes, these "if" stmts could be nested, and thus
 	 * be more efficient; but, they would be less legible,
@@ -1339,6 +1342,7 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
 		TIME_GE(&curtime, &fe->fe_upcall_when_secs_ge)) {
 	int n, outcls;
 	u_long sipgsecs, sipgusecs;
+    long usecs;
 	struct timeval outtime;
 
 	if (Tcl_VarEval(interp, ftinfo[fe->fe_flow_type].fti_recv_upcall,
@@ -1351,10 +1355,11 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
 	sipgusecs = 0;
 	outcls = fe->fe_class;
 	n = sscanf(interp->result, "%d %ld.%ld %ld %lu.%lu", &outcls,
-				    &fe->fe_upcall_when_secs_ge.tv_sec,
-				    &fe->fe_upcall_when_secs_ge.tv_usec,
+               &fe->fe_upcall_when_secs_ge.tv_sec, &usecs,
 				    &fe->fe_upcall_when_pkts_ge,
 				    &sipgsecs, &sipgusecs);
+
+    fe->fe_upcall_when_secs_ge.tv_usec = usecs;
 
 	if (outcls != fe->fe_class) {
 	    /* class is changing --- update statistics */
