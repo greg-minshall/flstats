@@ -1,4 +1,4 @@
-# $Id: Makefile.in,v 1.24 2000/06/27 17:16:46 minshall Exp minshall $
+# $Id: Makefile.in,v 1.25 2004/01/07 17:02:17 minshall Exp minshall $
 
 # version for distribution...
 VERS=`cat VERSION`
@@ -15,7 +15,7 @@ LIBPATH = -L__CONFIGURE__TCLLIBDIR__
 
 #have-gcc#CC = gcc
 #have-gcc#WARNINGS	= -Wall
-#have-gcc#LDFLAGS = -Xlinker -Bstatic
+#have-gcc#LDFLAGS = -Xlinker
 #have-SVR4#SVR4 = -DSVR4
 
 CFLAGS	= -g ${INCLUDES} ${WARNINGS}
