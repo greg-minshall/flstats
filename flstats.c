@@ -52,7 +52,7 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.88 2000/06/27 17:06:31 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.89 2006/08/09 23:28:32 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1809,7 +1809,7 @@ process_one_packet(Tcl_Interp *interp)
 
 static int
 fl_read_one_bin(ClientData clientData, Tcl_Interp *interp,
-		int argc, char *argv[])
+		int argc, const char *argv[])
 {
     int error;
     char buf[20];
@@ -1852,11 +1852,11 @@ fl_read_one_bin(ClientData clientData, Tcl_Interp *interp,
 
 static int
 set_flow_type(Tcl_Interp *interp, int ftype, int Ftype, int class,
-				char *name, char *new_flow_upcall,
+              const char *name, char *new_flow_upcall,
 				char *recv_upcall, char *timer_upcall)
 {
     char initial[MAX_FLOW_ID_BYTES*5], after[MAX_FLOW_ID_BYTES*5]; /* 5 rndm */
-    char *curdesc;
+    const char *curdesc;
     int bandm = 0;	/* number of bytes in fti_bytes_and_mask used */
     int indicies = 0;	/* index (in atoft) of each field in flow id */
     atoft_p xp;
@@ -1968,7 +1968,7 @@ set_flow_type(Tcl_Interp *interp, int ftype, int Ftype, int class,
 
 static int
 fl_set_flow_type(ClientData clientData, Tcl_Interp *interp,
-					    int argc, char *argv[])
+					    int argc, const char *argv[])
 {
     int error;
     int ftype, Ftype, class;
@@ -2059,7 +2059,7 @@ fl_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 
 static int
 fl_class_stats(ClientData clientData, Tcl_Interp *interp,
-		int argc, char *argv[])
+		int argc, const char *argv[])
 {
     clstats_p clsp;
 
@@ -2086,7 +2086,7 @@ fl_class_stats(ClientData clientData, Tcl_Interp *interp,
 
 static int
 fl_start_class_enumeration(ClientData clientData, Tcl_Interp *interp,
-		int argc, char *argv[])
+		int argc, const char *argv[])
 {
     class_enum_state = clstats;
     return TCL_OK;
@@ -2094,7 +2094,7 @@ fl_start_class_enumeration(ClientData clientData, Tcl_Interp *interp,
 
 static int
 fl_continue_class_enumeration(ClientData clientData, Tcl_Interp *interp,
-		int argc, char *argv[])
+		int argc, const char *argv[])
 {
     u_long sipg;
     struct timeval last_rcvd;
@@ -2131,7 +2131,7 @@ fl_continue_class_enumeration(ClientData clientData, Tcl_Interp *interp,
 
 static int
 fl_start_flow_enumeration(ClientData clientData, Tcl_Interp *interp,
-		int argc, char *argv[])
+		int argc, const char *argv[])
 {
     flow_enum_state = table;
     return TCL_OK;
@@ -2139,7 +2139,7 @@ fl_start_flow_enumeration(ClientData clientData, Tcl_Interp *interp,
 
 static int
 fl_continue_flow_enumeration(ClientData clientData, Tcl_Interp *interp,
-		int argc, char *argv[])
+		int argc, const char *argv[])
 {
     while (flow_enum_state) {
 	if (flow_enum_state->fe_last_bin_active == binno) {
@@ -2157,7 +2157,7 @@ fl_continue_flow_enumeration(ClientData clientData, Tcl_Interp *interp,
 
 
 static int
-set_tcpd_file(ClientData clientData, Tcl_Interp *interp, char *filename)
+set_tcpd_file(ClientData clientData, Tcl_Interp *interp, const char *filename)
 {
     /*
      * need to do this here (rather than in newfile()), because
@@ -2207,7 +2207,7 @@ set_tcpd_file(ClientData clientData, Tcl_Interp *interp, char *filename)
 }
 
 static int
-set_fix24_file(ClientData clientData, Tcl_Interp *interp, char *filename)
+set_fix24_file(ClientData clientData, Tcl_Interp *interp, const char *filename)
 {
     if (newfile(interp, FIX24_PACKET_SIZE) != TCL_OK) {
 	return TCL_ERROR;
@@ -2226,7 +2226,7 @@ set_fix24_file(ClientData clientData, Tcl_Interp *interp, char *filename)
 }
 
 static int
-set_fix44_file(ClientData clientData, Tcl_Interp *interp, char *filename)
+set_fix44_file(ClientData clientData, Tcl_Interp *interp, const char *filename)
 {
     if (newfile(interp, FIX44_PACKET_SIZE) != TCL_OK) {
 	return TCL_ERROR;
@@ -2247,7 +2247,7 @@ set_fix44_file(ClientData clientData, Tcl_Interp *interp, char *filename)
 
 static int
 fl_set_file(ClientData clientData, Tcl_Interp *interp,
-		int argc, char *argv[])
+		int argc, const char *argv[])
 {
     static char *usage = "Usage: fl_set_file filename [tcpd|fix24|fix44]";
 
@@ -2269,7 +2269,7 @@ fl_set_file(ClientData clientData, Tcl_Interp *interp,
 
 static int
 fl_set_ll_classifier(ClientData clientData, Tcl_Interp *interp,
-		int argc, char *argv[])
+		int argc, const char *argv[])
 {
     llcl_p llcl;
 
@@ -2300,7 +2300,7 @@ fl_set_ll_classifier(ClientData clientData, Tcl_Interp *interp,
 
 static int
 fl_tcl_code(ClientData clientData, Tcl_Interp *interp,
-		int argc, char *argv[])
+		int argc, const char *argv[])
 {
     if (argc != 1) {
 	interp->result = "Usage: fl_set_version";
@@ -2311,7 +2311,7 @@ fl_tcl_code(ClientData clientData, Tcl_Interp *interp,
 }
 static int
 fl_version(ClientData clientData, Tcl_Interp *interp,
-		int argc, char *argv[])
+		int argc, const char *argv[])
 {
     if (argc != 1) {
 	interp->result = "Usage: fl_set_version";
