@@ -52,7 +52,7 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.92 2009/11/01 18:12:23 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.93 2009/11/01 18:24:54 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -591,6 +591,12 @@ char fl_tclprogram[] =
 #include "flstats.char"
 ;
 
+/*
+ * forward declarations
+ */
+
+static void delete_flow(flowentry_p fe);
+
 
 /*
  * return the microseconds from a struct timeval
@@ -967,6 +973,7 @@ timer_get_slot()
     return slot;
 }
 
+
 static void
 do_timers(Tcl_Interp *interp)
 {
@@ -974,7 +981,6 @@ do_timers(Tcl_Interp *interp)
     ftinfo_p fti;
     char buf[100];
     int n;
-    static void delete_flow(flowentry_p fe);
     long usecs;
 
     nfe = timer_get_slot();
