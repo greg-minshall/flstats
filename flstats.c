@@ -52,7 +52,7 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.93 2009/11/01 18:24:54 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.94 2009/11/01 18:30:35 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -909,7 +909,7 @@ class_statistics(clstats_p clsp)
 {
     static char summary[100];
 
-    sprintf(summary, "class %d created %lu deleted %lu added %lu removed %lu "
+    sprintf(summary, "class %ld created %lu deleted %lu added %lu removed %lu "
             "active %lu pkts %lu bytes %lu sipg %lu.%06lu "
             "fragpkts %lu fragbytes %lu "
             "toosmallpkts %lu toosmallbytes %lu runtpkts %lu runtbytes %lu "
@@ -1228,7 +1228,7 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int class)
         long usecs1, usecs2;
         char buf[100];
 
-        sprintf(buf, " %d %d ", fe->fe_class, ft-ftinfo);
+        sprintf(buf, " %d %ld ", fe->fe_class, ft-ftinfo);
         if (Tcl_VarEval(interp, ft->fti_new_flow_upcall,
                         buf, flow_type_to_string(ft),
                         " ", flow_id_to_string(ft, fe->fe_id), 0) != TCL_OK) {
@@ -1732,7 +1732,7 @@ receive_tcpd_null(u_char *user, const struct pcap_pkthdr *h,
 static void
 receive_fix24(Tcl_Interp *interp, struct fix24pkt *pkt)
 {
-    static char pseudopkt[FIX24_PACKET_SIZE] = {
+    static u_char pseudopkt[FIX24_PACKET_SIZE] = {
         0x45, 0, 0, 0, 0, 0, 0, 0,
         0x22, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0};
@@ -1995,7 +1995,7 @@ set_flow_type(Tcl_Interp *interp, int ftype, int Ftype, int class,
 
 static int
 fl_set_flow_type(ClientData clientData, Tcl_Interp *interp,
-					    int argc, const char *argv[])
+                 int argc, const char *argv[])
 {
     int error;
     int ftype, Ftype, class;
@@ -2019,6 +2019,7 @@ fl_set_flow_type(ClientData clientData, Tcl_Interp *interp,
     opterr = 0;
     optreset = 1;
     optind = 1;
+
     while ((op = getopt(argc, argv, "c:f:F:n:r:t:")) != EOF) {
         switch (op) {
 	    case 'c':
@@ -2392,11 +2393,11 @@ Tcl_AppInit(Tcl_Interp *interp)
         return TCL_ERROR;
     }
 
-    return Tcl_VarEval(interp, "fl_startup ", argcount, " { ", args, " }", 0);
+    return Tcl_VarEval(interp, "fl_startup ", argcount, " { ", args, " }", (char *) NULL);
 }
 
 int
-main(int argc, char *argv[])
+main(int argc, char *const argv[])
 {
     int i;
 
