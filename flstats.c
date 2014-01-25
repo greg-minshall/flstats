@@ -52,7 +52,7 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.94 2009/11/01 18:30:35 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.95 2014/01/25 15:06:50 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -585,7 +585,7 @@ flowentry_t timers[150];
 u_long binno, pktcount;
 
 char	*args,			/* arguments... */
-	argcount[20];		/* number of them */
+	argcount[200];		/* number of them */
 
 char fl_tclprogram[] = 
 #include "flstats.char"
@@ -886,7 +886,7 @@ flow_type_to_string(int ftype)
 static char *
 flow_statistics(flowentry_p fe)
 {
-    static char summary[200];
+    static char summary[2000];
 
     sprintf(summary,
             "type %d class %d type %s id %s pkts %lu bytes %lu sipg %lu.%06lu "
@@ -907,13 +907,17 @@ flow_statistics(flowentry_p fe)
 static char *
 class_statistics(clstats_p clsp)
 {
-    static char summary[100];
+    static char summary[10000];
 
     sprintf(summary, "class %ld created %lu deleted %lu added %lu removed %lu "
             "active %lu pkts %lu bytes %lu sipg %lu.%06lu "
             "fragpkts %lu fragbytes %lu "
             "toosmallpkts %lu toosmallbytes %lu runtpkts %lu runtbytes %lu "
             "noportpkts %lu noportbytes %lu lastrecv %ld.%06ld",
+            0L,0L,0L,0L,0L,0L,0L,0L,
+            0L,0L,0L,0L,0L,0L,0L,0L,0L,0L,0L,0L);
+#if 0
+
             clsp-clstats, clsp->cls_created, clsp->cls_deleted,
             clsp->cls_added, clsp->cls_removed, clsp->cls_active,
             clsp->cls_pkts, clsp->cls_bytes,
@@ -923,7 +927,7 @@ class_statistics(clstats_p clsp)
             clsp->cls_runtpkts, clsp->cls_runtbytes, clsp->cls_noportpkts,
             clsp->cls_noportbytes, clsp->cls_last_pkt_rcvd.tv_sec,
             tvusecs(&clsp->cls_last_pkt_rcvd));
-
+#endif
     return summary;
 }
 
@@ -1226,7 +1230,7 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int class)
         int n;
         u_long sipgsecs, sipgusecs;
         long usecs1, usecs2;
-        char buf[100];
+        char buf[1000];
 
         sprintf(buf, " %d %ld ", fe->fe_class, ft-ftinfo);
         if (Tcl_VarEval(interp, ft->fti_new_flow_upcall,
@@ -1839,7 +1843,7 @@ fl_read_one_bin(ClientData clientData, Tcl_Interp *interp,
 		int argc, const char *argv[])
 {
     int error;
-    char buf[20];
+    char buf[200];
 
     if (argc > 2) {
         interp->result = "Usage: fl_read_one_bin ?binsecs?";
@@ -1949,7 +1953,7 @@ set_flow_type(Tcl_Interp *interp, int ftype, int Ftype, int class,
             }
         }
         if (j >= NUM(atoft)) {
-            static char errbuf[100];
+            static char errbuf[1000];
 
             interp->result = errbuf;
             sprintf(errbuf, "Bad flow field name %s in \"%s\"\n",
@@ -2000,7 +2004,7 @@ fl_set_flow_type(ClientData clientData, Tcl_Interp *interp,
     int error;
     int ftype, Ftype, class;
     char *new_flow_upcall, *recv_upcall, *timer_upcall;
-    static char result[20];
+    static char result[200];
     static char *usage =
 		"Usage: fl_set_flow_type "
 		"?-n new_flow_command? ?-r recv_command? "
