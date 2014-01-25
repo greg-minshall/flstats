@@ -52,7 +52,7 @@
  */
 
 static char *rcsid =
-	"$Id: flstats.c,v 1.95 2014/01/25 15:06:50 minshall Exp minshall $";
+	"$Id: flstats.c,v 1.96 2014/01/25 15:24:27 minshall Exp minshall $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -914,10 +914,6 @@ class_statistics(clstats_p clsp)
             "fragpkts %lu fragbytes %lu "
             "toosmallpkts %lu toosmallbytes %lu runtpkts %lu runtbytes %lu "
             "noportpkts %lu noportbytes %lu lastrecv %ld.%06ld",
-            0L,0L,0L,0L,0L,0L,0L,0L,
-            0L,0L,0L,0L,0L,0L,0L,0L,0L,0L,0L,0L);
-#if 0
-
             clsp-clstats, clsp->cls_created, clsp->cls_deleted,
             clsp->cls_added, clsp->cls_removed, clsp->cls_active,
             clsp->cls_pkts, clsp->cls_bytes,
@@ -927,7 +923,7 @@ class_statistics(clstats_p clsp)
             clsp->cls_runtpkts, clsp->cls_runtbytes, clsp->cls_noportpkts,
             clsp->cls_noportbytes, clsp->cls_last_pkt_rcvd.tv_sec,
             tvusecs(&clsp->cls_last_pkt_rcvd));
-#endif
+
     return summary;
 }
 
