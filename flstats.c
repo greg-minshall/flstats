@@ -434,7 +434,7 @@ struct fix44pkt {
     } tcpudp;
 };
 
-#define	FIX44_TO_PACKET(p)  (char *)(&p->ip)
+#define	FIX44_TO_PACKET(p)  (u_char *)(&p->ip)
 #define	FIX44_PACKET_SIZE   36
 
 
@@ -628,6 +628,17 @@ strsave(char *s)
     return new;
 }
 
+/*
+ * delete a string returned from asprintf(3)
+ * (in a way that makes Tcl_SetResult(3) happy, sigh)
+ */
+
+static void
+tclasfree(char *tofree)
+{
+    free(tofree);
+}
+
 
 /*
  * identify a packet for an error message
@@ -652,6 +663,7 @@ newfile(Tcl_Interp *interp, int maxpktlen)
     flowentry_p fe, nfe;
     clstats_p cl;
     extern int errno;
+    char *asret;
 
     fileeof = 0;
     flow_enum_state = 0;
@@ -666,13 +678,15 @@ newfile(Tcl_Interp *interp, int maxpktlen)
         break;
     case TYPE_FIX24:
         if ((fix24_descriptor != 0) && (fclose(fix24_descriptor) == EOF)) {
-            sprintf(interp->result, "fclose: %s", strerror(errno));
+            asprintf(&asret, "fclose: %s", strerror(errno));
+            Tcl_SetResult(interp, asret, tclasfree);
             return TCL_ERROR;
         }
         break;
     case TYPE_FIX44:
         if ((fix44_descriptor != 0) && (fclose(fix44_descriptor) == EOF)) {
-            sprintf(interp->result, "fclose: %s", strerror(errno));
+            asprintf(&asret, "fclose: %s", strerror(errno));
+            Tcl_SetResult(interp, asret, tclasfree);
             return TCL_ERROR;
         }
         break;
@@ -680,8 +694,9 @@ newfile(Tcl_Interp *interp, int maxpktlen)
         /* nothing to do */
         break;
     default:
-        sprintf(interp->result, "%s.%d: filetype %d unknown!\n",
-                __FILE__, __LINE__, filetype);
+        asprintf(&asret, "%s.%d: filetype %d unknown!\n",
+                 __FILE__, __LINE__, filetype);
+        Tcl_SetResult(interp, asret, tclasfree);
         return TCL_ERROR;
     }
 
@@ -712,7 +727,8 @@ newfile(Tcl_Interp *interp, int maxpktlen)
     /* allocate packet for pending buffer */
     pending_packet = malloc(maxpktlen);            /* room for packet */
     if (pending_packet == 0) {
-        sprintf(interp->result, "no room for %d-byte packet buffer", maxpktlen);
+        asprintf(&asret, "no room for %d-byte packet buffer", maxpktlen);
+        Tcl_SetResult(interp, asret, tclasfree);
         return TCL_ERROR;
     }
 
@@ -724,7 +740,8 @@ newfile(Tcl_Interp *interp, int maxpktlen)
 
     pktbuffer = malloc(maxpktlen);		/* room for alignment */
     if (pktbuffer == 0) {
-        sprintf(interp->result, "no room for %d-byte packet buffer", maxpktlen);
+        asprintf(&asret, "no room for %d-byte packet buffer", maxpktlen);
+        Tcl_SetResult(interp, asret, tclasfree);
         return TCL_ERROR;
     }
 
@@ -1007,7 +1024,7 @@ do_timers(Tcl_Interp *interp)
             }
 
             fe->fe_timer_time.tv_usec = 0;
-            n = sscanf(interp->result, "%s %ld.%ld",
+            n = sscanf(Tcl_GetStringResult(interp), "%s %ld.%ld",
                        buf, &fe->fe_timer_time.tv_sec,
                        &usecs);
             fe->fe_timer_time.tv_usec = usecs;
@@ -1030,14 +1047,16 @@ static void
 set_time(Tcl_Interp *interp, long sec, long usec)
 {
     struct timeval now;
+    char *asret;
 
     now.tv_sec = sec;
     now.tv_usec = usec;
 
     if (TIME_LT(&now, &ZERO)) {
-        sprintf(interp->result,
-                "[%s] bad trace file format -- negative time in packet",
+        asprintf(&asret,
+                 "[%s] bad trace file format -- negative time in packet",
                 pktloc());
+        Tcl_SetResult(interp, asret, tclasfree);
         packet_error = TCL_ERROR;
         return;
     }
@@ -1240,7 +1259,8 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int class)
         fe->fe_timer_time.tv_usec = 0;
         sipgusecs = 0;
 
-        n = sscanf(interp->result, "%hd %hd %hd %ld.%ld %ld %lu.%lu %ld.%ld",
+        n = sscanf(Tcl_GetStringResult(interp),
+                   "%hd %hd %hd %ld.%ld %ld %lu.%lu %ld.%ld",
                    &fe->fe_class, &fe->fe_parent_class, &fe->fe_parent_ftype,
                    &fe->fe_upcall_when_secs_ge.tv_sec, &usecs1,
                    &fe->fe_upcall_when_pkts_ge,
@@ -1362,9 +1382,9 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
         fe->fe_upcall_when_secs_ge.tv_usec = 0;
         sipgusecs = 0;
         outcls = fe->fe_class;
-        n = sscanf(interp->result, "%d %ld.%ld %ld %lu.%lu", &outcls,
-                   &fe->fe_upcall_when_secs_ge.tv_sec, &usecs,
-                   &fe->fe_upcall_when_pkts_ge,
+        n = sscanf(Tcl_GetStringResult(interp), "%d %ld.%ld %ld %lu.%lu",
+                   &outcls, &fe->fe_upcall_when_secs_ge.tv_sec, 
+                   &usecs, &fe->fe_upcall_when_pkts_ge,
                    &sipgsecs, &sipgusecs);
 
         fe->fe_upcall_when_secs_ge.tv_usec = usecs;
@@ -1411,7 +1431,7 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
     /* check for a pending packet */
     if (pending) {
         if (caplen) {	/* shouldn't happen! */
-            interp->result = "invalid condition in packetin";
+            Tcl_SetResult(interp, "invalid condition in packetin", TCL_STATIC);
             packet_error = TCL_ERROR;
             return;
         }
@@ -1514,7 +1534,9 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
         llfe = new_flow(interp, llft, llfid, llft->fti_class);
         if (llfe == 0) {
             if (packet_error == 0) {
-                interp->result = "unable to create a new lower level flow";
+                Tcl_SetResult(interp,
+                              "unable to create a new lower level flow",
+                              TCL_STATIC);
                 packet_error = TCL_ERROR;
             }
             return;
@@ -1541,7 +1563,8 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
             ulfe = new_flow(interp, ulft, ulfid, llfe->fe_parent_class);
             if (ulfe == 0) {
                 if (packet_error == 0) {
-                    interp->result = "unable to create a new upper level flow";
+                    Tcl_SetResult(interp, "unable to create a new upper level flow",
+                                  TCL_STATIC);
                     packet_error = TCL_ERROR;
                 }
                 return;
@@ -1792,7 +1815,7 @@ process_one_packet(Tcl_Interp *interp)
                     fileeof = 1;
                     filetype = TYPE_UNKNOWN;
                 } else {
-                    interp->result = "error on read";
+                    Tcl_SetResult(interp, "error on read", TCL_STATIC);
                     return TCL_ERROR;
                 }
             } else if (ntohs(fix24packet.len) != 65535) {
@@ -1812,7 +1835,7 @@ process_one_packet(Tcl_Interp *interp)
                     fileeof = 1;
                     filetype = TYPE_UNKNOWN;
                 } else {
-                    interp->result = "error on read";
+                    Tcl_SetResult(interp, "error on read", TCL_STATIC);
                     return TCL_ERROR;
                 }
             } else if (ntohs(fix44packet.ip.len) != 65535) {
@@ -1842,7 +1865,7 @@ fl_read_one_bin(ClientData clientData, Tcl_Interp *interp,
     char buf[200];
 
     if (argc > 2) {
-        interp->result = "Usage: fl_read_one_bin ?binsecs?";
+        Tcl_SetResult(interp, "Usage: fl_read_one_bin ?binsecs?", TCL_STATIC);
         return TCL_ERROR;
     } else if (argc == 2) {
         error = Tcl_GetInt(interp, argv[1], &binsecs);
@@ -1856,11 +1879,12 @@ fl_read_one_bin(ClientData clientData, Tcl_Interp *interp,
     binno = -1;
     if (!fileeof) {
         if (filetype == TYPE_UNKNOWN) {
-            interp->result = "need to call fl_set_{tcpd,fix{2,4}4}_file first";
+            Tcl_SetResult(interp, "need to call fl_set_{tcpd,fix{2,4}4}_file first",
+                          TCL_STATIC);
             return TCL_ERROR;
         }
         if (flow_types == 0) {
-            interp->result = "need to call fl_set_flow_type first";
+            Tcl_SetResult(interp, "need to call fl_set_flow_type first", TCL_STATIC);
             return TCL_ERROR;
         }
 
@@ -1897,7 +1921,7 @@ set_flow_type(Tcl_Interp *interp, int ftype, int Ftype, int class,
     curdesc = name;
 
     if (strlen(name) >= NUM(initial)) {
-        interp->result = "flow name too long";
+        Tcl_SetResult(interp, "flow name too long", TCL_STATIC);
         return TCL_ERROR;
     }
 
@@ -1921,7 +1945,8 @@ set_flow_type(Tcl_Interp *interp, int ftype, int Ftype, int class,
                 numbits = xp->numbits;
                 while (numbits > 0) {
                     if (bandm >= (2*MAX_FLOW_ID_BYTES)) {
-                        interp->result = "flow type specifier too long";
+                        Tcl_SetResult(interp, "flow type specifier too long",
+                                      TCL_STATIC);
                         return TCL_ERROR;
                     }
                     if (off > fti->fti_id_covers) {
@@ -1941,7 +1966,8 @@ set_flow_type(Tcl_Interp *interp, int ftype, int Ftype, int class,
                     fti->fti_bytes_and_mask[bandm++] = mask;
                 }
                 if (indicies >= NUM(fti->fti_type_indicies)) {
-                    interp->result = "too many fields in flow type specifier";
+                    Tcl_SetResult(interp, "too many fields in flow type specifier",
+                                  TCL_STATIC);
                     return TCL_ERROR;
                 }
                 fti->fti_type_indicies[indicies++] = j;
@@ -1949,11 +1975,11 @@ set_flow_type(Tcl_Interp *interp, int ftype, int Ftype, int class,
             }
         }
         if (j >= NUM(atoft)) {
-            static char errbuf[1000];
+            char *asret;
 
-            interp->result = errbuf;
-            sprintf(errbuf, "Bad flow field name %s in \"%s\"\n",
-                    initial, name);
+            asprintf(&asret, "Bad flow field name %s in \"%s\"\n",
+                     initial, name);
+            Tcl_SetResult(interp, asret, tclasfree);
             return TCL_ERROR;
         }
     }
@@ -1995,12 +2021,12 @@ set_flow_type(Tcl_Interp *interp, int ftype, int Ftype, int class,
 
 static int
 fl_set_flow_type(ClientData clientData, Tcl_Interp *interp,
-                 int argc, const char *argv[])
+                 int argc, char const *argv[])
 {
     int error;
     int ftype, Ftype, class;
     char *new_flow_upcall, *recv_upcall, *timer_upcall;
-    static char result[200];
+    char *asret;
     static char *usage =
 		"Usage: fl_set_flow_type "
 		"?-n new_flow_command? ?-r recv_command? "
@@ -2034,26 +2060,26 @@ fl_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 	    case 'n':
 		    new_flow_upcall = strsave(optarg);
 		    if (new_flow_upcall == 0) {
-                interp->result = "malloc failed";
+                Tcl_SetResult(interp, "malloc failed", TCL_STATIC);
                 return TCL_ERROR;
 		    }
 		    break;
 	    case 'r':
 		    recv_upcall = strsave(optarg);
 		    if (recv_upcall == 0) {
-                interp->result = "malloc failed";
+                Tcl_SetResult(interp, "malloc failed", TCL_STATIC);
                 return TCL_ERROR;
 		    }
 		    break;
 	    case 't':
 		    timer_upcall = strsave(optarg);
 		    if (timer_upcall == 0) {
-                interp->result = "malloc failed";
+                Tcl_SetResult(interp, "malloc failed", TCL_STATIC);
                 return TCL_ERROR;
 		    }
 		    break;
 	    default:
-		    interp->result = usage;
+		    Tcl_SetResult(interp, usage, TCL_STATIC);
 		    return TCL_ERROR;
 		    /*NOTREACHED*/
         }
@@ -2063,12 +2089,12 @@ fl_set_flow_type(ClientData clientData, Tcl_Interp *interp,
     argv += optind;
 
     if (argc != 1) {
-        interp->result = usage;
+        Tcl_SetResult(interp, usage, TCL_STATIC);
         return TCL_ERROR;
     }
 
     if (ftype >= NUM(ftinfo)) {
-        interp->result = "flow_type higher than maximum";
+        Tcl_SetResult(interp, "flow_type higher than maximum", TCL_STATIC);
         return TCL_ERROR;
     }
 
@@ -2080,8 +2106,8 @@ fl_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 
     flow_types = 1;		/* got a flow type */
 
-    sprintf(result, "%d", ftype);
-    interp->result = result;
+    asprintf(&asret, "%d", ftype);
+    Tcl_SetResult(interp, asret, tclasfree);
     return TCL_OK;
 }
 
@@ -2092,12 +2118,12 @@ fl_class_stats(ClientData clientData, Tcl_Interp *interp,
     clstats_p clsp;
 
     if (argc != 2) {
-        interp->result = "Usage: fl_class_stats class";
+        Tcl_SetResult(interp, "Usage: fl_class_stats class", TCL_STATIC);
         return TCL_ERROR;
     }
 
     if (atoi(argv[1]) >= NUM(clstats)) {
-        interp->result = "class too high";
+        Tcl_SetResult(interp, "class too high", TCL_STATIC);
         return TCL_ERROR;
     }
 
@@ -2147,7 +2173,7 @@ fl_continue_class_enumeration(ClientData clientData, Tcl_Interp *interp,
             return TCL_OK;
         }
     }
-    interp->result = "";
+    Tcl_SetResult(interp, "", TCL_STATIC);
     return TCL_OK;
 }
 
@@ -2179,7 +2205,7 @@ fl_continue_flow_enumeration(ClientData clientData, Tcl_Interp *interp,
         }
         flow_enum_state = flow_enum_state->fe_next_in_table;
     }
-    interp->result = "";
+    Tcl_SetResult(interp, "", TCL_STATIC);
     return TCL_OK;
 }
 
@@ -2187,6 +2213,7 @@ fl_continue_flow_enumeration(ClientData clientData, Tcl_Interp *interp,
 static int
 set_tcpd_file(ClientData clientData, Tcl_Interp *interp, const char *filename)
 {
+    char *asret;
     /*
      * need to do this here (rather than in newfile()), because
      * we are about to overwrite pcap_descriptor.
@@ -2198,7 +2225,8 @@ set_tcpd_file(ClientData clientData, Tcl_Interp *interp, const char *filename)
 
     pcap_descriptor = pcap_open_offline(filename, pcap_errbuf);
     if (pcap_descriptor == 0) {
-        sprintf(interp->result, "%s", pcap_errbuf);
+        asprintf(&asret, "%s", pcap_errbuf);
+        Tcl_SetResult(interp, asret, tclasfree);
         return TCL_ERROR;
     }
 
@@ -2222,7 +2250,8 @@ set_tcpd_file(ClientData clientData, Tcl_Interp *interp, const char *filename)
         pcap_receiver = receive_tcpd_null;
         break;
     default:
-        sprintf(interp->result, "unknown data link type %d", pcap_dlt);
+        asprintf(&asret, "unknown data link type %d", pcap_dlt);
+        Tcl_SetResult(interp, asret, tclasfree);
         return TCL_ERROR;
     }
 
@@ -2245,7 +2274,7 @@ set_fix24_file(ClientData clientData, Tcl_Interp *interp, const char *filename)
     } else {
         fix24_descriptor = fopen(filename, "r");
         if (fix24_descriptor == 0) {
-            interp->result = "error opening file";
+            Tcl_SetResult(interp, "error opening file", TCL_STATIC);
             return TCL_ERROR;
         }
     }
@@ -2265,7 +2294,7 @@ set_fix44_file(ClientData clientData, Tcl_Interp *interp, const char *filename)
     } else {
         fix44_descriptor = fopen(filename, "r");
         if (fix44_descriptor == 0) {
-            interp->result = "error opening file";
+            Tcl_SetResult(interp, "error opening file", TCL_STATIC);
             return TCL_ERROR;
         }
     }
@@ -2280,7 +2309,7 @@ fl_set_file(ClientData clientData, Tcl_Interp *interp,
     static char *usage = "Usage: fl_set_file filename [tcpd|fix24|fix44]";
 
     if ((argc < 2) || (argc > 3)) {
-        interp->result = usage;
+        Tcl_SetResult(interp, usage, TCL_STATIC);
         return TCL_ERROR;
     }
     if ((argc == 2) || !strcmp(argv[2], "tcpd")) {
@@ -2290,7 +2319,7 @@ fl_set_file(ClientData clientData, Tcl_Interp *interp,
     } else if (!strcmp(argv[2], "fix44")) {
         return set_fix44_file(clientData, interp, argv[1]);
     } else {
-        interp->result = usage;
+        Tcl_SetResult(interp, usage, TCL_STATIC);
         return TCL_ERROR;
     }
 }
@@ -2302,13 +2331,15 @@ fl_set_ll_classifier(ClientData clientData, Tcl_Interp *interp,
     llcl_p llcl;
 
     if ((argc < 2) || (argc > 3)) {
-        interp->result = "Usage: fl_set_ll_classifier ll_classifier_index "
-            "[associated_flow_type_index]";
+        Tcl_SetResult(interp,
+                      "Usage: fl_set_ll_classifier ll_classifier_index "
+                      "[associated_flow_type_index]", TCL_STATIC);
         return TCL_ERROR;
     }
     llcl = &llclasses[atoi(argv[1])];
     if (llcl >= &llclasses[NUM(llclasses)]) {
-        interp->result = "fl_set_ll_classifier ll_classifier_index too high";
+        Tcl_SetResult(interp, "fl_set_ll_classifier ll_classifier_index too high",
+                      TCL_STATIC);
         return TCL_ERROR;
     }
     if (argc == 3) {
@@ -2316,8 +2347,9 @@ fl_set_ll_classifier(ClientData clientData, Tcl_Interp *interp,
         llcl->llcl_fti = atoi(argv[2]);
         if (llcl->llcl_fti >= NUM(ftinfo)) {
             llcl->llcl_inuse = 0;
-            interp->result =
-                "fl_set_ll_classifier associated_flow_type_index too high";
+            Tcl_SetResult(interp,
+                          "fl_set_ll_classifier associated_flow_type_index too high",
+                          TCL_STATIC);
             return TCL_ERROR;
         }
     } else {
@@ -2331,10 +2363,10 @@ fl_tcl_code(ClientData clientData, Tcl_Interp *interp,
 		int argc, const char *argv[])
 {
     if (argc != 1) {
-        interp->result = "Usage: fl_set_version";
+        Tcl_SetResult(interp, "Usage: fl_set_version", TCL_STATIC);
         return TCL_ERROR;
     }
-    interp->result = fl_tclprogram;
+    Tcl_SetResult(interp, fl_tclprogram, TCL_STATIC);
     return TCL_OK;
 }
 static int
@@ -2342,10 +2374,10 @@ fl_version(ClientData clientData, Tcl_Interp *interp,
 		int argc, const char *argv[])
 {
     if (argc != 1) {
-        interp->result = "Usage: fl_set_version";
+        Tcl_SetResult(interp, "Usage: fl_set_version", TCL_STATIC);
         return TCL_ERROR;
     }
-    interp->result = rcsid;
+    Tcl_SetResult(interp, rcsid, TCL_STATIC);
     return TCL_OK;
 }
 
