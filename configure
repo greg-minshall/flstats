@@ -5,8 +5,8 @@
 
 # what versions of TCL library do we look for?
 # (this is what needs to change in order to use a different version of Tcl.)
-set nmtclxy=tcl84
-set nmtclxDOTy=tcl8.4
+set nmtclxy=tcl86
+set nmtclxDOTy=tcl8.6
 
 set includelocs = (/usr/include /usr/local/include /usr/pkg/include ../../usr/include /sw/include)
 

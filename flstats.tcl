@@ -1,7 +1,7 @@
 #
 # Tcl script as part of flstats
 #
-# $Id: flstats.tcl,v 1.53 1996/10/26 06:16:59 minshall Exp minshall $
+# $Id: flstats.tcl,v 1.54 1996/11/29 22:54:11 minshall Exp $
 #
 #
 
@@ -17,7 +17,7 @@
 #
 # Tcl script portion of flstats
 #
-# $Id$
+# $Id: flstats.tcl,v 1.54 1996/11/29 22:54:11 minshall Exp $
 #
 
 # this doesn't need $pre, since the subst is performed at the caller...

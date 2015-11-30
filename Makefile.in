@@ -1,4 +1,4 @@
-# $Id: Makefile.in,v 1.25 2004/01/07 17:02:17 minshall Exp minshall $
+# $Id: Makefile.in,v 1.26 2009/11/01 18:30:22 minshall Exp $
 
 # version for distribution...
 VERS=`cat VERSION`
