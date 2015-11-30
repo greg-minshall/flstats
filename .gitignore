@@ -1,0 +1,6 @@
+OLD-RCS-VERSION
+.gitignore
+Makefile
+flstats
+flstats.char
+flstats.o
