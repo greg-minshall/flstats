@@ -1,0 +1,1372 @@
+commit 864e22d408c5c09625124cc1c904d95d08b1bba1
+Author: Greg Minshall <minshall@acm.org>
+Date:   Mon Nov 30 15:39:39 2015 +0200
+
+    change to the simplified (more rational) BSD license
+
+commit b08bcac7d37f1c95a75081fa2d91ab61d70fc8d8
+Author: Greg Minshall <minshall@acm.org>
+Date:   Mon Nov 30 15:38:03 2015 +0200
+
+    original copyright notice (from flstats.c)
+
+commit 43c6349fc822bc506a0839f79a80d0e1973413dd
+Author: Greg Minshall <minshall@acm.org>
+Date:   Mon Nov 30 15:18:45 2015 +0200
+
+    moving to autotools
+
+commit 336fdb7a15fc8d12ae53358c1770ced8b1e4d6b9
+Author: Greg Minshall <minshall@acm.org>
+Date:   Mon Nov 30 15:18:08 2015 +0200
+
+    moving to autotools
+
+commit 90a5a297609bbe44abe1cc79ff04978b926c88a5
+Author: Greg Minshall <minshall@acm.org>
+Date:   Mon Nov 30 08:26:49 2015 +0200
+
+    make everything readable
+
+commit 0dad3628c1545b253aa2f27a780803c4be60a566
+Author: Greg Minshall <minshall@acm.org>
+Date:   Mon Nov 30 08:02:55 2015 +0200
+
+    whatever flowsim.tex was, it's gone now
+
+commit 2b80eaf156644905c7f25ec8220bda0c405e0106
+Author: Greg Minshall <minshall@acm.org>
+Date:   Mon Nov 30 08:02:30 2015 +0200
+
+    after import to git (from RCS)
+
+commit e4c9bafccbee3f2cb8f41d5d789863690d4aa520
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sat Jan 25 15:29:48 2014 +0000
+
+    oops!
+
+commit 85f5db0c1478287aad0140da0b710de5c2e3c3ff
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sat Jan 25 15:24:27 2014 +0000
+
+    okay, sprintf(3) was overflowing buffers.  should change to new asprintf(3).
+
+commit 15c76269979a38e838b769468a5894c5902ee557
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sat Jan 25 15:06:50 2014 +0000
+
+    minor (64-bit?) compatible argument upgrades.  important is s/0/(char
+    *)NULL/ (causing segfaults).
+
+commit becb8a365b90f0c2817f3ae23030bd560ba12613
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sun Nov 1 18:30:35 2009 +0000
+
+    *** empty log message ***
+
+commit 980ab14c52cc5692779058bb552f8b41df99381c
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sun Nov 1 18:30:22 2009 +0000
+
+    get rid of linker flag "-Bstatic" (whatever it was, it's no longer
+    supported).
+
+commit b8c644a9fa6de7488d1a10d05b7bb4cda1c0dd94
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sun Nov 1 18:24:54 2009 +0000
+
+    just formatting:  indent the whole (hopefully) program.
+
+commit e4732b04b5e4e70b7c7d1ffc04ecba219e39ebfe
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sun Nov 1 18:12:23 2009 +0000
+
+    more warnings (su_seconds for [s]scanf)
+
+commit c61120fe8d1eb11fde439fe2cb92b17a54c3263e
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sun Nov 1 18:08:36 2009 +0000
+
+    some more warnings (suseconds_t)
+
+commit 24025561e79f05c1feaaea301b943d5cbcf6979c
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sun Nov 1 18:00:41 2009 +0000
+
+    minor fixes for more modern Tcl (getting rid of warnings; an error
+    still exists!)
+
+commit 1b91dee4f55cae061bbbcf11295222a9cb56e4ee
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Aug 9 23:28:32 2006 +0000
+
+    now compiles (with some warnings) on freebsd.
+
+commit 48905b2a2b0807dc34f2fc8afbed1a378431198b
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Jan 7 17:02:31 2004 +0000
+
+    new fix version
+
+commit 44067bab7a9cbc2d2b61e0e287e1896ee9ce24b1
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Jan 7 17:02:17 2004 +0000
+
+    switch from .Z to .gz for tar file.
+
+commit 464984328675da9013cc85fd88ad830c7a041951
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Jan 7 17:01:35 2004 +0000
+
+    new fix version
+
+commit 9916823c18fb2d32997ef5d657117de03964395b
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Jan 7 17:01:26 2004 +0000
+
+    new fix version
+
+commit 42adf454684a5ca07c7e0530d959ff6a7b1e6dd0
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Jan 7 16:57:13 2004 +0000
+
+    new fix version
+
+commit f3a55240f048e5bf1a84b835e4fbf7349b4d0931
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Jan 7 16:56:59 2004 +0000
+
+    new fix version
+
+commit d4c5571f4cbb7e4784f5aba67ab33dc40c9052bb
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Jan 7 16:56:53 2004 +0000
+
+    new fix version
+
+commit 7ddd2cbc889fb24bc048770cf0c2d164a74bb7d2
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Jan 7 16:56:11 2004 +0000
+
+    tcl 8.4; look in /sw/lib first for Tcl (kludge).
+
+commit 5718d53e86f44f7b1bdf914d660b52631cf1882a
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Jan 7 16:46:58 2004 +0000
+
+    new fix version
+
+commit 8e8afb3731a472844dec438845c786a0f72ef8c1
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Jan 7 16:43:23 2004 +0000
+
+    from 5 Dec 2001.
+
+commit 9eeab9d88095f52e13d664d6530675073b01875c
+Author: Greg Minshall <minshall@acm.org>
+Date:   Tue Jun 27 17:16:46 2000 +0000
+
+    use -L to track down Tcl library directory.
+
+commit 222adb552b6cfc4f7b869e795cc7fd7b97046c8b
+Author: Greg Minshall <minshall@acm.org>
+Date:   Tue Jun 27 17:06:31 2000 +0000
+
+    update to tcl8.0; get <unistd.h> for getopt(3); better search for
+    tcl include directory.
+
+commit e46a86c7ae1f175fd0d6508ecf4a37e26b872be7
+Author: Greg Minshall <minshall@acm.org>
+Date:   Tue Jun 27 16:31:30 2000 +0000
+
+    tcl 7.5.
+
+commit bea2ba0e72d4bc91f5dc52a39d0bb55d110a9d45
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri May 9 19:11:59 1997 +0000
+
+    new fix version
+
+commit 123148eca1970b4440f89d07c8d01d6ccea051ad
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu May 8 04:43:47 1997 +0000
+
+    Ignore time going backwards in trace file (but, don't let it go
+    backwards in the simulation!).
+
+commit 8bc7811b255689266218066f06034b7af16f94b9
+Author: Greg Minshall <minshall@acm.org>
+Date:   Mon May 5 02:41:09 1997 +0000
+
+    Fix TIME_LE (though we don't use it currently).
+
+commit 0c71d02d656954807df0960fb86630f4e11fef40
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Apr 30 23:43:57 1997 +0000
+
+    new fix version
+
+commit bfe438ece27dfe3da2e5b02b7b1bc20f65339a1f
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Apr 30 23:43:52 1997 +0000
+
+    new fix version
+
+commit 07296d51bd50275d55804aeb9159f944abfda1f6
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Apr 30 23:40:33 1997 +0000
+
+    new fix version
+
+commit b3f8233ae6eb540059133a2a7b4c120ea363ef94
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Apr 25 00:51:27 1997 +0000
+
+    Always link static (so can run on machines with no Tcl installed).
+    Delete init.char (had it been created!).
+
+commit fff888142daf47d51c0fdb9e7b3b218111304880
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Apr 25 00:50:49 1997 +0000
+
+    Oops.  Remove some debugging stuff.
+
+commit 1e5afc0b3fcbdd99161efa7a7e11e2b2e4b0680f
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Apr 24 23:45:44 1997 +0000
+
+    1.  Make seconds and useconds *signed* longs.
+    2.  Check for negative time and/or clock going backwards.
+    (Clock going backwards may, unfortunately, really happen; in which
+    case, we need a better fix.)
+
+commit 6a3d5c5984bff0865f8c3ff0ff5e338f9b923a2e
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Apr 24 23:22:17 1997 +0000
+
+    Don't call Tcl_Init(), since that requires Tcl to be installed
+    on target platform.
+
+commit 8b6b8d529c102ad3cac6fad9e62cf82137f6fb5b
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Apr 24 23:22:04 1997 +0000
+
+    Document fix44 format.
+
+commit e3a10c9b33385d894b4f7f6c537cd3ef04d7c356
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Apr 24 23:21:06 1997 +0000
+
+    Figure out where the Tcl directory is (normally in /usr/local/lib/tclXY,
+    or some such place).
+
+commit 11bc5e4b5ab4cad458eed679e5d3f30ef46429fd
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Apr 24 23:21:06 1997 +0000
+
+    Create init.char (though, ultimately, we probably won't use this!).
+
+commit 06989a8f1fe1957cb7264c38e0c69c5991bbb7d5
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Apr 24 21:24:55 1997 +0000
+
+    Cheap hack to allow /8, /16, /24, /32.
+
+commit 0ec82ca2121157d4b3e0ec5161aea63705ba4cac
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Apr 24 21:24:55 1997 +0000
+
+    Use 7.4.
+
+commit fe8efc87580883a0467911ed300110b261950ec5
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sun Mar 9 23:15:12 1997 +0000
+
+    Embarrassment -- was checking byte 6 with 0x1fff to check for fragments.
+    Should have been checking *short* at byte 6!
+    (This caused us to say, eg, that all packets with DF are fragments!)
+
+commit f9904479f310d6fe33e02547c6accce231c5e4ac
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Mar 5 07:13:23 1997 +0000
+
+    new fix version
+
+commit 6bc20a6f9d7b543681a414841c8ef9c24cba2676
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Feb 28 22:00:32 1997 +0000
+
+    Improve looking for tcl library (what a pain, though!).  Could
+    be better.
+
+commit 94566bbc7f78b49d39e83d4116daed4a05f23a16
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Nov 29 23:40:28 1996 +0000
+
+    Change the TODO list.
+
+commit 2b69fcdf46cf5e6d81892ed0f469c715b87e9f19
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Nov 29 22:54:11 1996 +0000
+
+    Change flll_delete function prototype to match what flstats.c
+    is calling it with.
+    
+    Also, remove example code.
+
+commit 6008fa410dea22d3b7a72e47d020ebb2c80ce537
+Author: Greg Minshall <minshall@acm.org>
+Date:   Tue Nov 12 23:46:01 1996 +0000
+
+    new fix version
+
+commit 261d60db9017b846ab4ebfdab36189b48b175f3f
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sun Nov 10 00:06:09 1996 +0000
+
+    Mostly, make [fti_recv_upcall] work.
+
+commit 238f5adb3613e1b0e9a7e10b925a5dd93dcea8a3
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Nov 8 01:18:45 1996 +0000
+
+    Reformat output and awk line.
+
+commit 2dabd02c53e55b2b5fd881619fd9c1f881f5cf26
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Nov 6 01:57:30 1996 +0000
+
+    new fix version
+
+commit 74819faac42adeb1b2930456e872560e3d51c288
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Nov 6 01:35:15 1996 +0000
+
+    new fix version
+
+commit f0496ead3936f966fda10952493ac9500d35be31
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Nov 6 01:34:33 1996 +0000
+
+    new fix version
+
+commit b91bb43f21e261b66f207695938be721dcbe8175
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sat Oct 26 06:16:59 1996 +0000
+
+    Filter out "-".
+
+commit dc25042e7c401cba7e7fe4a70a5a6a3a8ff07905
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sat Oct 26 06:03:56 1996 +0000
+
+    Fix -t src/dst on command line.  Flow types are offset
+    by one.
+    
+    Also, fix up formatting of continuation lines (so you can "source"
+    into tclsh).
+
+commit e2407b57545369811bc5d799e51b2296f970f9e3
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sat Oct 26 04:45:11 1996 +0000
+
+    Fix error message.
+
+commit deb150ad464c8c09dc7dec244b9ce92802fb63a6
+Author: Greg Minshall <minshall@acm.org>
+Date:   Tue Oct 8 03:20:47 1996 +0000
+
+    new fix version
+
+commit 27801cdfad84ecb1ac4c46897973d3f1ad43c8a9
+Author: Greg Minshall <minshall@acm.org>
+Date:   Tue Oct 8 03:19:12 1996 +0000
+
+    Initial stab at FDDI (and other) decoding.
+
+commit f7576717fd696b2f9219c8763458d476513a2dc2
+Author: Greg Minshall <minshall@acm.org>
+Date:   Tue Oct 1 03:53:57 1996 +0000
+
+    new fix version
+
+commit 7b4fc0774ba87ca414e73fa8e593745deca18f44
+Author: Greg Minshall <minshall@acm.org>
+Date:   Tue Oct 1 03:53:40 1996 +0000
+
+    Remove .shar.
+
+commit 612b7f351313e912dc8ccb9054cd96546dca6d80
+Author: Greg Minshall <minshall@acm.org>
+Date:   Tue Oct 1 03:52:34 1996 +0000
+
+    new fix version
+
+commit 7a55cd6800f9ec78bac5be040e43fcc61b0adac5
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Aug 1 21:28:33 1996 +0000
+
+    Add label for "bin" (why leave it out?).
+
+commit cbc972b43c8574197f5fdd05b1ceea45b8b9f1d4
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Aug 1 00:54:04 1996 +0000
+
+    Assign flowtypes from 1 since 0 is a "magic" number.
+
+commit 0c390440b11965051d6e89da07f36d2aff6d7f7d
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Aug 1 00:53:42 1996 +0000
+
+    Update documentation for new_flow upcall.
+
+commit cdef8c88d8eed8e7c13620eff0843abc3958f2cb
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Jul 31 20:40:55 1996 +0000
+
+    Remove some debugging (sigh).
+
+commit 9e66d52b12f37fc7a66cbe717d608145038b010b
+Author: Greg Minshall <minshall@acm.org>
+Date:   Mon Jul 29 21:14:31 1996 +0000
+
+    new fix version
+
+commit 5095418e86eee578cd7bb8cb0206af8f4f30e331
+Author: Greg Minshall <minshall@acm.org>
+Date:   Mon Jul 29 21:13:39 1996 +0000
+
+    1.  Deal with classifiers again; 2.  make script files and evals
+    work correctly.
+
+commit c2ab977c95a7c54cf57041362da33d995b08d955
+Author: Greg Minshall <minshall@acm.org>
+Date:   Mon Jul 29 21:12:33 1996 +0000
+
+    Fix upcalls.  Define FDDIPAD (if needed).
+
+commit 8a89f491c0736c88aecffb7f5daf66c1a9919612
+Author: Greg Minshall <minshall@acm.org>
+Date:   Mon Jul 29 21:11:32 1996 +0000
+
+    Where is -ltcl, -lpcap.
+
+commit ea4a534964033b6794d12a9741cebd601acc4480
+Author: Greg Minshall <minshall@acm.org>
+Date:   Mon Jul 29 21:11:12 1996 +0000
+
+    Deal with various things.
+
+commit 86a207648406a884735578a82b112840d139f2c3
+Author: Greg Minshall <minshall@acm.org>
+Date:   Mon Jul 22 21:23:17 1996 +0000
+
+    Make FDDI stuff work with standard libpcap.
+
+commit 259fa966fdd27ee9fcaaa4f0956b285e42341bcf
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Jun 14 18:53:26 1996 +0000
+
+    new fix version
+
+commit ee72cc5217584da44fa37be36c9fc2019740bf19
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sat May 18 04:02:01 1996 +0000
+
+    Some changes for porting to Solaris.
+
+commit a4caf4679ce89827f741d0ec0276bc4d92c1c583
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sat May 18 04:00:50 1996 +0000
+
+    Get rid of weird library paths.  (Now in my local environment.)
+    But, weird include has moved.
+
+commit 50324234fdb517be5b696e8144a87ac90d424c76
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sat May 18 03:59:53 1996 +0000
+
+    change quoting (to work on sunos).
+
+commit 62c7f09eaae936fd550742f353636c5647429936
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sat May 18 01:25:24 1996 +0000
+
+    First cut at support for FIX-WEST 44 byte trace file format.
+
+commit a5437c7827a0449618a467c0a357346db6b70f5c
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Mar 28 04:10:03 1996 +0000
+
+    new fix version
+
+commit 75e3120b061bfbdac71cb3268ed846db877bcee2
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Mar 28 04:09:06 1996 +0000
+
+    Initial revision
+
+commit cb9695762cedcd7cc8abb4964711c27614be95bd
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Mar 28 04:08:52 1996 +0000
+
+    Fix.
+
+commit 572a2a16abc30f6163e30ae04af4c3093f807687
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Mar 28 04:08:21 1996 +0000
+
+    new fix version
+
+commit 531d1f3cd4d939cd58f704edcd490f84dba1900e
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Mar 28 04:08:07 1996 +0000
+
+    new fix version
+
+commit ab88fab9271b2246e293ae7b39dcd0b6a50c4304
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Mar 28 04:06:41 1996 +0000
+
+    Automating release.
+
+commit 728451afb70ede52d75c767e755b361cdf2621e2
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Mar 28 04:05:37 1996 +0000
+
+    new fix version
+
+commit 4ce5b10caa70884ce281ef9aca51df3bc8eb423f
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Mar 28 03:53:06 1996 +0000
+
+    Getting there...
+
+commit cdd6c5c95c6ed679351506f3655f9949df40097e
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Mar 28 03:52:15 1996 +0000
+
+    Initial revision
+
+commit 22d2607124c7d9d1308364be1c3afb27ec3bbc99
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Mar 21 02:51:54 1996 +0000
+
+    Change format of flow statistics to group flow type separate
+    from flow id.
+    Change doc for that and for new sipg format.
+
+commit f73c890adce7c176293bc5ff069a36e7f035909f
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Mar 21 02:12:40 1996 +0000
+
+    Change sipg to be sss.uuuuuu format.
+    Convert returned sipg to seconds (shift).
+
+commit 9ec307acc00b3d3052744a50442bb0028bd2ddca
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Mar 20 22:44:40 1996 +0000
+
+    Initial revision
+
+commit af65425b93fa4e080bfbd39e210293389b4fc7c3
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Mar 20 22:42:43 1996 +0000
+
+    Only print out descriptive "#" lines if -label.
+
+commit 73b6b55f761f92d6dd23aa45b07433907adcaa2e
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Mar 20 00:06:35 1996 +0000
+
+    Correct usage message.
+
+commit cb35b7e18ad6638a7f7644f19ab44b3add54e535
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Mar 20 00:06:18 1996 +0000
+
+    Add copyright; remove TODOs.
+
+commit 814222b7ba9902456c408a6e9742036d0db63fb2
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Mar 15 17:39:52 1996 +0000
+
+    Add comments in TODO.
+
+commit 57d8ff3c9ec63c994f8e4141349daa04debd1317
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Mar 15 02:27:43 1996 +0000
+
+    First step at getting SunOS support.
+
+commit 4bf7cad153d86f99a404ef43839afabb06cc8003
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Mar 15 02:27:22 1996 +0000
+
+    Make filename '-' work.
+
+commit 3a98b92ee88bfce2ae45da84113b75b28ab1ea33
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Mar 15 01:49:17 1996 +0000
+
+    1.  -debug flag (prints out errorInfo).
+    2.  pass *real* command line arguments to [flstartup] (if Tcl_Main
+    gets them, it eats the first one).
+    3.  Change output of flow statistics -- put clocks at end.
+
+commit b5012f838d7cd9b82bfff5ebef73146529e33dc3
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Mar 15 00:53:49 1996 +0000
+
+    fix some bugs, add yet another command line format.
+
+commit 18973930bdd97a4028d3ad8b7fe3fc8cc269790e
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Mar 14 23:42:20 1996 +0000
+
+    New command line format.
+
+commit 1312b06199db2f8cae59dc434fe873bc619ed4ec
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Mar 14 23:41:57 1996 +0000
+
+    Oops...
+
+commit 5e0ecac1ff5962d8f40a0f407217252a0289df18
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Mar 14 22:47:45 1996 +0000
+
+    Fix a few off-by-one bugs.
+    Enumerate only things that have changed.  Print out delta values (except sipg and last_received_time).
+
+commit 8605e7184a37975a7c24f7a28c6251c93e664c9b
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Mar 14 22:03:25 1996 +0000
+
+    1.  delete fl_summary.
+    2.  fl_{start,continue}_enumeration -> fl_{start,continue}_flow_enumeration.
+    3.  chnage format of flow_statistics, so of timer_upcall and recv_upcall.
+    4.  add fl_{start,continue}_class_enumeration.
+    5.  delete fe_created_bin.
+
+commit c4e24a97fe7b493406a18e013558a09158d58d26
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Mar 14 22:02:35 1996 +0000
+
+    Generic fl_class_details.
+
+commit fb7195206aee64ef6b601fe3305261ea8c4a7857
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Mar 14 21:22:38 1996 +0000
+
+    OK.
+    "key" -> "id".
+    tbl_lookup doesn't use *level*, but uses flow_type instead.
+    remove FT_..., use position in list instead.
+    Each flow type created is given associated class.
+    Add low level classifier index, etc.
+
+commit 7fe5b36cc434643121326a4674fd0189399bd84e
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Mar 14 05:59:28 1996 +0000
+
+    1. make classifier optional.
+    2. ease code in fl_set_flow_type by removing '-' in tcl code.
+    3. -tracefile has only one argument (fname); -format (for other
+    argument); -binsecs default is 0; -flows -> -flowtypes.
+    4. fti_class, fti_parent_ftype as defaults.
+    5. don't create parent if fti_parent_ftype == 0.
+    6. -c, -F parameters to fl_set_flow_type (for fti_class, fti_parent_ftype).
+
+commit abc0bde96a9503ffe312c6fde9080b40d04cd852
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Mar 14 02:55:57 1996 +0000
+
+    "fix" to "fix24" (getting ready for fix40).
+    [fl_set_file filename ?fileformat?] replaces fl_set_{tcpd|fix24}_file.
+    fl_version, fl_tcl_code, for documenting which version running.
+
+commit cce2504324d4019f5510752df92c39f4181279fd
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Mar 14 02:55:00 1996 +0000
+
+    Library moved ("ld.so failed").
+
+commit 1ff2539310d9ba2f49d116b9641ff59b1634a285
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Mar 13 23:33:14 1996 +0000
+
+    Change from "flowsim" to "flstats".
+
+commit 16a5140f364533d60193c2b9d4f5ebbf41412d81
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sat Mar 2 01:21:30 1996 +0000
+
+    Note a uh bug uh errant behaviour.
+
+commit 0dd7d0a4355aecac4eddf66800b5ed6fc58a79e8
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sat Mar 2 01:03:08 1996 +0000
+
+    More better.
+
+commit 66418a913f7d1a1d0ed70b019207fff3ddff499f
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Mar 1 22:51:47 1996 +0000
+
+    Keep track of what should be changed.
+
+commit 67a87da0b94e0ba8790e402c8c48fc704cd3b015
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Mar 1 22:42:24 1996 +0000
+
+    Check for fsim(tracefile...).
+    Get rid of alltags (defensive move, since i know now how...).
+
+commit b5e30154e3a1e6efd9563e13c5d6e9e6941e1faf
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Mar 1 22:34:28 1996 +0000
+
+    Mostly, move fsim_class_details and fsim_flow_details out of "simulator"
+    part into "example" part (though they will still be documented).
+    Also, put back mistakenly deleted arguments in fsim_class_details.
+
+commit 9ab080ee10216f1f00e8061daf3cb34317ebe62d
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Mar 1 21:03:01 1996 +0000
+
+    Add RCS Id.
+
+commit fd8c2d3c7af65d34b4ed41cf223fc854feb0bed4
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Mar 1 20:52:31 1996 +0000
+
+    Argument processing.  Not bad.
+
+commit 975528fcffd2de1f72041383af5633465b722b7c
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Mar 1 18:41:55 1996 +0000
+
+    Get rid of classifiertype as a parameter; create $classifier.specifier
+    as a co-routine of $classifier to return specifier it uses.
+
+commit a7ece0252fdbe6f6449c2487a259ea9ebc926f03
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Mar 1 18:22:36 1996 +0000
+
+    comment.
+
+commit d2f4ab4b377cc8701a395f9e96f5fbb4dde2d20a
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Mar 1 18:12:32 1996 +0000
+
+    Add in df and mf, which cleans up some stuff.
+
+commit c1da502bdd8a5899059f2f5457159009434c76cc
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Mar 1 18:11:08 1996 +0000
+
+    Add df, mf.
+
+commit ddf7093174b225aa97b0bf21a9d4e0d20cce2cf1
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Mar 1 16:57:39 1996 +0000
+
+    Mostly, add in sipg goal and numpkts goal.  Renamed timer and
+    packet receive time upcall parts, too.
+
+commit 821e59c12d5bc852ff53c5000ad97e4c3caf5c5b
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Mar 1 16:56:15 1996 +0000
+
+    Delete unused stuff.
+
+commit 65ff04b685a8714e54bff1c99fe09b40312c980a
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Mar 1 04:16:59 1996 +0000
+
+    Use Brent Welch's standard for "_".
+
+commit 7677e8bc1917b109d976333b685ad83347b8fa56
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Mar 1 04:11:15 1996 +0000
+
+    Renamed from simul.tcl; pull in fsim_startup.
+
+commit a88185b34a73a9013ae8c27185313c058837648c
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Mar 1 01:49:39 1996 +0000
+
+    OK, data entry complete!
+
+commit 58f3089fe13623cf58cfeb603fe455384aec2e99
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Mar 1 01:33:18 1996 +0000
+
+    More hacking.  It's getting to the end of the first pass.
+
+commit 3b20cbe3d81d8b70d21512a401f0b1b808101511
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Feb 29 23:58:25 1996 +0000
+
+    More stuff.
+
+commit 3bba6746049df03f5cf8f33e7bdd5c607fde0bbf
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Feb 29 04:07:01 1996 +0000
+
+    Initial revision
+
+commit 5432bcd347c9e6a3f3dd5f5e0634eb3a4f432cb7
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Feb 28 19:54:50 1996 +0000
+
+    Change "tehone" to "flowsim" (file names); change "teho" to "fsim"
+    (function names, all? teho_ -> fsim_).
+
+commit 9ec97a74dab8543d21225a7275a0980e72568950
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Feb 23 23:41:22 1996 +0000
+
+    Add fix for FIX files len 65535 meaning "not an IP packet".
+
+commit 903bbbd93f66045e1ab71a1bc7949ca277f52f49
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Feb 2 14:01:30 1996 +0000
+
+    Make recv_cmd and timeout_cmd per *flow type*.  Get rid of cookies.
+
+commit fe728a94c9a5efe32f73198413e461408185df3f
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Feb 2 11:42:21 1996 +0000
+
+    Make timeouts run with advancing time (rather than in a specific
+    call from the tcl code).  The reasons are varied.  For example,
+    if binsecs is 0, the timeout code would never be run.
+
+commit 7df7ec703e4b0be117c59c218137673b374da163
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Feb 1 19:58:57 1996 +0000
+
+    Use a slotted timer wheel (to reduce VM usage).
+
+commit 63e667bd304f0418b3204bb179068e19bc5005f5
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Feb 1 18:06:56 1996 +0000
+
+    Name changes.
+
+commit 678d733e83fb1167912bbb6e759ff63dca11b4b4
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Feb 1 17:08:14 1996 +0000
+
+    a few changes.
+
+commit 82230ad0593b7528025ada272787fa3aa94b44d9
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Feb 1 15:43:01 1996 +0000
+
+    Compute llflows from 1) specification of what classifier needs; and
+    2) union of ulflows.
+    
+    Also, change some names.
+
+commit 617401b9dfcefa79c00a412b5459dab2971d413a
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Feb 1 15:39:15 1996 +0000
+
+    1.  Move stats updating to occur *before* calling pkt-recv routine.
+    2.  If llfe->fe_parent_class is greater than ulfe->fe_class,
+    	upgrade ulfe->fe_class.  Pretty primitive!
+
+commit 189b1bb6dc1ba4823461c4487aa0a1d102622cd1
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Jan 31 18:46:16 1996 +0000
+
+    Fix some stuff; get rid of LLFLOWS/ULFLOWS as global variables
+    (used now, really, as #defines).
+
+commit b5e936d839d49dde99f6940150535a5bffe020be
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Jan 31 16:14:45 1996 +0000
+
+    A bit better formatting.  In particular, now prints out the
+    LL and UL flow definitions.  However, we still don't print out
+    the classifier (someday!).
+
+commit 365331e8c5ca555a2cd4332a5af296d09fb174d5
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Jan 31 14:32:40 1996 +0000
+
+    Augment the enumeration code.
+    make some more stats u_long (mostly for byte counts).
+
+commit c33609040a1cae240c38a5ee06469f4a0de86221
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Jan 31 14:31:20 1996 +0000
+
+    Make the ll and ul flow types into parameters.
+    Support "flow_detail" (as well as older, but renamed, "class_detail")
+    runs.
+
+commit 6fedd9a57be1ee9f733a6597c433b5adb869d330
+Author: Greg Minshall <minshall@acm.org>
+Date:   Tue Jan 30 17:56:16 1996 +0000
+
+    *Try* to make it link in various places on various machines.
+    (But, does it run when i am disconnected?)
+
+commit 73563235eb910e910da1e30e735c93f3eb72d03f
+Author: Greg Minshall <minshall@acm.org>
+Date:   Tue Jan 30 17:01:02 1996 +0000
+
+    Make it more cool.
+
+commit 09e7fa71a41fb93eaa22c4af6655c7bc8b3134fc
+Author: Greg Minshall <minshall@acm.org>
+Date:   Tue Jan 30 13:36:46 1996 +0000
+
+    Delete no-longer-used function.
+    Fix bug in variable naming.
+    Delete "info exists" (see comment added).
+
+commit 35e85c2fc3898a44c8b4df67cdd8e2abfd3dba86
+Author: Greg Minshall <minshall@acm.org>
+Date:   Tue Jan 30 13:26:24 1996 +0000
+
+    Change the data structure for counters.
+
+commit 0618ef5a8e76797825117ec415e41d51da21a60e
+Author: Greg Minshall <minshall@acm.org>
+Date:   Tue Jan 30 13:24:19 1996 +0000
+
+    Keep both capture length and packet length.
+    Separate out creates and deletes from moves (add and removes).
+    Count capture too short from pktlen too short.
+
+commit 2b56d7d7ad4f885105c82a3b54e2fe46c2dcb801
+Author: Greg Minshall <minshall@acm.org>
+Date:   Mon Jan 29 20:22:24 1996 +0000
+
+    No real change.
+
+commit a1f26bacd8b9e857cc193d0316c779894a8f9e2a
+Author: Greg Minshall <minshall@acm.org>
+Date:   Mon Jan 29 19:32:02 1996 +0000
+
+    Add smoothed interpacket gap's for both flow entries and classes.
+
+commit d11a371e2904ba35abcd362485efb62734724ee9
+Author: Greg Minshall <minshall@acm.org>
+Date:   Mon Jan 29 18:01:19 1996 +0000
+
+    Support for bytes.
+
+commit 294bdb8c65b969f4780219cac0ed59a9f6f226cc
+Author: Greg Minshall <minshall@acm.org>
+Date:   Mon Jan 29 18:01:19 1996 +0000
+
+    Support for bytes; try to promote fragmented packets to a
+    less specific flow type.
+
+commit 186af91c248ef926ce606bacc4a1a59476c7072f
+Author: Greg Minshall <minshall@acm.org>
+Date:   Mon Jan 29 16:53:50 1996 +0000
+
+    Change format a bit.
+
+commit 3e8a31d36e08323c575cb71d7bc363a2cd3d0c1b
+Author: Greg Minshall <minshall@acm.org>
+Date:   Mon Jan 29 14:28:19 1996 +0000
+
+    Get it better.
+
+commit c3c6d532745253f8b9538627ff8c8ce4dee733f6
+Author: Greg Minshall <minshall@acm.org>
+Date:   Mon Jan 29 04:11:17 1996 +0000
+
+    Add in dropped packets (runts, noports, fragments).
+
+commit 81b3c193efaca84fc91b0b1c56fef9380fc9fd67
+Author: Greg Minshall <minshall@acm.org>
+Date:   Mon Jan 29 03:32:17 1996 +0000
+
+    Better, i hope...
+
+commit 8a7d233a3a7d497ca8244f88d20ea092037e1c47
+Author: Greg Minshall <minshall@acm.org>
+Date:   Mon Jan 29 03:30:25 1996 +0000
+
+    Get rid of fti_class; class in a created flow is now zero for LL
+    flows, or llfe->parent_class for UL flows.  Both the class and parent_class
+    fields can be changed by the new_flow_cmd when a flow is created.
+    (So, change the new_flow_cmd to allow returning parent_class.)
+
+commit 6eaa0372f2fe5790d9f716f00f326db1f547316d
+Author: Greg Minshall <minshall@acm.org>
+Date:   Mon Jan 29 03:00:56 1996 +0000
+
+    Add fe_ in front of tags in flowentry (renamed from hentry).
+    Change hent to fe.
+
+commit 0d5e262645e6ec60cdd9328d17ff2123f8bbfbfd
+Author: Greg Minshall <minshall@acm.org>
+Date:   Mon Jan 29 02:49:04 1996 +0000
+
+    interim.
+
+commit acf5bf9ca6e1c7f2b59e1108b5a568cb71541dd9
+Author: Greg Minshall <minshall@acm.org>
+Date:   Mon Jan 29 01:51:30 1996 +0000
+
+    Add some performance debugging (sigh!).
+
+commit e15245217c4403466b185920d6c6eb4316e76b29
+Author: Greg Minshall <minshall@acm.org>
+Date:   Mon Jan 29 00:59:12 1996 +0000
+
+    More improved and etc.
+
+commit 534dd89790ca4140c79e670de53aceb24dace279
+Author: Greg Minshall <minshall@acm.org>
+Date:   Mon Jan 29 00:58:38 1996 +0000
+
+    Delete flows (sigh).  Bugs, i'm sure...
+
+commit 23ac9ff8beb54b6579a956f8c94675967471196c
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sun Jan 28 23:07:09 1996 +0000
+
+    Get ready to delete.
+
+commit 26ff7704843f0b0cdf991322aed63d36027a9dd2
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sun Jan 28 22:09:07 1996 +0000
+
+    Keep track of flows changing classes.
+
+commit 9a0bb4d075828b4252f0cc0af63e034a5318f445
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sun Jan 28 22:05:17 1996 +0000
+
+    Fixes for updated output format from summary routines.
+
+commit f794f4ae593392d1bc7d55de12e8fb1fb74d2e89
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sun Jan 28 21:07:34 1996 +0000
+
+    Name changes, comments, flow_statistics(), etc.
+
+commit 23a05fb028502b1c87c63eb067a96ced9ce1a3fb
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sun Jan 28 21:07:34 1996 +0000
+
+    Change to new output summary formats (mostly).
+
+commit 34872f5ba6fe643aa48631a528706ebaf1e8e207
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sun Jan 28 18:14:42 1996 +0000
+
+    Go to -Wall and make gcc happy about it...
+
+commit b491b3f6d03e0344fc73a99bf8b45d34e9e80a3d
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sun Jan 28 17:54:50 1996 +0000
+
+    change comment; move comment; delete dead variable.
+
+commit 80ac5d533a7db63a3d09e1ee01762fac38ee8ea8
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sun Jan 28 17:22:40 1996 +0000
+
+    Get rid of conditional around ONEBEHIND.
+    Make explicit "lower level" and "upper level" flows.
+    Add timeout command (but, not actually called, yet).
+    Name changes.
+    Change format of summary output (varName varValue).
+
+commit cd9f4f986c938277f33ffe58aba65fe89f9ad5f3
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sun Jan 28 13:39:10 1996 +0000
+
+    Some changes.
+
+commit 83f54140fed7804a5ef82cecad670f963f63c1d4
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sun Jan 28 13:38:48 1996 +0000
+
+    Get rid of packetsnewflows.  Restructure a bit.
+
+commit 366c7d70de3765f3b901df2555cc5427845c3331
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sun Jan 28 11:23:41 1996 +0000
+
+    Just a place.
+
+commit c4c91d60e2cfb75c066e2899fd9821f5b388d7fe
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sun Jan 28 11:23:12 1996 +0000
+
+    More work.
+
+commit b49c423331a40d366aa6b25e376061f9bd8f309e
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sat Jan 27 22:24:44 1996 +0000
+
+    Initial revision
+
+commit 8dd8003471b996762766035a41d932c37717f711
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sat Jan 27 21:59:19 1996 +0000
+
+    bring back from cameo.
+
+commit 1da0831cfa67a658ff2abbfa6673fe1115bedd46
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sat Jan 27 20:07:55 1996 +0000
+
+    Terminate (return binno -1) when hit EOF.
+
+commit a97d0ccba52b8378cfaa6788142ae2334d8de01b
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sat Jan 27 18:51:46 1996 +0000
+
+    Make easier for classifier to parse.
+
+commit 13e328da76868a09879984e2f3fd8b9c77e25189
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Jan 26 17:40:01 1996 +0000
+
+    Add tehoe.tcl into a.out.
+
+commit dead366823046f5a4d1435d1c8103a1c192ce90b
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Jan 26 17:37:44 1996 +0000
+
+    Add tehone.tcl to a.out.
+
+commit baf26ccdeb89527a74450f71b5ad0520cc6e9ff9
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Jan 26 16:18:04 1996 +0000
+
+    This should work with new flowtypes on flow creation, etc.
+    (But, not tested yet.)
+
+commit d17af866c63b2884183b098833749f902cdf8c08
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Jan 26 14:55:43 1996 +0000
+
+    Move towards allowing new_flow_cmd to specify new flow type.
+
+commit c734f7e1d806b77e59ba6689e1e7a99bfcde28cf
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Jan 26 12:28:24 1996 +0000
+
+    name change.
+
+commit 9a5ddcf8904a37902b623f44ddd8ea3810f42321
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Jan 26 12:24:19 1996 +0000
+
+    More clarification (hopefully).  One semantic change (stop looking
+    for flow types when null flow type discovered).
+
+commit 98ba666b1e9a9e9b1d40bce04a0bcfd88310910d
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Jan 26 10:08:58 1996 +0000
+
+    Mostly name changes and some commentary.
+
+commit c7885336886fe2570f23f60b585e7c23a8bf4a84
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Jan 25 22:24:00 1996 +0000
+
+    Add a comment.
+
+commit 5a64ae0c0f818c5ae9ab576fdefe9dbb2c820f6f
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Jan 25 20:21:15 1996 +0000
+
+    Added (but haven't tested) per-packet receive callout.
+    However, it isn't clear to me that the pkt_recv_cmd should
+    be per flow, or per flow type.
+
+commit 7c59478a5e465c1e5aa32555fbe5081a6e88eef1
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Jan 25 17:40:54 1996 +0000
+
+    Add in getopt().
+
+commit 355cd979a89826017014571dcec7d92274878a42
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Jan 25 16:57:52 1996 +0000
+
+    Callout to TCL when creating a flow.
+
+commit a62b10d5490b19bc49b002e71670d7f8a1c4b7a1
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Jan 25 16:26:58 1996 +0000
+
+    Getting to the callout.
+
+commit 93b36f4368a8790147a3c3880a368255a356908e
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Jan 25 14:58:41 1996 +0000
+
+    Separate flow_types, hents, and statistics.
+    Get rid of global statistics.
+
+commit 2fbd01ccce77f3ffda716ff7cc3671012069e622
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Jan 25 12:06:18 1996 +0000
+
+    Well, maybe we don't want to propagate statistics to parent
+    flow_types, since that is going to happen per packet.  Maybe
+    better to do this per-bin.  Hmm...
+
+commit d8375a81132be58456d2ce37d7ba6843f69e7fe5
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Jan 25 11:47:22 1996 +0000
+
+    Mostly name changes; getting ready for flow types to have parents...
+
+commit 8cf8f3d14e782e0aec47bc9c1c2e91af7a1691b1
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Jan 25 11:29:17 1996 +0000
+
+    per-flow-type statistics.
+
+commit 7ea3c13bac407785f003d40fcec3e0ebb1e74d30
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Jan 25 11:14:59 1996 +0000
+
+    Moving towards per-flow type statistics.
+
+commit 8bfb8002b20d4ed87a778dd0210aa890c9d68704
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Jan 25 09:55:13 1996 +0000
+
+    1.  Fix for multiple flow types.
+    2.  Change formats.
+    3.  (Once again) make caller responsible for flow type index.
+
+commit 68bd362aff64cbe2355d6d7e779082ea63da4a50
+Author: Greg Minshall <minshall@acm.org>
+Date:   Thu Jan 25 09:29:12 1996 +0000
+
+    More support for multiple flow types.
+
+commit 07b275563c85b6bc36efae3727819e6501431209
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Jan 24 22:30:19 1996 +0000
+
+    Add support (almost!) for multiple flow types.
+
+commit 1926eda5e99e8d5ffdd3bb5b2aa558992f1bec15
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Jan 24 22:04:22 1996 +0000
+
+    Well, FMT_DECIMAL with numbytes > 1 didn't work...
+
+commit 589c3a5011e48ab04ee979003fe7c72c26ec3978
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Jan 24 21:31:59 1996 +0000
+
+    Change formatting.
+
+commit ec490559f882816ce389ef7898e9dfac02ac95b1
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Jan 24 20:58:13 1996 +0000
+
+    Various changes.
+
+commit 521c800ca7d5e21ae46e552d626e281fb607db9b
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Jan 24 15:17:23 1996 +0000
+
+    first cut (but, doesn't work!).
+
+commit cb060aa33fe38ae7643bcc4933f110e5409e8440
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Jan 24 12:23:14 1996 +0000
+
+    flow_type_to_string
+
+commit c2a608fd2dd2cd5d95471be31f1580d26ed34bd3
+Author: Greg Minshall <minshall@acm.org>
+Date:   Wed Jan 24 12:01:46 1996 +0000
+
+    getting there.
+
+commit 345eb2cbfe21bde1f61cbb809b5ab0255f2ff73c
+Author: Greg Minshall <minshall@acm.org>
+Date:   Tue Jan 23 22:14:37 1996 +0000
+
+    Add tehone.
+
+commit 5ac508daadb9c062e4f45d457e3e17913886e432
+Author: Greg Minshall <minshall@acm.org>
+Date:   Tue Jan 23 22:12:38 1996 +0000
+
+    get newfile() more right; add onebehind caching.
+
+commit e74b592f76e567b4144225a17a96d311876051fb
+Author: Greg Minshall <minshall@acm.org>
+Date:   Tue Jan 23 21:36:25 1996 +0000
+
+    newfile() (no testing,though!).
+
+commit 1f1b183743362624344c5ea129b91dfb6fe906a7
+Author: Greg Minshall <minshall@acm.org>
+Date:   Tue Jan 23 20:22:53 1996 +0000
+
+    global statistics structure.
+
+commit dbdeedec3fe5f587f7324de3667f302ec622f2a3
+Author: Greg Minshall <minshall@acm.org>
+Date:   Tue Jan 23 20:18:13 1996 +0000
+
+    go to timeval structs.
+
+commit 7a89034010c239d6d467e4db86776c3376c25ecc
+Author: Greg Minshall <minshall@acm.org>
+Date:   Tue Jan 23 11:23:22 1996 +0000
+
+    Add FIX functionality.
+
+commit 5a3c3def88338189aa1a96dbc4aa21da75d3a09f
+Author: Greg Minshall <minshall@acm.org>
+Date:   Tue Jan 23 10:48:15 1996 +0000
+
+    Add tehone.
+
+commit 7980ecb19434866b5e2e1b564b3322f68db56200
+Author: Greg Minshall <minshall@acm.org>
+Date:   Tue Jan 23 10:48:03 1996 +0000
+
+    better.
+
+commit a67eb0a1fc8ce99c589afeb1ba4f365d56b57c04
+Author: Greg Minshall <minshall@acm.org>
+Date:   Tue Jan 23 09:23:44 1996 +0000
+
+    Initial revision
+
+commit 8d008736247f3153dbe27b8628c3fdb08eed5467
+Author: Greg Minshall <minshall@acm.org>
+Date:   Fri Jan 19 18:09:01 1996 +0000
+
+    Add fix2det
+
+commit c680ca166b366eb9623aee4dfc4bb0119a1ce061
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sun Jan 14 22:44:40 1996 +0000
+
+    Oh.
+
+commit a09b56bf7949c0874cd89b990a3c30aeec365bd8
+Author: Greg Minshall <minshall@acm.org>
+Date:   Sun Jan 14 19:39:20 1996 +0000
+
+    Initial revision

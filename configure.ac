@@ -1,0 +1,3 @@
+AC_INIT([flstats], [1.0])
+AM_INIT_AUTOMAKE
+AC_OUTPUT
