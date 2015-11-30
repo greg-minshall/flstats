@@ -2047,6 +2047,7 @@ fl_set_flow_type(ClientData clientData, Tcl_Interp *interp,
     optind = 1;
 
     while ((op = getopt(argc, (char *const *)argv, "c:f:F:n:r:t:")) != EOF) {
+        /* XXX ugly cast */
         switch (op) {
 	    case 'c':
 		    class = atoi(optarg);
@@ -2439,10 +2440,10 @@ main(int argc, char *const argv[])
 
     protohasports[6] = protohasports[17] = 1;
 
-    args = Tcl_Merge(argc-1, (const char *const *)(argv+1));
+    args = Tcl_Merge(argc-1, (const char *const *)(argv+1)); /* XXX ugly cast */
     sprintf(argcount, "%d", argc-1);
 
     /* we lie to Tcl_Main(), because, by gum, *WE* control argument parsing */
-    Tcl_Main(1, (char **)argv, Tcl_AppInit);
+    Tcl_Main(1, (char **)argv, Tcl_AppInit); /* XXX ugly cast */
     exit(0);
 }
