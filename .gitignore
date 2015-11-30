@@ -3,3 +3,10 @@ Makefile
 flstats
 flstats.char
 flstats.o
+aclocal.m4
+autom4te.cache
+build-aux
+Makefile.in
+config.log
+config.status
+configure

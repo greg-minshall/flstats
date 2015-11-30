@@ -5,11 +5,11 @@ VERS=`cat VERSION`
 
 
 # Tcl location.
-LIBTCL = -l__CONFIGURE__TCLXY__
+LIBTCL = __TCL_LIBS__
 
 LIBPCAP = -lpcap
 
-INCLUDES = -I__CONFIGURE__TCLINCL__
+AM_CPPFLAGS = -I__CONFIGURE__TCLINCL__
 
 LIBPATH = -L__CONFIGURE__TCLLIBDIR__
 
@@ -25,7 +25,7 @@ SOURCES = Makefile.in flstats.1 flstats.c flstats.tcl flstats.html \
 
 DISTRIBUTION = ${SOURCES} flstats.0 flstats.0.txt
 
-.SUFFIXES:	.c .h .o .tcl .char
+SUFFIXES =	.c .h .o .tcl .char
 
 # turn a .tcl file into a string for a .c file to process...
 .tcl.char:
@@ -38,9 +38,7 @@ flstats:		flstats.o
 	${CC} ${CFLAGS} -o flstats ${LDFLAGS} flstats.o \
 					    ${LIBPATH} ${LIBTCL} ${LIBPCAP} -lm
 
-flstats.o:	flstats.char init.char flstats.c
-
-init.char:	__CONFIGURE__TCLINCLDIR__/init.tcl
+flstats.o:	flstats.char flstats.c
 
 flstats.char:	flstats.tcl
 
@@ -58,7 +56,6 @@ distribution:	fixrev tar.gz web.tar
 
 clean:
 	-rm -f flstats flstats.char flstats.o flstats.0 flstats.0.txt \
-		init.char \
 		flstats-*.tar flstats-*.tar.gz flstats-*.web.tar
 
 # keep version numbers going... (assume always at least "x.y")
