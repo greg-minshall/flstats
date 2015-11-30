@@ -32,10 +32,10 @@ AC_SUBST(TCL_CFLAGS)
 AC_SUBST(TCL_LIBS)
 dnl if pkg-config didn't find it
 dnl try looking for tclConfig.h
-if test "${have_tcl}" = "0"; then
+if test "${have_tcl}" = "0" ; then
 fi
 
-if test "${have_tcl}" = "0"; then
+if test "${have_tcl}" = "0" ; then
    echo "can't find tcl!"
    exit 1
 fi
