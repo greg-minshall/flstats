@@ -5,13 +5,7 @@ VERS=`cat VERSION`
 
 
 # Tcl location.
-LIBTCL = __TCL_LIBS__
-
 LIBPCAP = -lpcap
-
-AM_CPPFLAGS = -I__CONFIGURE__TCLINCL__
-
-LIBPATH = -L__CONFIGURE__TCLLIBDIR__
 
 #have-gcc#CC = gcc
 #have-gcc#WARNINGS	= -Wall
@@ -35,8 +29,8 @@ SUFFIXES =	.c .h .o .tcl .char
 
 all:	flstats
 flstats:		flstats.o
-	${CC} ${CFLAGS} -o flstats ${LDFLAGS} flstats.o \
-					    ${LIBPATH} ${LIBTCL} ${LIBPCAP} -lm
+	${CC} ${CFLAGS} -o flstats ${LDFLAGS} \
+			flstats.o ${LIBPATH} ${LIBS} ${LIBPCAP} -lm
 
 flstats.o:	flstats.char flstats.c
 
