@@ -1,4 +1,4 @@
-AC_INIT([flstats], [1.0])
+AC_INIT([flstats], [`cat VERSION`])
 AC_CONFIG_AUX_DIR(build-aux)
 AC_CONFIG_MACRO_DIR([build-aux/m4])
 AC_CONFIG_SRCDIR([.])
@@ -20,12 +20,26 @@ dnl http://article.gmane.org/gmane.os.apple.fink.beginners/25062/match=zlib
 dnl fink doesn't provide zlib, since macosx has it.  but, apparently,
 dnl pkg-config doesn't know where to find it on macosx.
 
+dnl  find tcl.  easiest is if pkg-config knows where it is
+dnl  a good reference to PKG_CHECK_MODULES:
+dnl  https://www.flameeyes.eu/autotools-mythbuster/pkgconfig/pkg_check_modules.html
+
 PKG_CHECK_MODULES([TCL],
                   [tcl],
                   [AC_DEFINE([HAVE_TCL], [1], [Have Tcl])],
                   [have_tcl=0])
 AC_SUBST(TCL_CFLAGS)
 AC_SUBST(TCL_LIBS)
+dnl if pkg-config didn't find it
+dnl try looking for tclConfig.h
+if test "${have_tcl}" = "0"; then
+fi
+
+if test "${have_tcl}" = "0"; then
+   echo "can't find tcl!"
+   exit 1
+fi
+   
 CPPFLAGS="${CPPFLAGS} ${TCL_CFLAGS}"
 LIBS="${LIBS} ${TCL_LIBS}"
 AC_SUBST(have_tcl)
