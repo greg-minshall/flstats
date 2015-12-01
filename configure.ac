@@ -34,13 +34,11 @@ AC_SUBST(TCL_LIBS)
 
 
 # _GGM_SEARCH(FILENAME, DIRECTORY-LIST, IF-SUCCESS, IF-FAIL)
-
 # search for a given filename in a list of directories.  defines
 # HAVE_${FILENAME} (as it were) for each found file; the value of
 # HAVE_${FILENAME} is the path to *a* directory (probably the first or
 # the last) in which the file was found
 AC_DEFUN([_GGM_SEARCH], [
-   AS_ECHO("[GGM_SEARCH $1, $2, $3, $4]")
    for __ggm_dir in [$2] ; do
       AC_MSG_NOTICE([looking for $1 in [${__ggm_dir}]])
       AC_CHECK_FILE([[${__ggm_dir}]/$1], [__ggm_search_found=yes], \
@@ -50,7 +48,6 @@ AC_DEFUN([_GGM_SEARCH], [
          [$3]
          __ggm_search_name=m4_toupper(AS_TR_SH($1))
          eval "HAVE_${__ggm_search_name}=${__ggm_dir}"
-         AS_ECHO(["in search, HAVE_TCLCONFIG_SH: ${HAVE_TCLCONFIG_SH}"])
          break;
       fi
    done
@@ -62,7 +59,6 @@ AC_DEFUN([_GGM_SEARCH], [
 ])
 
 # _GGM_TCL_CONFIG_SH([IF-SUCCESS], [IF-FAIL])
-
 # try to find tclConfig.sh somewhere in the file system (it normally
 # lives somewhere like /usr/lib/tclConfig.sh)
 AC_DEFUN([_GGM_TCL_CONFIG_SH], [
@@ -96,15 +92,12 @@ AC_DEFUN([_GGM_TCL_CONFIG_SH], [
          fi
       fi
    fi
-   AS_ECHO("__ggm_tc_found: [${__ggm_tc_found}]")
    if test X${__ggm_tc_found} == Xyes ; then
-      AC_MSG_NOTICE([tclConfig.sh found in directory ${have_tclconfig_sh}])
+      AC_MSG_NOTICE([tclConfig.sh found in directory ${HAVE_TCLCONFIG_SH}])
    else
       AC_MSG_NOTICE([tclConfig.sh not found])
    fi
 ])
-
-echo HAVE_TCLCONFIG_SH ${HAVE_TCLCONFIG_SH}
 
 # pkg-config didn't find it try asking tclConfig.sh.  but,
 # where is it?  it might be in /usr/lib, or some such.  so, goal
@@ -120,10 +113,6 @@ if test X${have_tcl} != Xyes ; then
       have_tcl=yes
    fi
 fi
-
-echo have_tcl ${have_tcl}
-echo TCL_LIBS ${TCL_LIBS}
-echo TCL_CFLAGS ${TCL_CFLAGS}
 
 if test "${have_tcl}" = "0" ; then
    echo "cannot find tcl!"
