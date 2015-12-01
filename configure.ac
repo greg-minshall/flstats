@@ -123,6 +123,9 @@ AC_SUBST(have_tcl)
 
 # now, find libpcap
 
+# now, check for asprintf
+AC_CHECK_FUNC(asprintf)
+
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
