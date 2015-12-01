@@ -25,15 +25,41 @@ dnl  a good reference to PKG_CHECK_MODULES:
 dnl  https://www.flameeyes.eu/autotools-mythbuster/pkgconfig/pkg_check_modules.html
 
 PKG_CHECK_MODULES([TCL],
-                  [tcl],
+                  [tclx],       dnl XXX
                   [AC_DEFINE([HAVE_TCL], [1], [Have Tcl])],
                   [have_tcl=0])
 AC_SUBST(TCL_CFLAGS)
 AC_SUBST(TCL_LIBS)
-dnl if pkg-config didn't find it
-dnl try looking for tclConfig.h
-if test "${have_tcl}" = "0" ; then
+
+AC_CHECK_PROG(have_tclsh, "tclsh", [yes], [])
+
+if test ${have_tclsh} = "yes" ; then
+   dnl if pkg-config didn't find it
+   dnl try asking tclsh
+   dnl if *that* didn't work, try tcl::pkgconfig
+   dnl http://wiki.tcl.tk/11825 (first appeared in Tcl version 8.5)
+   dnl http://autogen.sourceforge.net/acquoting.html explains the [[...]]
+   if test "${have_tcl}" != "1" ; then
+      TCL_CFLAGS=`echo 'puts [[tcl::pkgconfig get includedir,install]]' | tclsh`
+      TCL_LIBS=`echo 'puts [[tcl::pkgconfig get libdir,install]]' | tclsh`
+      have_tcl=1
+   fi
+   if test "${have_tcl}" != "1" ; then
+      tcllib=`echo 'puts [[info library]]' | tclsh`
+         AC_CHECK_FILE([${tcllib}/tclConfig.sh], [have_tcl=1], [])
+         if test "$HAVE_FILE_TCLCONFIG_H"X != "X" ; then
+            dnl read it in
+            . ${tcllib}/tclConfig.sh
+            TCL_LIBS=${TCL_LIB_SPEC} ${TCL_LIB_FLAG}
+            TCL_CFLAGS=${TCL_INCLUDE_SPEC}
+            have_tcl=1
+        fi
+    fi
 fi
+
+echo have_tcl ${have_tcl}
+echo TCL_LIBS ${TCL_LIBS}
+echo TCL_CFLAGS ${TCL_CFLAGS}
 
 if test "${have_tcl}" = "0" ; then
    echo "can't find tcl!"
