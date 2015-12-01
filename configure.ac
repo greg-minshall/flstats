@@ -40,17 +40,14 @@ AC_SUBST(TCL_LIBS)
 # HAVE_${FILENAME} is the path to *a* directory (probably the first or
 # the last) in which the file was found
 AC_DEFUN([_GGM_SEARCH], [
-   AS_ECHO([$2])
-   echo [$2]
    for __ggm_dir in [$2] ; do
-      AS_ECHO("$[{__ggm_dir}] : [$2]")
       AC_MSG_NOTICE([looking for $1 in [${__ggm_dir}]])
       AC_CHECK_FILE([[${__ggm_dir}]/$1], [__ggm_found=yes], [__ggm_found=no])
       if test  X${__ggm_found} = Xyes ; then
          AC_MSG_NOTICE([found $1 in [${__ggm_dir}]])
          $3
-         __ggm_search_name=AS_TR_SH($1)
-         AS_VAR_SET(__ggm_search_name, [${__ggm_dir}])
+         __ggm_lit_search_name_pre=m4_toupper(AS_TR_SH($1))
+         eval "HAVE_${__ggm_lit_search_name_pre}=${__ggm_dir}"
          break;
       fi
    done
@@ -62,7 +59,7 @@ AC_DEFUN([_GGM_SEARCH], [
 ])
 
 # XXX test _GGM_SEARCH
-_GGM_SEARCH([tclConfig.sh], [/sw /sw/include /swx/include /usr/local /sw/include], [echo found], [echo not found])
+_GGM_SEARCH([tclConfig.sh], [/sw /sw/include /swx/include /usr/local /sw/include /sw/lib /sw/lib/slksdf], [echo found], [echo not found])
 echo HAVE_TCLCONFIG_SH ${HAVE_TCLCONFIG_SH}
 
 # _GGM_TCL_CONFIG_SH([IF-SUCCESS], [IF-FAIL])
