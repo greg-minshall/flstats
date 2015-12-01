@@ -55,9 +55,15 @@ static char *rcsid =
 	"$Id: flstats.c,v 1.97 2014/01/25 15:29:48 minshall Exp $";
 
 #include "config.h"
+
 #if defined(HAVE_ERRNO_H)
 #include <errno.h>
 #endif /* defined(HAVE_ERRNO_H) */
+
+#if !defined(HAVE_ASPRINTF)
+#include <stdarg.h>
+#endif /* !defined(HAVE_ASPRINTF) */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -631,6 +637,33 @@ strsave(char *s)
     }
     return new;
 }
+
+#if !defined(HAVE_ASPRINTF)
+/*
+ * slow, but simple (hopefully, almost *never* needed)
+ */
+static int
+asprintf(char **where, const char *format, ...) {
+    va_list ap;
+    char foo[1];                 /* used in determining the correct size */
+    char *place;
+    int len;                    /*  */
+
+    va_start(ap, format);
+     /* this first call does no real printing, just determines size */
+    len = vsnprintf(foo, 0, format, ap);
+
+    place = malloc(len);
+    if (place == 0) {
+        *where = 0;
+        return -1;              /* see man page for asprintf(3) */
+    }
+
+    vsnprintf(place, len, format, ap);
+    *where = place;
+    return len;
+}
+#endif /* !defined(HAVE_ASPRINTF) */
 
 /*
  * delete a string returned from asprintf(3)
