@@ -25,7 +25,7 @@ LT_INIT
 #  https://www.flameeyes.eu/autotools-mythbuster/pkgconfig/pkg_check_modules.html
 
 PKG_CHECK_MODULES([TCL],
-                  [tclx],       # XXX
+                  [tcl],
                   [AC_DEFINE([HAVE_TCL], [yes], [Have Tcl])],
                   [have_tcl=no])
 AC_SUBST(TCL_CFLAGS)
@@ -40,11 +40,9 @@ AC_SUBST(TCL_LIBS)
 # the last) in which the file was found
 AC_DEFUN([_GGM_SEARCH], [
    for __ggm_dir in [$2] ; do
-      AC_MSG_NOTICE([looking for $1 in [${__ggm_dir}]])
       AC_CHECK_FILE([[${__ggm_dir}]/$1], [__ggm_search_found=yes], \
                                          [__ggm_search_found=no])
       if test  X${__ggm_search_found} = Xyes ; then
-         AC_MSG_NOTICE([found $1 in [${__ggm_dir}]])
          [$3]
          __ggm_search_name=m4_toupper(AS_TR_SH($1))
          eval "HAVE_${__ggm_search_name}=${__ggm_dir}"
@@ -70,7 +68,7 @@ AC_DEFUN([_GGM_TCL_CONFIG_SH], [
    __ggm_where="$[{__ggm_where}] `echo [$LD_LIBRARY_PATH] | sed 's/:/ /g'`"
    _GGM_SEARCH([tclConfig.sh], [${__ggm_where}], [__ggm_tc_found=yes], \
                                                  [__ggm_tc_found=no])
-   if test X${have_tclconfig_sh} != Xyes ; then
+   if test X${__ggm_tc_found} != Xyes ; then
       # http://www.edwardrosten.com/code/autoconf/
       # tcl::pkgconfig would be nice
       # http://wiki.tcl.tk/11825 (first appeared in Tcl version 8.5)
