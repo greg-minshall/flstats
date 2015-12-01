@@ -54,6 +54,10 @@
 static char *rcsid =
 	"$Id: flstats.c,v 1.97 2014/01/25 15:29:48 minshall Exp $";
 
+#include "config.h"
+#if defined(HAVE_ERRNO_H)
+#include <errno.h>
+#endif /* defined(HAVE_ERRNO_H) */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
