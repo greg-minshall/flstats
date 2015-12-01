@@ -40,21 +40,23 @@ AC_SUBST(TCL_LIBS)
 # HAVE_${FILENAME} is the path to *a* directory (probably the first or
 # the last) in which the file was found
 AC_DEFUN([_GGM_SEARCH], [
-   AS_ECHO("GGM_SEARCH [$1] [$2] [$3] [$4]")
+   AS_ECHO("[GGM_SEARCH $1, $2, $3, $4]")
    for __ggm_dir in [$2] ; do
       AC_MSG_NOTICE([looking for $1 in [${__ggm_dir}]])
-      AC_CHECK_FILE([[${__ggm_dir}]/$1], [__ggm_found=yes], [__ggm_found=no])
-      if test  X${__ggm_found} = Xyes ; then
+      AC_CHECK_FILE([[${__ggm_dir}]/$1], [__ggm_search_found=yes], \
+                                         [__ggm_search_found=no])
+      if test  X${__ggm_search_found} = Xyes ; then
          AC_MSG_NOTICE([found $1 in [${__ggm_dir}]])
          [$3]
-         __ggm_lit_search_name_pre=m4_toupper(AS_TR_SH($1))
-         eval "HAVE_${__ggm_lit_search_name_pre}=${__ggm_dir}"
+         __ggm_search_name=m4_toupper(AS_TR_SH($1))
+         eval "HAVE_${__ggm_search_name}=${__ggm_dir}"
+         AS_ECHO(["in search, HAVE_TCLCONFIG_SH: ${HAVE_TCLCONFIG_SH}"])
          break;
       fi
    done
-   if test X${__ggm_found} != Xyes ; then
+   if test X${__ggm_search_found} != Xyes ; then
       # not found
-      echo -n                   # if complains if $4 is empty
+      echo -n                   # if..then..fi complains if $4 is empty
       [$4]
    fi
 ])
@@ -70,7 +72,8 @@ AC_DEFUN([_GGM_TCL_CONFIG_SH], [
    __ggm_where="[${__ggm_where}] `echo [$LDFLAGS] | \
                                  sed 's/-[[lL]]//g' | sed 's/-//g'`"
    __ggm_where="$[{__ggm_where}] `echo [$LD_LIBRARY_PATH] | sed 's/:/ /g'`"
-   _GGM_SEARCH([tclConfig.sh], [${__ggm_where}], [found=yes], [found=no])
+   _GGM_SEARCH([tclConfig.sh], [${__ggm_where}], [__ggm_tc_found=yes], \
+                                                 [__ggm_tc_found=no])
    if test X${have_tclconfig_sh} != Xyes ; then
       # http://www.edwardrosten.com/code/autoconf/
       # tcl::pkgconfig would be nice
@@ -88,12 +91,13 @@ AC_DEFUN([_GGM_TCL_CONFIG_SH], [
                 `echo 'puts [[tcl::pkgconfig get libdir,install]]' | tclsh`"
             # finally, ask tcl's [info library]
             __ggm_where="${__ggm_where} `echo 'puts [[info library]]' | tclsh`"
-          _GGM_SEARCH([tclConfig.sh], [${__ggm_where}], [found=yes], [found=no])
+          _GGM_SEARCH([tclConfig.sh], [${__ggm_where}], [__ggm_tc_found=yes], \
+                                                        [__ggm_tc_found=no])
          fi
       fi
    fi
-   AS_ECHO("found: [${found}]")
-   if test X${found} == Xyes ; then
+   AS_ECHO("__ggm_tc_found: [${__ggm_tc_found}]")
+   if test X${__ggm_tc_found} == Xyes ; then
       AC_MSG_NOTICE([tclConfig.sh found in directory ${have_tclconfig_sh}])
    else
       AC_MSG_NOTICE([tclConfig.sh not found])
