@@ -40,6 +40,7 @@ AC_SUBST(TCL_LIBS)
 # HAVE_${FILENAME} is the path to *a* directory (probably the first or
 # the last) in which the file was found
 AC_DEFUN([_GGM_SEARCH], [
+   AS_ECHO("GGM_SEARCH [$1] [$2]")
    for __ggm_dir in [$2] ; do
       AC_MSG_NOTICE([looking for $1 in [${__ggm_dir}]])
       AC_CHECK_FILE([[${__ggm_dir}]/$1], [__ggm_found=yes], [__ggm_found=no])
@@ -58,10 +59,6 @@ AC_DEFUN([_GGM_SEARCH], [
    fi
 ])
 
-# XXX test _GGM_SEARCH
-_GGM_SEARCH([tclConfig.sh], [/sw /sw/include /swx/include /usr/local /sw/include /sw/lib /sw/lib/slksdf], [echo found], [echo not found])
-echo HAVE_TCLCONFIG_SH ${HAVE_TCLCONFIG_SH}
-
 # _GGM_TCL_CONFIG_SH([IF-SUCCESS], [IF-FAIL])
 
 # try to find tclConfig.sh somewhere in the file system (it normally
@@ -70,43 +67,46 @@ AC_DEFUN([_GGM_TCL_CONFIG_SH], [
    AC_MSG_NOTICE([checking for tclConfig.sh])
    __ggm_where=""
    # try to guess some places the file might be
-   __ggm_where="${__ggm_where} `echo $LDFLAGS | sed 's/-[lL]//g' | sed 's/-//g'`"
-   __ggm_where="${__ggm_where} `echo $LD_LIBRARY_PATH | sed 's/:/ /g'`"
+   __ggm_where="[${__ggm_where}] `echo [$LDFLAGS] | sed 's/-[lL]//g' | sed 's/-//g'`"
+   AS_ECHO("first: [${__ggm_where}]")
+   __ggm_where="$[{__ggm_where}] `echo [$LD_LIBRARY_PATH] | sed 's/:/ /g'`"
+   AS_ECHO("second: [${__ggm_where}]")
    # http://www.edwardrosten.com/code/autoconf/
-   
    # tcl::pkgconfig would be nice
    # http://wiki.tcl.tk/11825 (first appeared in Tcl version 8.5)
    # http://autogen.sourceforge.net/acquoting.html explains the [[...]]
    # do we have tcl::pkgconfig?  (apparently showed up in Tcl 8.5)
-   if test X${have_tcl} != Xyes ; then
-      AC_CHECK_PROG(have_tclsh, "tclsh", [yes], [])
-      if test ${have_tclsh} = "yes" ; then
-         if echo "puts [[tcl::pkgconfig list]]" | \
-                                          tclsh | grep -q "includedir,install" ; then
-            __ggm_where="${__ggm_where} \
-                `echo 'puts [[tcl::pkgconfig get includedir,install]]' | tclsh`"
-            __ggm_where="${__ggm_where} \
-                `echo 'puts [[tcl::pkgconfig get libdir,install]]' | tclsh`"
-            # finally, ask tcl's [info library]
-            __ggm_where="${__ggm_where} `echo 'puts [[info library]]' | tclsh`"
-         fi
+   AC_CHECK_PROG(have_tclsh, "tclsh", [yes], [])
+   if test ${have_tclsh} = "yes" ; then
+      if echo "puts [[tcl::pkgconfig list]]" | \
+                                       tclsh | grep -q "includedir,install" ; then
+         __ggm_where="${__ggm_where} \
+             `echo 'puts [[tcl::pkgconfig get includedir,install]]' | tclsh`"
+         __ggm_where="${__ggm_where} \
+             `echo 'puts [[tcl::pkgconfig get libdir,install]]' | tclsh`"
+         # finally, ask tcl's [info library]
+         __ggm_where="${__ggm_where} `echo 'puts [[info library]]' | tclsh`"
+         _GGM_SEARCH([tclConfig.sh], [${__ggm_where}], [echo found], [echo not found])
       fi
    fi
    AC_MSG_NOTICE([tclConfig.sh not found])
 ])
 
+echo HAVE_TCLCONFIG_SH ${HAVE_TCLCONFIG_SH}
 
 # pkg-config didn't find it try asking tclConfig.sh.  but,
 # where is it?  it might be in /usr/lib, or some such.  so, goal
 # *now* is to find tclConfig.sh
 
-_GGM_TCL_CONFIG_SH([], [])
-if test X${HAVE_TCLCONFIG_SH} != X ; then
-   # read it in
-   . ${HAVE_TCLCONFIG_SH}/tclConfig.sh
-   TCL_LIBS=${TCL_LIB_SPEC}
-   TCL_CFLAGS=${TCL_INCLUDE_SPEC}
-   have_tcl=yes
+if test X${have_tcl} != Xyes ; then
+   _GGM_TCL_CONFIG_SH([], [])
+   if test X${HAVE_TCLCONFIG_SH} != X ; then
+      # read it in
+      . ${HAVE_TCLCONFIG_SH}/tclConfig.sh
+      TCL_LIBS=${TCL_LIB_SPEC}
+      TCL_CFLAGS=${TCL_INCLUDE_SPEC}
+      have_tcl=yes
+   fi
 fi
 
 echo have_tcl ${have_tcl}
