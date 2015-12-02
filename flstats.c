@@ -52,6 +52,7 @@
  *     20.      catch a signal (SIGINFO, C-t) as a way of terminating a bin, printing out a line.
  *     21.      option for timestamp (rather than binno) time of printing lines?
  *     22.      hosta/hostb type (sort numerically/lexicographically)
+ *     23.      don't print out flows, classes that have been inactive.  either last_bin_active, or binnum?
  */
 
 static char *rcsid =
@@ -120,7 +121,7 @@ static char *rcsid =
 		(((now)->tv_sec-(then)->tv_sec) -\
 			((now)->tv_usec < (then)->tv_usec ? 1 : 0))
 
-#define	NOW_AS_BINNO() (binsecs == 0 ? 0 : \
+#define	NOW_AS_BINNO() (binsecs == 0 ? signalled : \
 		(TIMEDIFFSECS(&curtime, &starttime)/binsecs))
 
 #define	FLOW_ID_FROM_HDR(fid,hdr,ftip) { \
