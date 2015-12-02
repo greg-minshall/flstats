@@ -6,16 +6,16 @@
 .Nd extract flow statistics from a tcpdump -w file
 .Sh SYNOPSIS
 .Nm flstats
-.Op Fl binsecs Ar num
-.Op Fl classes
-.Op Fl flows
-.Op Fl interactive
-.Op Fl debug
-.Op Fl evaluate Ar tclcommands
-.Op Fl kind Ar {tcpd|fix24|fix44}
-.Op Fl label
-.Op Fl scriptfile Ar filename
-.Op Fl types Ar flowspecifier[s]
+.Op Fl -binsecs Ar num
+.Op Fl -classes
+.Op Fl -flows
+.Op Fl -interactive
+.Op Fl -debug
+.Op Fl -evaluate Ar tclcommands
+.Op Fl -kind Ar {tcpd|fix24|fix44}
+.Op Fl -label
+.Op Fl -scriptfile Ar filename
+.Op Fl -types Ar flowspecifier[s]
 .Op Ar filename
 .Sh DESCRIPTION
 .Nm Flstats
@@ -29,41 +29,41 @@ and reports statistics on "flows" (for various definitions
 of flows) contained in the file.
 .Pp
 .Bl -tag -width Ic
-.It Fl binsecs
+.It Fl -binsecs
 How many seconds (in the time sequence of the input file) should elapse
 between reporting statistics.  The default is zero (0), which causes the
 statistics to be reported only once, at the end of the input file.
-.It Fl classes
+.It Fl -classes
 Report statistics of flow "classes", rather than about individual flows
 themselves.
-.It Fl flows
+.It Fl -flows
 Report statistics about individual flows, rather than "classes".
-.It Fl interactive
+.It Fl -interactive
 Run in "interactive" mode, in which the user is prompted for Tcl
 commands to execute.
-.It Fl debug
+.It Fl -debug
 Run in a mode for debugging flstats itself (normally not interesting
 for users of
 .Nm flstats ).
-.It Fl evaluate
+.It Fl -evaluate
 .Ar Tclcommands
 is a list of Tcl commands to be executed while starting
 .Nm flstats .
-.It Fl kind
+.It Fl -kind
 The format of the input file.  The default is "tcpd", corresponding to
 a binary tcpdump file.  One other format is "fix24", for 24-byte/packet
 records from FIX-WEST.  A final format is "fix44", for 44-byte/packet
 records from FIX-WEST.
-.It Fl label
+.It Fl -label
 Causes
 .Nm flstats
 to print out lines containing information about the input file and the
 environment of the execution (for repeatability).
-.It Fl scriptfile
+.It Fl -scriptfile
 The name of a file to be passed to
 .Nm flstats'
 internal Tcl interpreter during startup.
-.It Fl types
+.It Fl -types
 A list of one or more flow specifiers.  While the format of a flow
 specifier can, in general, be fairly complicated (see the
 .Nm flstats

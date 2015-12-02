@@ -368,73 +368,73 @@ proc fl_set_parameters {argc argv} {
 
     set arg [lindex $argv 0]
     while {$argc && ([string length $arg] > 1) &&
-           ([string range $arg 0 0] == "-")} {
-        if {[string first $arg -kind] == 0} { ; # trace file kind
+           ([string range $arg 0 1] == "--")} {
+        if {[string first $arg --kind] == 0} { ; # trace file kind
             if {$argc < 2} {
-                error "not enough arguments for -kind in $argv\nlooking for\
-                '-kind [tracefilekind]'"
+                error "not enough arguments for --kind in $argv\nlooking for\
+                '--kind [tracefilekind]'"
             }
             set flstats(tracefile.kind) [lindex $argv 1]
             incr argc -2
             set argv [lrange $argv 2 end]
-        } elseif {[string first $arg -binsecs] == 0} { ; # bin time (seconds)
+        } elseif {[string first $arg --binsecs] == 0} { ; # bin time (seconds)
             if {$argc < 2} {
-                error "not enough arguments for -binsecs in $argv\nlooking for\
-                '-binsecs number'"
+                error "not enough arguments for --binsecs in $argv\nlooking for\
+                '--binsecs number'"
             }
             set flstats(binsecs) [lindex $argv 1]
             incr argc -2
             set argv [lrange $argv 2 end]
-        } elseif {[string first $arg -types] == 0} { ; # flow types
+        } elseif {[string first $arg --types] == 0} { ; # flow types
             if {$argc < 2} {
-                error "not enough arguments for -types in $argv\nlooking \
-                for '-flows flowtypes'"
+                error "not enough arguments for --types in $argv\nlooking \
+                for '--flows flowtypes'"
             }
             set flstats(flowtypes) [lindex $argv 1]
             incr argc -2
             set argv [lrange $argv 2 end]
-        } elseif {[string first $arg -evaluate] == 0} { ; # execute tcl script
+        } elseif {[string first $arg --evaluate] == 0} { ; # execute tcl script
             if {$argc < 2} {
-                error "not enough arguments for -evaluate in $argv\nlooking \
-                for '-evaluate tclcommands'"
+                error "not enough arguments for --evaluate in $argv\nlooking \
+                for '--evaluate tclcommands'"
             }
             set eval [lindex $argv 1]
             incr argc -2
             set argv [lrange $argv 2 end]
-        } elseif {[string first $arg -scriptfile] == 0} { ; # exec from file
+        } elseif {[string first $arg --scriptfile] == 0} { ; # exec from file
             if {$argc < 2} {
-                error "not enough arguments for -scriptfile in $argv\nlooking \
-                for '-scriptfile tclscriptfile'"
+                error "not enough arguments for --scriptfile in $argv\nlooking \
+                for '--scriptfile tclscriptfile'"
             }
             set scriptfile [lindex $argv 1]
             incr argc -2
             set argv [lrange $argv 2 end]
-        } elseif {[string first $arg -interactive] == 0} { ; # interactive
+        } elseif {[string first $arg --interactive] == 0} { ; # interactive
             if {$classes || $flows} {
                 error "can only specify *one* of {classes|flows|interactive}"
             }
             set interactive 1
             incr argc -1
             set argv [lrange $argv 1 end]
-        } elseif {[string first $arg -flows] == 0} { ; # flow details
+        } elseif {[string first $arg --flows] == 0} { ; # flow details
             if {$classes || $interactive} {
                 error "can only specify *one* of {classes|flows|interactive}"
             }
             set flows 1
             incr argc -1
             set argv [lrange $argv 1 end]
-        } elseif {[string first $arg -classes] == 0} { ; # class details
+        } elseif {[string first $arg --classes] == 0} { ; # class details
             if {$flows || $interactive} {
                 error "can only specify *one* of {classes|flows|interactive}"
             }
             set classes 1
             incr argc -1
             set argv [lrange $argv 1 end]
-        } elseif {[string first $arg -debug] == 0} { ; # flow details
+        } elseif {[string first $arg --debug] == 0} { ; # flow details
             set flstats(debug) 1
             incr argc -1
             set argv [lrange $argv 1 end]
-        } elseif {[string first $arg -label] == 0} { ; # label output
+        } elseif {[string first $arg --label] == 0} { ; # label output
             set flstats(label) 1
             incr argc -1
             set argv [lrange $argv 1 end]
@@ -443,14 +443,14 @@ proc fl_set_parameters {argc argv} {
                 [format "unknown argument %s in '%s'\nusage: %s" \
                      [lindex $argv 0] $argv $argv0]
             error [format {\
-                               [-binsecs num]\
-                               [-{classes|flows|interactive}]\
-                               [-debug]\
-                               [-evaluate tclcommands]\
-                               [-kind tracefilekind]\
-                               [-label]\
-                               [-scriptfile filename]\
-                               [-types flowspecifier[s]]\
+                               [--binsecs num]\
+                               [--{classes|flows|interactive}]\
+                               [--debug]\
+                               [--evaluate tclcommands]\
+                               [--kind tracefilekind]\
+                               [--label]\
+                               [--scriptfile filename]\
+                               [--types flowspecifier[s]]\
                                [filename]}]
         }
         set arg [lindex $argv 0]
