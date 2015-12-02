@@ -50,7 +50,9 @@
  *		parent, a flow type "len".
  *     19.  	Allow a "name" to be given to a class [fl_set_class_name].  (maybe default to underlying flows' type, if only one type in the class?)
  *     20.      catch a signal (SIGINFO, C-t) as a way of terminating a bin, printing out a line.
- *     21.      timestamp (rather than binno) lines?
+ *     21.      option for timestamp (rather than binno) time of printing lines?
+ *     22.      hosta/hostb type (sort numerically/lexicographically)
+ *     23.      long options with "--", *not* "-"
  */
 
 static char *rcsid =
