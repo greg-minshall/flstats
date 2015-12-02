@@ -593,7 +593,7 @@ FILE *fix44_descriptor;
 
 int packet_error = 0;
 
-int pending, pendingcaplen, pendingpktlen;
+int pending, pendingcaplen, pendingpktlen, pending_maxpktlen;
 u_char *pending_packet, *pktbuffer;;
 
 flowentry_t timers[150];
@@ -776,15 +776,17 @@ newfile(Tcl_Interp *interp, int maxpktlen)
     if (pending_packet) {
         free(pending_packet);
         pending_packet = 0; 	    /* empty the water bucket */
+        pending_maxpktlen = 0;
     }
 
     /* allocate packet for pending buffer */
-    pending_packet = malloc(maxpktlen);            /* room for packet */
+    pending_packet = malloc(maxpktlen); /* room for packet */
     if (pending_packet == 0) {
         asprintf(&asret, "no room for %d-byte packet buffer", maxpktlen);
         Tcl_SetResult(interp, asret, tclasfree);
         return TCL_ERROR;
     }
+    pending_maxpktlen = maxpktlen; /* remember size of buffer */
 
     /* if we've already allocated a packet buffer, free it */
     if (pktbuffer) {
@@ -1498,7 +1500,7 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
     } else if (binno != NOW_AS_BINNO()) {
         /* if we've gone over to another bin number... */
         pending = 1;
-        memcpy(pending_packet, packet, MIN(caplen, sizeof pending_packet));
+        memcpy(pending_packet, packet, MIN(caplen, pending_maxpktlen));
         pendingcaplen = caplen;
         pendingpktlen = pktlen;
         /* wait till next time */
