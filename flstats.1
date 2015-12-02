@@ -77,7 +77,7 @@ To see how many source/destination pairs there were in a trace, along
 with the number of packets, bytes, and other information about the data
 flowing between them:
 .Bd -literal -offset indent
-% flstats -c -t src/dst file.tcpd
+% flstats --c --t src/dst file.tcpd
 bin 0 class 0 created 245 deleted 0 added 0 removed 0 active 245
 pkts 32546 bytes 11296427 sipg 0.018453 fragpkts 0 fragbytes 0
 toosmallpkts 0 toosmallbytes 0 runtpkts 0 runtbytes 0 noportpkts 0
@@ -91,7 +91,7 @@ The smoothed interpacket arrival time was 18,453 microseconds.
 .Pp
 To actually list out the source/destination pairs in the trace:
 .Bd -literal -offset indent
-% flstats -f -t src/dst file.tcpd
+% flstats --f --t src/dst file.tcpd
  ...
 bin 0 type 0 class 0 type src/dst id 193.240.48.242/193.240.56.24
 pkts 29 bytes 8179 sipg 0.162880 created 821828304.762731
@@ -142,7 +142,7 @@ Which tells us that source 193.240.48.242 sent 29 packets, totalling
 .Pp
 To see how many different TOS values there are in the trace:
 .Bd -literal -offset indent
-% flstats -c -t tos file.tcpd
+% flstats --c --t tos file.tcpd
 bin 0 class 0 created 2 deleted 0 added 0 removed 0 active 2
 pkts 32546 bytes 11296427 sipg 0.018453 fragpkts 0 fragbytes 0
 toosmallpkts 0 toosmallbytes 0 runtpkts 0 runtbytes 0 noportpkts 0
@@ -151,7 +151,7 @@ noportbytes 0 lastrecv 821828470.105442
 .Pp
 Which tells us there are two.  To see which values:
 .Bd -literal -offset indent
-% flstats -f -t tos file.tcpd
+% flstats --f --t tos file.tcpd
 bin 0 type 0 class 0 type tos id 16 pkts 1798 bytes 139746
 sipg 0.100101 created 821828175.866634 last 821828469.722588
 bin 0 type 0 class 0 type tos id 0 pkts 30748 bytes 11156681
@@ -163,7 +163,7 @@ So, the values are decimal 1 and decimal 16.
 What about packet size distribution in the trace file?  First, to see
 how many different packet sizes are in the file:
 .Bd -literal -offset indent
-% flstats -c -t len file.tcpd
+% flstats --c --t len file.tcpd
 bin 0 class 0 created 415 deleted 0 added 0 removed 0 active 415
 pkts 32546 bytes 11296427 sipg 0.018453 fragpkts 0 fragbytes 0
 toosmallpkts 0 toosmallbytes 0 runtpkts 0 runtbytes 0
@@ -173,7 +173,7 @@ noportpkts 0 noportbytes 0 lastrecv 821828470.105442
 So, there are 415 distinct lengths in the file.  To see the actual
 lengths:
 .Bd -literal -offset indent
-% flstats -f -t len file.tcpd | sort -n -r +9
+% flstats --f --t len file.tcpd | sort -n -r +9
 bin 0 type 0 class 0 type len id 64 pkts 14976 bytes 958464
 sipg 0.019997 created 821828172.546355 last 821828470.105442
 bin 0 type 0 class 0 type len id 1500 pkts 4994 bytes 7491000
