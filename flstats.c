@@ -54,9 +54,18 @@
 static char *rcsid =
 	"$Id: flstats.c,v 1.97 2014/01/25 15:29:48 minshall Exp $";
 
+#include "config.h"
+
 #define _GNU_SOURCE		/* needed for asprintf(3) */
 
-#include <errno.h>		/* http://blog.nirkabel.org/2009/01/18/errnoh-problem/comment-page-1/ */
+#if defined(HAVE_ERRNO_H)
+#include <errno.h> /* http://blog.nirkabel.org/2009/01/18/errnoh-problem/comment-page-1/ */
+#endif /* defined(HAVE_ERRNO_H) */
+
+#if !defined(HAVE_ASPRINTF)
+#include <stdarg.h>
+#endif /* !defined(HAVE_ASPRINTF) */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -630,6 +639,33 @@ strsave(char *s)
     }
     return new;
 }
+
+#if !defined(HAVE_ASPRINTF)
+/*
+ * slow, but simple (hopefully, almost *never* needed)
+ */
+static int
+asprintf(char **where, const char *format, ...) {
+    va_list ap;
+    char foo[1];                 /* used in determining the correct size */
+    char *place;
+    int len;                    /*  */
+
+    va_start(ap, format);
+     /* this first call does no real printing, just determines size */
+    len = vsnprintf(foo, 0, format, ap);
+
+    place = malloc(len);
+    if (place == 0) {
+        *where = 0;
+        return -1;              /* see man page for asprintf(3) */
+    }
+
+    vsnprintf(place, len, format, ap);
+    *where = place;
+    return len;
+}
+#endif /* !defined(HAVE_ASPRINTF) */
 
 /*
  * delete a string returned from asprintf(3)
@@ -2037,7 +2073,7 @@ fl_set_flow_type(ClientData clientData, Tcl_Interp *interp,
 		"?-F default_parent_flow_type? specifier";
     int op;
     extern char *optarg;
-    extern int optind, opterr, optreset;
+    extern int optind, opterr;
 
     ftype = 0;
     Ftype = 0;
@@ -2046,7 +2082,6 @@ fl_set_flow_type(ClientData clientData, Tcl_Interp *interp,
     recv_upcall = 0;
     timer_upcall = 0;
     opterr = 0;
-    optreset = 1;
     optind = 1;
 
     while ((op = getopt(argc, (char *const *)argv, "c:f:F:n:r:t:")) != EOF) {
