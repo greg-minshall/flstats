@@ -54,6 +54,9 @@
 static char *rcsid =
 	"$Id: flstats.c,v 1.97 2014/01/25 15:29:48 minshall Exp $";
 
+#define _GNU_SOURCE		/* needed for asprintf(3) */
+
+#include <errno.h>		/* http://blog.nirkabel.org/2009/01/18/errnoh-problem/comment-page-1/ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
