@@ -618,7 +618,16 @@ ctrl_t(int which)
 static void
 start_ctrl_t(void)
 {
-    signal(SIGINFO, ctrl_t);
+    struct sigaction act, oact;
+
+    act.sa_handler = ctrl_t;
+    act.sa_mask = 0;
+    act.sa_flags = SA_RESTART;  /* w/out this, we take only one
+                                 * signal, die on next */
+    
+    if (sigaction(SIGUSR1, &act, &oact) == -1) {
+        perror("sigaction");
+    }
 }
 
 /*
