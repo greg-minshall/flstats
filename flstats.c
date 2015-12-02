@@ -160,6 +160,7 @@ struct flowentry {
         fe_pkts,		/* number of packets received */
         fe_pkts_last_enum,	/* number of packets *last* time enum done */
         fe_bytes,		/* number of bytes received */
+        fe_bytes_last_enum,		/* number of bytes *last* time enum done */
         fe_sipg,		/* smoothed interpacket gap (units of 8 usec) */
         fe_last_bin_active,	/* last bin this saw activity */
         fe_upcall_when_pkts_ge,	/* num pkts needs to be >= m */
@@ -611,28 +612,11 @@ char fl_tclprogram[] =
  */
 
 static void
-ctrl_t(int which)
+gotsignal(int which)
 {
     signalled++;
 }
 
-static void
-start_ctrl_t(void)
-{
-    struct sigaction act, oact;
-
-    act.sa_handler = ctrl_t;
-    if (sigemptyset(&act.sa_mask) == -1) {
-        perror("sigemptyset");
-        return;
-    }
-    act.sa_flags = SA_RESTART;  /* w/out this, we take only one
-                                 * signal, die on next */
-    
-    if (sigaction(SIGUSR1, &act, &oact) == -1) {
-        perror("sigaction");
-    }
-}
 
 /*
  * forward declarations
@@ -981,7 +965,7 @@ flow_statistics(flowentry_p fe)
             fe->fe_flow_type, fe->fe_class,
             flow_type_to_string(&ftinfo[fe->fe_flow_type]),
             flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_id),
-            fe->fe_pkts-fe->fe_pkts_last_enum, fe->fe_bytes,
+            fe->fe_pkts-fe->fe_pkts_last_enum, fe->fe_bytes-fe->fe_bytes_last_enum,
             SIPG_TO_SECS(fe->fe_sipg), SIPG_TO_USECS(fe->fe_sipg),
             fe->fe_created.tv_sec, tvusecs(&fe->fe_created),
             fe->fe_last_pkt_rcvd.tv_sec, tvusecs(&fe->fe_last_pkt_rcvd));
@@ -2271,6 +2255,7 @@ fl_continue_flow_enumeration(ClientData clientData, Tcl_Interp *interp,
             Tcl_SetResult(interp,
                           flow_statistics(flow_enum_state), TCL_VOLATILE);
             flow_enum_state->fe_pkts_last_enum = flow_enum_state->fe_pkts;
+            flow_enum_state->fe_bytes_last_enum = flow_enum_state->fe_bytes;
             flow_enum_state = flow_enum_state->fe_next_in_table;
             return TCL_OK;
         }
@@ -2440,6 +2425,34 @@ fl_tcl_code(ClientData clientData, Tcl_Interp *interp,
     Tcl_SetResult(interp, fl_tclprogram, TCL_STATIC);
     return TCL_OK;
 }
+
+
+
+static int
+fl_catch_signal(ClientData clientData, Tcl_Interp *interp,
+		int argc, const char *argv[])
+{
+    struct sigaction act, oact;
+    char *asret;
+
+    act.sa_handler = gotsignal;
+    if (sigemptyset(&act.sa_mask) == -1) {
+        asprintf(&asret, "sigemptyset: %s", strerror(errno));
+        Tcl_SetResult(interp, asret, tclasfree);
+        return TCL_ERROR;
+    }
+    act.sa_flags = SA_RESTART;  /* w/out this, we take only one
+                                 * signal, die on next */
+    
+    if (sigaction(SIGUSR1, &act, &oact) == -1) {
+        asprintf(&asret, "sigaction: %s", strerror(errno));
+        Tcl_SetResult(interp, asret, tclasfree);
+        return TCL_ERROR;
+    }
+    return TCL_OK;
+}
+
+
 static int
 fl_version(ClientData clientData, Tcl_Interp *interp,
 		int argc, const char *argv[])
@@ -2490,6 +2503,8 @@ Tcl_AppInit(Tcl_Interp *interp)
                       NULL, NULL);
     Tcl_CreateCommand(interp, "fl_version", fl_version,
                       NULL, NULL);
+    Tcl_CreateCommand(interp, "fl_catch_signal", fl_catch_signal,
+                      NULL, NULL);
 
     /* call out to Tcl to set up whatever... */
     if (Tcl_GlobalEval(interp, fl_tclprogram) != TCL_OK) {
@@ -2507,8 +2522,6 @@ main(int argc, char *const argv[])
     for (i = 0; i < NUM(timers); i++) {
         timers[i].fe_next_in_timer = timers[i].fe_prev_in_timer = &timers[i];
     }
-
-    start_ctrl_t();
 
     protohasports[6] = protohasports[17] = 1;
 

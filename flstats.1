@@ -7,11 +7,12 @@
 .Sh SYNOPSIS
 .Nm flstats
 .Op Fl -binsecs Ar num
+.Op Fl -catch_signal
 .Op Fl -classes
-.Op Fl -flows
-.Op Fl -interactive
 .Op Fl -debug
+.Op Fl -flows
 .Op Fl -evaluate Ar tclcommands
+.Op Fl -interactive
 .Op Fl -kind Ar {tcpd|fix24|fix44}
 .Op Fl -label
 .Op Fl -scriptfile Ar filename
@@ -33,6 +34,12 @@ of flows) contained in the file.
 How many seconds (in the time sequence of the input file) should elapse
 between reporting statistics.  The default is zero (0), which causes the
 statistics to be reported only once, at the end of the input file.
+.It Fl -catch_signal
+.Nm Flstats
+will respond to a USR1 signal by (at the next reception of packets
+from the input) printing out the current statistics, as if
+.Ar binsecs
+had expired.
 .It Fl -classes
 Report statistics of flow "classes", rather than about individual flows
 themselves.

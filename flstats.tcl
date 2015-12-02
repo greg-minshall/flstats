@@ -438,6 +438,10 @@ proc fl_set_parameters {argc argv} {
             set flstats(label) 1
             incr argc -1
             set argv [lrange $argv 1 end]
+        } elseif {[string first $arg --catch_signal] == 0} { ; # respond to SIGNAL
+            fl_catch_signal
+            incr argc -1
+            set argv [lrange $argv 1 end]
         } else {
             puts -nonewline stderr \
                 [format "unknown argument %s in '%s'\nusage: %s" \
