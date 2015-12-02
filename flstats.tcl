@@ -64,48 +64,44 @@ proc flll_delete {time FLOW args} {
 }
 
 
-proc \
-    fl_flow_details { {filename {}} {binsecs {}} \
-                          {classifier {}} { flowtypes {} }} {
-                              global flstats
+proc fl_flow_details { {filename {}} {binsecs {}} {classifier {}} { flowtypes {} }} {
+    global flstats
 
-                              fl_setup $filename $binsecs $classifier $flowtypes
+    fl_setup $filename $binsecs $classifier $flowtypes
 
-                              set binsecs $flstats(binsecs)   ; # make sure we have correct value
+    set binsecs $flstats(binsecs)   ; # make sure we have correct value
 
-                              while {1} {
-                                  set binno [fl_read_one_bin $binsecs]
-                                  if {$binno == -1} {
-                                      break;  # eof
-                                  }
-                                  fl_start_flow_enumeration
-                                  while { [set x [fl_continue_flow_enumeration]] != ""} {
-                                      puts "bin $binno $x"
-                                  }
-                              }
-                          }
+    while {1} {
+        set binno [fl_read_one_bin $binsecs]
+        if {$binno == -1} {
+            break;  # eof
+        }
+        fl_start_flow_enumeration
+        while { [set x [fl_continue_flow_enumeration]] != ""} {
+            puts "bin $binno $x"
+        }
+    }
+}
 
 
-proc \
-    fl_class_details { {filename {}} {binsecs {}} \
-                           {classifier {}} { flowtypes {} }} {
-                               global flstats
+proc fl_class_details { {filename {}} {binsecs {}} {classifier {}} { flowtypes {} }} {
+    global flstats
 
-                               fl_setup $filename $binsecs $classifier $flowtypes
+    fl_setup $filename $binsecs $classifier $flowtypes
 
-                               set binsecs $flstats(binsecs)
+    set binsecs $flstats(binsecs)
 
-                               while {1} {
-                                   set binno [fl_read_one_bin $binsecs]
-                                   if {$binno == -1} {
-                                       break   ; # eof
-                                   }
-                                   fl_start_class_enumeration
-                                   while {[set x [fl_continue_class_enumeration]] != ""} {
-                                       puts "bin $binno $x"
-                                   }
-                               }
-                           }
+    while {1} {
+        set binno [fl_read_one_bin $binsecs]
+        if {$binno == -1} {
+            break   ; # eof
+        }
+        fl_start_class_enumeration
+        while {[set x [fl_continue_class_enumeration]] != ""} {
+            puts "bin $binno $x"
+        }
+    }
+}
 
 ######################
 ### START FLOWSIM ####
@@ -148,219 +144,216 @@ proc \
 # meaning that the *_cmd parameters are not supplied.
 #
 
-proc \
-    fl_setft { {classifier {}} {flowtypes {}} } {
-        global flstats
+proc fl_setft { {classifier {}} {flowtypes {}} } {
+    global flstats
 
-        # the following is like atoft in the .c file:
-        set alltags {}
+    # the following is like atoft in the .c file:
+    set alltags {}
 
-        if {$flowtypes == {}} {
-            set flowtypes $flstats(flowtypes)
-        } else {
-            set flstats(flowtypes) $flowtypes
-        }
+    if {$flowtypes == {}} {
+        set flowtypes $flstats(flowtypes)
+    } else {
+        set flstats(flowtypes) $flowtypes
+    }
 
+    if {$classifier == {}} {
+        set classifier $flstats(classifier)
         if {$classifier == {}} {
-            set classifier $flstats(classifier)
-            if {$classifier == {}} {
-                set classifier "-"
-            }
-        } else {
-            set flstats(classifier) $classifier
+            set classifier "-"
         }
+    } else {
+        set flstats(classifier) $classifier
+    }
 
-        set user_flow_type_len [llength $flowtypes]
+    set user_flow_type_len [llength $flowtypes]
 
-        # ok, scan thru upper layer flows, keeping track of used tags
-        for {set whichflow 0} {$whichflow < [llength $flowtypes]} \
-            { incr whichflow} {
-                set type [lindex [lindex $flowtypes $whichflow] 0]
-                set types [split $type /]
-                foreach type $types {
-                    if {[lsearch -exact $alltags $type] == -1} {
-                        lappend alltags $type
-                    }
-                }
-            }
-
-        if {$classifier != "-"} {
-            # now, make sure we get all the stuff the classifier needs
-            # (the point being to produce the union of everything)
-            set classifiertype [split [$classifier.specifier] /]
-            foreach type $classifiertype {
+    # ok, scan thru upper layer flows, keeping track of used tags
+    for {set whichflow 0} {$whichflow < [llength $flowtypes]} \
+        { incr whichflow} {
+            set type [lindex [lindex $flowtypes $whichflow] 0]
+            set types [split $type /]
+            foreach type $types {
                 if {[lsearch -exact $alltags $type] == -1} {
                     lappend alltags $type
                 }
             }
         }
 
-        # now, know all the tags, build the flow type(s)
-        set merge {}
-        set merge_no_ports {}
-        set portsseen 0         ; # have we seen any ports?
-        foreach tag $alltags {
-            lappend merge $tag
-            if {($tag == "sport") || ($tag == "dport")} {
-                # don't put ports in merge_no_ports
-                set portsseen 1
-            } else {
-                lappend merge_no_ports $tag
+    if {$classifier != "-"} {
+        # now, make sure we get all the stuff the classifier needs
+        # (the point being to produce the union of everything)
+        set classifiertype [split [$classifier.specifier] /]
+        foreach type $classifiertype {
+            if {[lsearch -exact $alltags $type] == -1} {
+                lappend alltags $type
+            }
+        }
+    }
+
+    # now, know all the tags, build the flow type(s)
+    set merge {}
+    set merge_no_ports {}
+    set portsseen 0         ; # have we seen any ports?
+    foreach tag $alltags {
+        lappend merge $tag
+        if {($tag == "sport") || ($tag == "dport")} {
+            # don't put ports in merge_no_ports
+            set portsseen 1
+        } else {
+            lappend merge_no_ports $tag
+        }
+    }
+
+    # now, see if we have merge and merge_no_ports in flowtypes
+    # (looks like for loop above, but note difference!)
+    set notfound 1
+    for {set whichflow 0} {$whichflow < [llength $flowtypes]} \
+        { incr whichflow} {
+            set type [lindex [lindex $flowtypes $whichflow] 0]
+            set types [split $type /]
+            set notthis 0                           ; # hopeful
+            foreach type $merge {
+                if {[lsearch -exact $types $type] == -1} {
+                    set notthis 1
+                    break
+                }
+            }
+            if {$notthis == 0} {
+                set notfound 0
+                # tell ll classifier which flow types to use.
+                fl_set_ll_classifier 0 [expr 1 + $whichflow]
+                break
             }
         }
 
-        # now, see if we have merge and merge_no_ports in flowtypes
-        # (looks like for loop above, but note difference!)
+    # if we didn't find the right candidate...
+    if {$notfound} {
+        # so, create one!
+        set merge [concat [join $merge /] $classifier - flll_delete]
+        lappend flowtypes $merge
+        # tell ll classifier which flow types to use.
+        fl_set_ll_classifier 0 [llength $flowtypes]
+    }
+
+    set flstats(lastllclassifier) 0
+
+    # now, do same for merge_no_ports, if we saw ports...
+    if {$portsseen} {
         set notfound 1
         for {set whichflow 0} {$whichflow < [llength $flowtypes]} \
             { incr whichflow} {
                 set type [lindex [lindex $flowtypes $whichflow] 0]
                 set types [split $type /]
-                set notthis 0                           ; # hopeful
-                foreach type $merge {
-                    if {[lsearch -exact $types $type] == -1} {
-                        set notthis 1
+                # don't look at flow types which include ports...
+                if {([lsearch -exact $types "sport"] == -1) &&
+                    ([lsearch -exact $types "dport"] == -1)} {
+                    set notthis 0                           ; # hopeful
+                    foreach type $merge_no_ports {
+                        if {[lsearch -exact $types $type] == -1} {
+                            set notthis 1
+                            break
+                        }
+                    }
+                    if {$notthis == 0} {
+                        set notfound 0
+                        # tell ll classifier which flow types to use.
+                        fl_set_ll_classifier 1 [expr 1 + $whichflow]
                         break
                     }
-                }
-                if {$notthis == 0} {
-                    set notfound 0
-                    # tell ll classifier which flow types to use.
-                    fl_set_ll_classifier 0 [expr 1 + $whichflow]
-                    break
                 }
             }
 
         # if we didn't find the right candidate...
         if {$notfound} {
-            # so, create one!
-            set merge [concat [join $merge /] $classifier - flll_delete]
-            lappend flowtypes $merge
+            set merge_no_ports [concat [join $merge_no_ports /] \
+                                    $classifier - flll_delete]
+            lappend flowtypes $merge_no_ports
             # tell ll classifier which flow types to use.
-            fl_set_ll_classifier 0 [llength $flowtypes]
+            fl_set_ll_classifier 1 [llength $flowtypes]
         }
-
-        set flstats(lastllclassifier) 0
-
-        # now, do same for merge_no_ports, if we saw ports...
-        if {$portsseen} {
-            set notfound 1
-            for {set whichflow 0} {$whichflow < [llength $flowtypes]} \
-                { incr whichflow} {
-                    set type [lindex [lindex $flowtypes $whichflow] 0]
-                    set types [split $type /]
-                    # don't look at flow types which include ports...
-                    if {([lsearch -exact $types "sport"] == -1) &&
-                        ([lsearch -exact $types "dport"] == -1)} {
-                        set notthis 0                           ; # hopeful
-                        foreach type $merge_no_ports {
-                            if {[lsearch -exact $types $type] == -1} {
-                                set notthis 1
-                                break
-                            }
-                        }
-                        if {$notthis == 0} {
-                            set notfound 0
-                            # tell ll classifier which flow types to use.
-                            fl_set_ll_classifier 1 [expr 1 + $whichflow]
-                            break
-                        }
-                    }
-                }
-
-            # if we didn't find the right candidate...
-            if {$notfound} {
-                set merge_no_ports [concat [join $merge_no_ports /] \
-                                        $classifier - flll_delete]
-                lappend flowtypes $merge_no_ports
-                # tell ll classifier which flow types to use.
-                fl_set_ll_classifier 1 [llength $flowtypes]
-            }
-            set flstats(lastllclassifier) 1
-        }
-
-        # last flow in use
-        set flstats(lastflow) [llength $flowtypes]
-        # last class in use
-        set flstats(lastclass) [llength $flowtypes]
-
-        # now, scan thru the input list again, setting upper level flows...
-
-        for {set whichflow 0; set ftindex 1} {$whichflow < [llength $flowtypes]} \
-            { incr whichflow; incr ftindex } {
-                set flow [lindex $flowtypes $whichflow]
-                if {$flstats(label)} {
-                    puts "# flowtype $ftindex $flow"
-                }
-                set len [llength $flow]
-                # NO    if {$len >= 2} {
-                # NO        global [lindex $flow 1]
-                # NO        set [lindex $flow 1] $ftindex
-                # NO    }
-                if {($len >= 2) && ([string compare [lindex $flow 1] "-"] != 0)} {
-                    set newflow "-n [lindex $flow 1]"
-                } else {
-                    set newflow ""
-                }
-                if {($len >= 3) && ([string compare [lindex $flow 2] "-"] != 0)} {
-                    set recv "-r [lindex $flow 2]"
-                } else {
-                    set recv ""
-                }
-                if {($len >= 4) && ([string compare [lindex $flow 3] "-"] != 0)} {
-                    set timeout "-t [lindex $flow 3]"
-                } else {
-                    set timeout ""
-                }
-                eval "fl_set_flow_type -f $ftindex -c $ftindex $newflow \
-                    $recv $timeout [lindex $flow 0]"
-            }
+        set flstats(lastllclassifier) 1
     }
 
-proc \
-    fl_setup { {filename {}} {binsecs {}} \
-                   {classifier {}} { flowtypes {} }} {
-                       global flstats
+    # last flow in use
+    set flstats(lastflow) [llength $flowtypes]
+    # last class in use
+    set flstats(lastclass) [llength $flowtypes]
 
-                       if {$filename == {}} {
-                           if {![info exists flstats(tracefile.filename)]} {
-                               error "tracefile not specified"
-                           }
-                           set filename $flstats(tracefile.filename)
-                       } else {
-                           set flstats(tracefile.filename) $filename
-                       }
+    # now, scan thru the input list again, setting upper level flows...
 
-                       if {$binsecs == {}} {
-                           set binsecs $flstats(binsecs)
-                       } else {
-                           set flstats(binsecs) $binsecs
-                       }
+    for {set whichflow 0; set ftindex 1} {$whichflow < [llength $flowtypes]} \
+        { incr whichflow; incr ftindex } {
+            set flow [lindex $flowtypes $whichflow]
+            if {$flstats(label)} {
+                puts "# flowtype $ftindex $flow"
+            }
+            set len [llength $flow]
+            # NO    if {$len >= 2} {
+            # NO        global [lindex $flow 1]
+            # NO        set [lindex $flow 1] $ftindex
+            # NO    }
+            if {($len >= 2) && ([string compare [lindex $flow 1] "-"] != 0)} {
+                set newflow "-n [lindex $flow 1]"
+            } else {
+                set newflow ""
+            }
+            if {($len >= 3) && ([string compare [lindex $flow 2] "-"] != 0)} {
+                set recv "-r [lindex $flow 2]"
+            } else {
+                set recv ""
+            }
+            if {($len >= 4) && ([string compare [lindex $flow 3] "-"] != 0)} {
+                set timeout "-t [lindex $flow 3]"
+            } else {
+                set timeout ""
+            }
+            eval "fl_set_flow_type -f $ftindex -c $ftindex $newflow \
+                    $recv $timeout [lindex $flow 0]"
+        }
+}
 
-                       if {$filename != "-"} {
-                           set fname [glob $filename]
-                           file stat $fname filestats
-                           if {$flstats(label)} {
-                               puts [format "# file %s size %d last written %d" \
-                                         $fname $filestats(size) $filestats(mtime)]
-                           }
-                       } else {
-                           set fname $filename
-                       }
-                       # "eval" to get the filename in argv[1] and (optional) type in argv[2]...
-                       eval "fl_set_file $fname $flstats(tracefile.kind)"
+proc fl_setup { {filename {}} {binsecs {}} {classifier {}} { flowtypes {} } } {
+    global flstats
 
-                       if {$flstats(label)} {
-                           puts "#"
-                       }
-                       fl_setft $classifier $flowtypes
+    if {$filename == {}} {
+        if {![info exists flstats(tracefile.filename)]} {
+            error "tracefile not specified"
+        }
+        set filename $flstats(tracefile.filename)
+    } else {
+        set flstats(tracefile.filename) $filename
+    }
 
-                       if {$flstats(label)} {
-                           puts "#"
-                           puts "# binsecs $binsecs"
-                           puts "#"
-                       }
-                   }
+    if {$binsecs == {}} {
+        set binsecs $flstats(binsecs)
+    } else {
+        set flstats(binsecs) $binsecs
+    }
+
+    if {$filename != "-"} {
+        set fname [glob $filename]
+        file stat $fname filestats
+        if {$flstats(label)} {
+            puts [format "# file %s size %d last written %d" \
+                      $fname $filestats(size) $filestats(mtime)]
+        }
+    } else {
+        set fname $filename
+    }
+    # "eval" to get the filename in argv[1] and (optional) type in argv[2]...
+    eval "fl_set_file $fname $flstats(tracefile.kind)"
+
+    if {$flstats(label)} {
+        puts "#"
+    }
+    fl_setft $classifier $flowtypes
+
+    if {$flstats(label)} {
+        puts "#"
+        puts "# binsecs $binsecs"
+        puts "#"
+    }
+}
 
 
 # parse command line arguments.
