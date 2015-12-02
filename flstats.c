@@ -621,7 +621,10 @@ start_ctrl_t(void)
     struct sigaction act, oact;
 
     act.sa_handler = ctrl_t;
-    act.sa_mask = 0;
+    if (sigemptyset(&act.sa_mask) == -1) {
+        perror("sigemptyset");
+        return;
+    }
     act.sa_flags = SA_RESTART;  /* w/out this, we take only one
                                  * signal, die on next */
     
