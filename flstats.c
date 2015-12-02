@@ -48,7 +48,9 @@
  *		(flstats(maxclass), flstats(maxflow), ...) set by .c.
  *     18.	"df len" should be a flow type "df" that has, as its
  *		parent, a flow type "len".
- *     19.  	Allow a "name" to be given to a class [fl_set_class_name].
+ *     19.  	Allow a "name" to be given to a class [fl_set_class_name].  (maybe default to underlying flows' type, if only one type in the class?)
+ *     20.      catch a signal (SIGINFO, C-t) as a way of terminating a bin, printing out a line.
+ *     21.      timestamp (rather than binno) lines?
  */
 
 static char *rcsid =
@@ -61,7 +63,7 @@ static char *rcsid =
 #if defined(HAVE_ERRNO_H)
 #include <errno.h> /* http://blog.nirkabel.org/2009/01/18/errnoh-problem/comment-page-1/ */
 #endif /* defined(HAVE_ERRNO_H) */
-
+#include <signal.h>
 #if !defined(HAVE_ASPRINTF)
 #include <stdarg.h>
 #endif /* !defined(HAVE_ASPRINTF) */
@@ -594,7 +596,7 @@ u_char *pending_packet, *pktbuffer;;
 
 flowentry_t timers[150];
 
-u_long binno, pktcount;
+u_long binno, pktcount, signalled, lastsignalled;
 
 char	*args,			/* arguments... */
 	argcount[200];		/* number of them */
@@ -602,6 +604,22 @@ char	*args,			/* arguments... */
 char fl_tclprogram[] = 
 #include "flstats.char"
 ;
+
+/*
+ * signal handling
+ */
+
+static void
+ctrl_t(int which)
+{
+    signalled++;
+}
+
+static void
+start_ctrl_t(void)
+{
+    signal(SIGINFO, ctrl_t);
+}
 
 /*
  * forward declarations
@@ -1927,7 +1945,7 @@ fl_read_one_bin(ClientData clientData, Tcl_Interp *interp,
             return TCL_ERROR;
         }
 
-        while (((binno == -1) || (binno == NOW_AS_BINNO())) && !fileeof) {
+        while (((binno == -1) || (binno == NOW_AS_BINNO())) && !fileeof && (signalled == lastsignalled)) {
             error = process_one_packet(interp);
             if (error != TCL_OK) {
                 return error;
@@ -1935,6 +1953,7 @@ fl_read_one_bin(ClientData clientData, Tcl_Interp *interp,
         }
     }
 
+    lastsignalled = signalled;
     sprintf(buf, "%ld", binno);
     Tcl_SetResult(interp, buf, TCL_VOLATILE);
     return TCL_OK;
@@ -2475,6 +2494,8 @@ main(int argc, char *const argv[])
     for (i = 0; i < NUM(timers); i++) {
         timers[i].fe_next_in_timer = timers[i].fe_prev_in_timer = &timers[i];
     }
+
+    start_ctrl_t();
 
     protohasports[6] = protohasports[17] = 1;
 
