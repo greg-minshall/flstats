@@ -588,23 +588,6 @@ char fl_tclprogram[] =
 #include "flstats.char"
 ;
 
-/* 
- * formats for reporting flow, class statistics.  these can be read,
- * and modified, by the scripting language
- */
-
-static char* flow_stats_template =
-    "type %d class %d type %s id %s pkts %lu bytes "
-    "%lu sipg %lu.%06lu created %ld.%06ld last %ld.%06ld";
-static char *class_stats_template =
-    "class %ld created %lu deleted %lu added %lu removed %lu "
-    "active %lu pkts %lu bytes %lu sipg %lu.%06lu "
-    "fragpkts %lu fragbytes %lu "
-    "toosmallpkts %lu toosmallbytes %lu runtpkts %lu runtbytes %lu "
-    "noportpkts %lu noportbytes %lu lastrecv %ld.%06ld";
-
-static char *flow_stats_format, *class_stats_format;
-
 
 /*
  * signal handling
@@ -955,6 +938,28 @@ flow_type_to_string(int ftype)
 }
 #endif
 
+
+static long
+dtsecs(struct timeval tv) {
+    return tv.tv_sec;
+}
+
+static long
+dtusecs(struct timeval tv) {
+    return tvusecs(&tv);
+}
+
+
+/* 
+ * formats for reporting flow, class statistics.  these can be read,
+ * and modified, by the scripting language
+ */
+
+static char *flow_stats_template =
+    "type %d class %d type %s id %s pkts %lu bytes "
+    "%lu sipg %lu.%06lu created %ld.%06ld last %ld.%06ld",
+    *flow_stats_format;
+
 static char *
 flow_statistics(flowentry_p fe)
 {
@@ -966,13 +971,20 @@ flow_statistics(flowentry_p fe)
             flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_id),
             fe->fe_pkts-fe->fe_pkts_last_enum, fe->fe_bytes-fe->fe_bytes_last_enum,
             SIPG_TO_SECS(fe->fe_sipg), SIPG_TO_USECS(fe->fe_sipg),
-            fe->fe_created.tv_sec, tvusecs(&fe->fe_created),
-            fe->fe_last_pkt_rcvd.tv_sec, tvusecs(&fe->fe_last_pkt_rcvd));
+            dtsecs(fe->fe_created), dtusecs(fe->fe_created),
+            dtsecs(fe->fe_last_pkt_rcvd), dtusecs(fe->fe_last_pkt_rcvd));
 
     return summary;
 }
 
 
+static char *class_stats_template =
+    "class %ld created %lu deleted %lu added %lu removed %lu "
+    "active %lu pkts %lu bytes %lu sipg %lu.%06lu "
+    "fragpkts %lu fragbytes %lu "
+    "toosmallpkts %lu toosmallbytes %lu runtpkts %lu runtbytes %lu "
+    "noportpkts %lu noportbytes %lu lastrecv %ld.%06ld",
+    *class_stats_format;
 
 static char *
 class_statistics(clstats_p clsp)
