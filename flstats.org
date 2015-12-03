@@ -1,0 +1,89 @@
+* issues with flstats
+
+** todo list
+
+*** TODO 4.	Document: [simul_setup], [flow_details],
+    [class_details], [fl_read_one_bin].  Give examples of use; warn
+    about memory consumption.
+*** TODO 8. Set atoft[] from Tcl code.  (Need to change "alltags"
+	in [fl_setft]; or delete!)
+*** TODO 9. Protohasports...
+*** TODO 12. Change atoft[] to allow spec of (SHIFT_RIGHT|IN_PLACE)
+		(to decouple output base from shifting) and DOTTED as
+		a flag; make fmt == char * ("%d", say)?
+*** TODO 16. Change "low level" comments to general lattice.
+*** TODO 17. make low level flows use HIGH class numbers.
+	(flstats(maxclass), flstats(maxflow), ...) set by .c.
+*** TODO 18. "df len" should be a flow type "df" that has, as its
+    parent, a flow type "len".
+*** TODO 19. Allow a "name" to be given to a class [fl_set_class_name].
+    (maybe default to underlying flows' type, if only one type in the
+    class?)
+*** DONE 20. catch a signal (SIGINFO, C-t) as a way of terminating a bin, printing out a line.
+*** TODO 21. option for timestamp (rather than binno) time of printing lines?  
+    also, number of seconds spanned by this report line
+*** TODO 22. hosta/hostb type (sort numerically/lexicographically)
+*** TODO 23. flag to disable printing "name val" pairs; 
+*** TODO 24. flag to have separate "reporting interval" line; indent class/flow lines after
+*** DONE 25. require *entire* long_option names
+*** TODO 26. allow specification of separator for reports
+    "|", ";", "<TAB>", etc.
+*** TODO 27 flag to print a header line
+
+
+** reporting times, bin numbers, etc.
+
+*** reporting intervals
+
+for every reporting interval, would *like* to report when that
+reporting interval started and when it stopped.
+
+when the first packet in the interval arrived, when the last, sipg
+within the interval, sipg since time 0.
+
+we can report start time as being the time of the last packet received
+in the *previous* reporting interval.
+
+but, for stopping: if binsecs > 0, easy.
+
+if binsecs == 0, and we are reading a live trace (which, actually, we
+don't know, btw), then either the trace has ended (so, last packet
+time), or we got a signal.
+
+binsecs == 0, got a signal: we end up needing to wait for any
+outstanding read to finish.  then, do we take the *next* packet to
+arrive at that time?  or, the last packet we read in?  or..?
+
+the problem is that the next and N following packets may have already
+been received.  or, that next packet may take 30 seconds to arrive
+after.
+
+but, i guess in any case, the time of that packet is, in fact, the end
+of the *reporting* interval.
+
+for reporting interval:
+
+| binno    | sequential id of reporting intervals               | just a counter                                                         |
+| stime    | time this interval started                         | etime of *previous* interval                                           |
+| etime    | time this interval ended                           | timestamp of last packet (if binsecs, round to integer)                |
+| duration | who long this interval lasted                      | can be computed from etime-stime                                       |
+| fptime   | time first packet arrived this interval            | can be derived by MINing class/flow reports (if everything classified) |
+| lptime   | time last packet arrived this interval             | can be derived by MAXing class/flow reports (ditto)                    |
+| npkts    | number of packets seen this interval               | can be derived by summing class/flow reports                           |
+| nbytes   | number of bytes seen this interval                 | can be derived by summing class/flow reports                           |
+| isipg    | smoothed inter packet gap this interval            |                                                                        |
+| tsipg    | smoothed inter packet gap since beginning of trace |                                                                        |
+
+for each class/flow
+
+| kind    | kind of class/flow                         | for flow, "net/src"                                |
+| id      | id of this particular class/flow           | for class, i guess "net/src" (look at child flows) |
+| ifptime | time first packet arrived in this interval |                                                    |
+| tfptime | time first packet arrived since b.o.t.     | can be derived from history of reports        |
+| lptime  | time last packet arrived in this interval  |                                                    |
+| npkts   | number of packets seen this interval       |                                                    |
+| nbytes  | number of bytes seen this interval         |                                                    |
+| isipg   | smoothed inter packet gap this interval    |                                                    |
+| tsipg   | smoothed inter packet gap since b.o.t.     |                                                    |
+
+
