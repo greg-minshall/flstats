@@ -369,7 +369,7 @@ proc fl_set_parameters {argc argv} {
     set arg [lindex $argv 0]
     while {$argc && ([string length $arg] > 1) &&
            ([string range $arg 0 1] == "--")} {
-        if {[string first $arg --kind] == 0} { ; # trace file kind
+        if {[string equal $arg --kind]} { ; # trace file kind
             if {$argc < 2} {
                 error "not enough arguments for --kind in $argv\nlooking for\
                 '--kind [tracefilekind]'"
@@ -377,7 +377,7 @@ proc fl_set_parameters {argc argv} {
             set flstats(tracefile.kind) [lindex $argv 1]
             incr argc -2
             set argv [lrange $argv 2 end]
-        } elseif {[string first $arg --binsecs] == 0} { ; # bin time (seconds)
+        } elseif {[string equal $arg --binsecs]} { ; # bin time (seconds)
             if {$argc < 2} {
                 error "not enough arguments for --binsecs in $argv\nlooking for\
                 '--binsecs number'"
@@ -385,7 +385,7 @@ proc fl_set_parameters {argc argv} {
             set flstats(binsecs) [lindex $argv 1]
             incr argc -2
             set argv [lrange $argv 2 end]
-        } elseif {[string first $arg --types] == 0} { ; # flow types
+        } elseif {[string equal $arg --types]} { ; # flow types
             if {$argc < 2} {
                 error "not enough arguments for --types in $argv\nlooking \
                 for '--flows flowtypes'"
@@ -393,7 +393,7 @@ proc fl_set_parameters {argc argv} {
             set flstats(flowtypes) [lindex $argv 1]
             incr argc -2
             set argv [lrange $argv 2 end]
-        } elseif {[string first $arg --evaluate] == 0} { ; # execute tcl script
+        } elseif {[string equal $arg --evaluate]} { ; # execute tcl script
             if {$argc < 2} {
                 error "not enough arguments for --evaluate in $argv\nlooking \
                 for '--evaluate tclcommands'"
@@ -401,7 +401,7 @@ proc fl_set_parameters {argc argv} {
             set eval [lindex $argv 1]
             incr argc -2
             set argv [lrange $argv 2 end]
-        } elseif {[string first $arg --scriptfile] == 0} { ; # exec from file
+        } elseif {[string equal $arg --scriptfile]} { ; # exec from file
             if {$argc < 2} {
                 error "not enough arguments for --scriptfile in $argv\nlooking \
                 for '--scriptfile tclscriptfile'"
@@ -409,36 +409,36 @@ proc fl_set_parameters {argc argv} {
             set scriptfile [lindex $argv 1]
             incr argc -2
             set argv [lrange $argv 2 end]
-        } elseif {[string first $arg --interactive] == 0} { ; # interactive
+        } elseif {[string equal $arg --interactive]} { ; # interactive
             if {$classes || $flows} {
                 error "can only specify *one* of {classes|flows|interactive}"
             }
             set interactive 1
             incr argc -1
             set argv [lrange $argv 1 end]
-        } elseif {[string first $arg --flows] == 0} { ; # flow details
+        } elseif {[string equal $arg --flows]} { ; # flow details
             if {$classes || $interactive} {
                 error "can only specify *one* of {classes|flows|interactive}"
             }
             set flows 1
             incr argc -1
             set argv [lrange $argv 1 end]
-        } elseif {[string first $arg --classes] == 0} { ; # class details
+        } elseif {[string equal $arg --classes]} { ; # class details
             if {$flows || $interactive} {
                 error "can only specify *one* of {classes|flows|interactive}"
             }
             set classes 1
             incr argc -1
             set argv [lrange $argv 1 end]
-        } elseif {[string first $arg --debug] == 0} { ; # flow details
+        } elseif {[string equal $arg --debug]} { ; # flow details
             set flstats(debug) 1
             incr argc -1
             set argv [lrange $argv 1 end]
-        } elseif {[string first $arg --label] == 0} { ; # label output
+        } elseif {[string equal $arg --label]} { ; # label output
             set flstats(label) 1
             incr argc -1
             set argv [lrange $argv 1 end]
-        } elseif {[string first $arg --catch_signal] == 0} { ; # respond to SIGNAL
+        } elseif {[string equal $arg --catch_signal]} { ; # respond to SIGNAL
             fl_catch_signal
             incr argc -1
             set argv [lrange $argv 1 end]
