@@ -20,6 +20,21 @@
 # $Id: flstats.tcl,v 1.54 1996/11/29 22:54:11 minshall Exp $
 #
 
+proc elts {string even} {
+    set a [regexp -all -inline {\S+} $string]
+    set b []
+    foreach j $a {
+        if $even {
+            lappend b $j
+        }
+        set even [expr 1 - $even]; # invert sense
+    }
+    return $b;
+}
+
+proc evenelts {string} { return [elts $string 1] }
+proc oddelts {string} { return [elts $string 0] }
+        
 # this doesn't need $pre, since the subst is performed at the caller...
 
 proc flget_summary_vec {class} {
@@ -357,7 +372,7 @@ proc fl_setup { {filename {}} {binsecs {}} {classifier {}} { flowtypes {} } } {
 
 proc usage {cmdname} {
     [format {usage: %s\
-                 [-HL]\
+                 [-DHIST]\
                  [--binsecs num]\
                  [--{classes|flows|interactive}]\
                  [--debug]\
@@ -451,10 +466,6 @@ proc fl_set_parameters {argc argv} {
             set flstats(label) 1
             incr argc -1
             set argv [lrange $argv 1 end]
-        } elseif {[string equal $arg --catch_signal]} { ; # respond to SIGNAL
-            fl_catch_signal
-            incr argc -1
-            set argv [lrange $argv 1 end]
         } elseif {[string equal $arg "--"]} {
             puts stderr [format "unknown argument %s in '%s'" [lindex $argv 0] $argv]
             error [usage $argv0]
@@ -463,16 +474,18 @@ proc fl_set_parameters {argc argv} {
             while {[string length $opts] > 0} {
                 set optchar [string range $opts 0 0]
                 if {[string equal $optchar H]} {
-                    set flstats(header) 1
+                    set flstats(header) 1; # print out column header with labels
                 } elseif {[string equal $optchar I]} {
-                    set flstats(indent) 1
+                    set flstats(indent) 1; # print reporting interval separate
                 } elseif {[string equal $optchar T]} {
-                    set flstats(tags) 1
+                    set flstats(tags) 1; # print labels of values inline
                 } elseif {[string equal $optchar D]} {
                     # 0: absolute timestamps;
                     # 1: # w/in run;
                     # 2: for flow, class: w/in reporting interval
                     incr flstats(delta);
+                } elseif {[string equal $optchar S]} { ; # respond to SIGUSR1
+                    fl_catch_signal
                 } else {
                     puts stderr [format "unknown argument %s in '%s'" optchar $argv]
                     error [usage $argv0]
@@ -494,6 +507,29 @@ proc fl_set_parameters {argc argv} {
 
     if {$argc > 0} {
         error "extra parameters at end of command line: $argv"
+    }
+
+    if {$flstats(header)} {
+        # XXX reporting intervals columns!!
+        if {$classes} {
+            puts [evenelts [fl_class_stats_format]]
+        } elseif {$flows} {
+            puts [evenelts [fl_flow_stats_format]]
+        }
+    }
+
+    if {!$flstats(tags)} {
+        if {$classes} {
+            fl_class_stats_format [oddelts [fl_class_stats_format]]
+        } elseif {$flows} {
+            fl_flow_stats_format [oddelts [fl_flow_stats_format]]
+        }
+    }
+
+    if {$flstats(indent)} {
+    }
+
+    if {$flstats(delta)} {
     }
 
     if {$eval != 0} {
@@ -544,7 +580,9 @@ proc fl_startup { argc argv } {
 set flstats(debug) 0
 set flstats(classifier) {}
 set flstats(binsecs) 0
+set flstats(delta) 0
 set flstats(header) 0
+set flstats(indent) 0
 set flstats(label) 0
 set flstats(tags) 0
 set flstats(tracefile.kind) {}
