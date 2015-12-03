@@ -86,6 +86,12 @@ proc fl_flow_details { {filename {}} {binsecs {}} {classifier {}} { flowtypes {}
 
     set binsecs $flstats(binsecs)   ; # make sure we have correct value
 
+    if {$flstats(tags)} {
+        set prefix "bin "
+    } else {
+        set prefix ""
+    }
+
     while {1} {
         set binno [fl_read_one_bin $binsecs]
         if {$binno == -1} {
@@ -93,7 +99,7 @@ proc fl_flow_details { {filename {}} {binsecs {}} {classifier {}} { flowtypes {}
         }
         fl_start_flow_enumeration
         while { [set x [fl_continue_flow_enumeration]] != ""} {
-            puts "bin $binno $x"
+            puts "$prefix$binno $x"
         }
     }
 }
@@ -106,6 +112,12 @@ proc fl_class_details { {filename {}} {binsecs {}} {classifier {}} { flowtypes {
 
     set binsecs $flstats(binsecs)
 
+    if {$flstats(tags)} {
+        set prefix "bin "
+    } else {
+        set prefix ""
+    }
+
     while {1} {
         set binno [fl_read_one_bin $binsecs]
         if {$binno == -1} {
@@ -113,7 +125,7 @@ proc fl_class_details { {filename {}} {binsecs {}} {classifier {}} { flowtypes {
         }
         fl_start_class_enumeration
         while {[set x [fl_continue_class_enumeration]] != ""} {
-            puts "bin $binno $x"
+            puts "$prefix$binno $x"
         }
     }
 }
@@ -371,7 +383,7 @@ proc fl_setup { {filename {}} {binsecs {}} {classifier {}} { flowtypes {} } } {
 }
 
 proc usage {cmdname} {
-    [format {usage: %s\
+    format {usage: %s\
                  [-DHIST]\
                  [--binsecs num]\
                  [--{classes|flows|interactive}]\
@@ -381,7 +393,7 @@ proc usage {cmdname} {
                  [--label]\
                  [--scriptfile filename]\
                  [--types flowspecifier[s]]\
-                 [filename]} cmdname]
+                 [filename]} cmdname
 }
 
 # parse command line arguments.
@@ -470,7 +482,7 @@ proc fl_set_parameters {argc argv} {
             puts stderr [format "unknown argument %s in '%s'" [lindex $argv 0] $argv]
             error [usage $argv0]
         } else {                # must be "-foo", i.e., short option(s)
-            set opts [string range [lindex argv 0] 1 end]
+            set opts [string range [lindex $argv 0] 1 end]
             while {[string length $opts] > 0} {
                 set optchar [string range $opts 0 0]
                 if {[string equal $optchar H]} {
@@ -487,7 +499,8 @@ proc fl_set_parameters {argc argv} {
                 } elseif {[string equal $optchar S]} { ; # respond to SIGUSR1
                     fl_catch_signal
                 } else {
-                    puts stderr [format "unknown argument %s in '%s'" optchar $argv]
+                    puts stderr [format "unknown argument '%s' in '%s'" \
+                                     $optchar [lindex $argv 0]]
                     error [usage $argv0]
                 }
                 set opts [string range $opts 1 end]
@@ -510,7 +523,7 @@ proc fl_set_parameters {argc argv} {
     }
 
     if {$flstats(header)} {
-        # XXX reporting intervals columns!!
+        puts -nonewline "bin "
         if {$classes} {
             puts [evenelts [fl_class_stats_format]]
         } elseif {$flows} {
