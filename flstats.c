@@ -33,25 +33,6 @@
 /*
  * output flow statistics from a tcpdump file.
  *
- * TODO:
- *	4.	Document: [simul_setup], [flow_details],
- *		[class_details], [fl_read_one_bin].  Give
- *		examples of use; warn about memory consumption.
- *  	8.  	Set atoft[] from Tcl code.  (Need to change "alltags"
- *		in [fl_setft]; or delete!)
- *  	9.  	Protohasports...
- *     12.  	Change atoft[] to allow spec of (SHIFT_RIGHT|IN_PLACE)
- *		(to decouple output base from shifting) and DOTTED as
- *		a flag; make fmt == char * ("%d", say)?
- *     16.	Change "low level" comments to general lattice.
- *     17.      make low level flows use HIGH class numbers.
- *		(flstats(maxclass), flstats(maxflow), ...) set by .c.
- *     18.	"df len" should be a flow type "df" that has, as its
- *		parent, a flow type "len".
- *     19.  	Allow a "name" to be given to a class [fl_set_class_name].  (maybe default to underlying flows' type, if only one type in the class?)
- *     20.      catch a signal (SIGINFO, C-t) as a way of terminating a bin, printing out a line.
- *     21.      option for timestamp (rather than binno) time of printing lines?
- *     22.      hosta/hostb type (sort numerically/lexicographically)
  */
 
 static char *rcsid =
@@ -607,6 +588,24 @@ char fl_tclprogram[] =
 #include "flstats.char"
 ;
 
+/* 
+ * formats for reporting flow, class statistics.  these can be read,
+ * and modified, by the scripting language
+ */
+
+static char* flow_stats_template =
+    "type %d class %d type %s id %s pkts %lu bytes "
+    "%lu sipg %lu.%06lu created %ld.%06ld last %ld.%06ld";
+static char *class_stats_template =
+    "class %ld created %lu deleted %lu added %lu removed %lu "
+    "active %lu pkts %lu bytes %lu sipg %lu.%06lu "
+    "fragpkts %lu fragbytes %lu "
+    "toosmallpkts %lu toosmallbytes %lu runtpkts %lu runtbytes %lu "
+    "noportpkts %lu noportbytes %lu lastrecv %ld.%06ld";
+
+static char *flow_stats_format, *class_stats_format;
+
+
 /*
  * signal handling
  */
@@ -643,7 +642,7 @@ tvusecs(struct timeval *tv)
  */
 
 char *
-strsave(char *s)
+strsave(const char *s)
 {
     int n = strlen(s);
     char *new;
@@ -961,9 +960,7 @@ flow_statistics(flowentry_p fe)
 {
     static char summary[2000];
 
-    sprintf(summary,
-            "type %d class %d type %s id %s pkts %lu bytes %lu sipg %lu.%06lu "
-            "created %ld.%06ld last %ld.%06ld",
+    sprintf(summary, flow_stats_format,
             fe->fe_flow_type, fe->fe_class,
             flow_type_to_string(&ftinfo[fe->fe_flow_type]),
             flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_id),
@@ -982,11 +979,7 @@ class_statistics(clstats_p clsp)
 {
     static char summary[10000];
 
-    sprintf(summary, "class %ld created %lu deleted %lu added %lu removed %lu "
-            "active %lu pkts %lu bytes %lu sipg %lu.%06lu "
-            "fragpkts %lu fragbytes %lu "
-            "toosmallpkts %lu toosmallbytes %lu runtpkts %lu runtbytes %lu "
-            "noportpkts %lu noportbytes %lu lastrecv %ld.%06ld",
+    sprintf(summary, class_stats_format,
             clsp-clstats, clsp->cls_created, clsp->cls_deleted,
             clsp->cls_added, clsp->cls_removed, clsp->cls_active,
             clsp->cls_pkts, clsp->cls_bytes,
@@ -2421,13 +2414,72 @@ fl_tcl_code(ClientData clientData, Tcl_Interp *interp,
 		int argc, const char *argv[])
 {
     if (argc != 1) {
-        Tcl_SetResult(interp, "Usage: fl_set_version", TCL_STATIC);
+        Tcl_SetResult(interp, "Usage: fl_tcl_code", TCL_STATIC);
         return TCL_ERROR;
     }
     Tcl_SetResult(interp, fl_tclprogram, TCL_STATIC);
     return TCL_OK;
 }
 
+
+static int
+fl_class_stats_format(ClientData clientData, Tcl_Interp *interp,
+                       int argc, const char *argv[])
+{
+    char *new;
+
+    switch (argc) {
+    case 2:
+        new = strsave(argv[1]);
+        if (new == 0) {
+            Tcl_SetResult(interp,
+                       "fl_class_stats_format: unable to allocate space for format",
+                       TCL_STATIC);
+            return TCL_ERROR;
+        }
+        free(class_stats_format);
+        class_stats_format = new;
+        /* fall through */
+    case 1:
+        Tcl_SetResult(interp, class_stats_format, TCL_VOLATILE);
+        break;
+    default:
+        Tcl_SetResult(interp,
+                      "Usage: fl_class_stats_format [newformat]", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    return TCL_OK;
+}
+
+
+static int
+fl_flow_stats_format(ClientData clientData, Tcl_Interp *interp,
+                       int argc, const char *argv[])
+{
+    char *new;
+
+    switch (argc) {
+    case 2:
+        new = strsave(argv[1]);
+        if (new == 0) {
+            Tcl_SetResult(interp,
+                         "fl_flow_stats_format: unable to allocate space for format",
+                         TCL_STATIC);
+            return TCL_ERROR;
+        }
+        free(flow_stats_format);
+        flow_stats_format = new;
+        /* fall through */
+    case 1:
+        Tcl_SetResult(interp, flow_stats_format, TCL_VOLATILE);
+        break;
+    default:
+        Tcl_SetResult(interp,
+                      "Usage: fl_flow_stats_format [newformat]", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    return TCL_OK;
+}
 
 
 static int
@@ -2483,12 +2535,18 @@ Tcl_AppInit(Tcl_Interp *interp)
     }
 #endif	/* 0 */
 
+    Tcl_CreateCommand(interp, "fl_catch_signal", fl_catch_signal,
+                      NULL, NULL);
+    Tcl_CreateCommand(interp, "fl_class_stats_format", 
+                      fl_class_stats_format, NULL, NULL);
     Tcl_CreateCommand(interp, "fl_class_stats", fl_class_stats,
                       NULL, NULL);
     Tcl_CreateCommand(interp, "fl_continue_class_enumeration",
                       fl_continue_class_enumeration, NULL, NULL);
     Tcl_CreateCommand(interp, "fl_continue_flow_enumeration",
                       fl_continue_flow_enumeration, NULL, NULL);
+    Tcl_CreateCommand(interp, "fl_flow_stats_format", 
+                      fl_flow_stats_format, NULL, NULL);
     Tcl_CreateCommand(interp, "fl_read_one_bin", fl_read_one_bin,
                       NULL, NULL);
     Tcl_CreateCommand(interp, "fl_set_file", fl_set_file,
@@ -2504,8 +2562,6 @@ Tcl_AppInit(Tcl_Interp *interp)
     Tcl_CreateCommand(interp, "fl_tcl_code", fl_tcl_code,
                       NULL, NULL);
     Tcl_CreateCommand(interp, "fl_version", fl_version,
-                      NULL, NULL);
-    Tcl_CreateCommand(interp, "fl_catch_signal", fl_catch_signal,
                       NULL, NULL);
 
     /* call out to Tcl to set up whatever... */
@@ -2526,6 +2582,13 @@ main(int argc, char *const argv[])
     }
 
     protohasports[6] = protohasports[17] = 1;
+    flow_stats_format = strsave(flow_stats_template);
+    class_stats_format = strsave(class_stats_template);
+    if ((flow_stats_format == 0) || (class_stats_format == 0)) {
+        fprintf(stderr,
+                "%s:%d: no room for allocating formats\n", __FILE__, __LINE__);
+        exit(1);
+    }
 
     args = Tcl_Merge(argc-1, (const char *const *)(argv+1)); /* XXX ugly cast */
     sprintf(argcount, "%d", argc-1);
