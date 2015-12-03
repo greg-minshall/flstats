@@ -355,6 +355,19 @@ proc fl_setup { {filename {}} {binsecs {}} {classifier {}} { flowtypes {} } } {
     }
 }
 
+proc usage {cmdname} {
+    [format {usage: %s\
+                 [-HL]\
+                 [--binsecs num]\
+                 [--{classes|flows|interactive}]\
+                 [--debug]\
+                 [--evaluate tclcommands]\
+                 [--kind tracefilekind]\
+                 [--label]\
+                 [--scriptfile filename]\
+                 [--types flowspecifier[s]]\
+                 [filename]} cmdname]
+}
 
 # parse command line arguments.
 proc fl_set_parameters {argc argv} {
@@ -368,7 +381,7 @@ proc fl_set_parameters {argc argv} {
 
     set arg [lindex $argv 0]
     while {$argc && ([string length $arg] > 1) &&
-           ([string range $arg 0 1] == "--")} {
+           ([string range $arg 0 0] == "-")} {
         if {[string equal $arg --kind]} { ; # trace file kind
             if {$argc < 2} {
                 error "not enough arguments for --kind in $argv\nlooking for\
@@ -442,20 +455,32 @@ proc fl_set_parameters {argc argv} {
             fl_catch_signal
             incr argc -1
             set argv [lrange $argv 1 end]
-        } else {
-            puts -nonewline stderr \
-                [format "unknown argument %s in '%s'\nusage: %s" \
-                     [lindex $argv 0] $argv $argv0]
-            error [format {\
-                               [--binsecs num]\
-                               [--{classes|flows|interactive}]\
-                               [--debug]\
-                               [--evaluate tclcommands]\
-                               [--kind tracefilekind]\
-                               [--label]\
-                               [--scriptfile filename]\
-                               [--types flowspecifier[s]]\
-                               [filename]}]
+        } elseif {[string equal $arg "--"]} {
+            puts stderr [format "unknown argument %s in '%s'" [lindex $argv 0] $argv]
+            error [usage $argv0]
+        } else {                # must be "-foo", i.e., short option(s)
+            set opts [string range [lindex argv 0] 1 end]
+            while {[string length $opts] > 0} {
+                set optchar [string range $opts 0 0]
+                if {[string equal $optchar H]} {
+                    set flstats(header) 1
+                } elseif {[string equal $optchar I]} {
+                    set flstats(indent) 1
+                } elseif {[string equal $optchar T]} {
+                    set flstats(tags) 1
+                } elseif {[string equal $optchar D]} {
+                    # 0: absolute timestamps;
+                    # 1: # w/in run;
+                    # 2: for flow, class: w/in reporting interval
+                    incr flstats(delta);
+                } else {
+                    puts stderr [format "unknown argument %s in '%s'" optchar $argv]
+                    error [usage $argv0]
+                }
+                set opts [string range $opts 1 end]
+            }
+            incr argc -1
+            set argv [lrange $argv 1 end]
         }
         set arg [lindex $argv 0]
     }
@@ -517,9 +542,11 @@ proc fl_startup { argc argv } {
 
 # set some defaults...
 set flstats(debug) 0
-set flstats(label) 0
 set flstats(classifier) {}
 set flstats(binsecs) 0
+set flstats(header) 0
+set flstats(label) 0
+set flstats(tags) 0
 set flstats(tracefile.kind) {}
 set flstats(tracefile.filename) "-"     ; # from standard in...
 # default flowtypes...
