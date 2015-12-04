@@ -2099,7 +2099,7 @@ fl_version(ClientData clientData, Tcl_Interp *interp,
         Tcl_SetResult(interp, "Usage: fl_set_version", TCL_STATIC);
         return TCL_ERROR;
     }
-    Tcl_SetResult(interp, rcsid, TCL_STATIC);
+    Tcl_SetResult(interp, flstats_c_rcsid, TCL_STATIC);
     return TCL_OK;
 }
 
