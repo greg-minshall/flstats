@@ -423,6 +423,45 @@ struct fix24pkt {
 
 #define	FIX24_PACKET_SIZE   24
 
+#if !defined(FDDIFC_LLC_ASYNC)
+/*
+ * if we can't find any FDDI header files...
+ */     
+        
+struct fddi_header {
+    u_char  fddi_fc; 
+    u_char  fddi_dhost[6];              /* destination */
+    u_char  fddi_shost[6];              /* source */
+};      
+
+#define FDDIFC_LLC_ASYNC    0x50
+#endif  /* !defined(FDDIFC_LLC_ASYNC) */
+ 
+#if !defined(FDDIFC_CLFF)
+#define FDDIFC_CLFF         0xf0        /* length/class/format bits */
+#endif /* !defined(FDDIFC_CLFF) */
+
+            
+#if !defined(LLC_UI)
+/*              
+ * if we can't find LLC header files...
+ *                  
+ * (this is a very minimal LLC header, sufficient only for our
+ * limited needs.)
+ */
+
+struct llc {
+    u_char  llc_dsap;                   /* source SAP (service access point) */
+    u_char  llc_ssap;                   /* destination SAP */
+    u_char  llc_control;                /* control byte (in some frames) */
+};
+
+#define LLC_UI          0x03            /* this is an unnumbered info frame */
+#define LLC_SNAP_LSAP   0xaa            /* SNAP SAP */
+#endif /* !defined(LLC_UI) */
+
+
+
 /*
  *
  * Redistribution and use in source and binary forms, with or without
