@@ -11,8 +11,7 @@
  *
  */
 
-static char *rcsid =
-	"$Id$";
+static char *rcsid = "$Id$";
 
 
 /* global preprocessor defines */
