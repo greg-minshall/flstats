@@ -53,6 +53,10 @@ static char *flstats_h_rcsid = "$Id$";
 		(((now)->tv_sec-(then)->tv_sec) -\
 			((now)->tv_usec < (then)->tv_usec ? 1 : 0))
 
+#define	TIMEDIFFUSECS(now,then) \
+		(((now)->tv_usec-(then)->tv_usec) +\
+			((now)->tv_usec < (then)->tv_usec ? 1000000 : 0))
+
 #define	NOW_AS_BINNO() (binsecs == 0 ? signalled : \
 		(TIMEDIFFSECS(&curtime, &starttime)/binsecs))
 

@@ -65,24 +65,26 @@ struct timeval ZERO = { 0, 0 };
  *
  * (BOT == beginning of trace run; RI == reporting interval)
  *
- * absolute: absolute time (seconds.usecs since epoch)
- * bot_relative: BOT relative time (seconds.usecs since BOT)
- * ri_relative: RI relative time (seconds.usecs within RI)
+ * absolute: absolute time (secs.usecs since epoch)
+ * within_tr: BOT relative time (secs.usecs since BOT)
+ * within_ri: RI relative time (secs.usecs within RI)
  *
- * (note that "ri_relative" does *not* make sense for reporting the
+ * (note that "within_ri" does *not* make sense for reporting the
  * start time of the RI itself; delta_ri.delta can *only* be
- * 'absolute' or 'bot_relative')
+ * 'absolute' or 'within_tr')
  *
- * then, seconds.usecs?  or, just seconds?
+ * then, secs.usecs?  or, just secs?
  */
 
-typedef enum { absolute, bot_relative, ri_relative, invalid } delta_t;
-typedef enum { seconds, usecs, invalid_usecs } delta_usecs_t;
+typedef enum { absolute, within_tr, within_ri, invalid } delta_t;
+typedef enum { secs, usecs, invalid_usecs } usecs_t;
 
-struct {
+typedef struct {
     delta_t delta;
-    delta_usecs_t usecs;
-} delta_wi, delta_ri;           /* "within ri", "reporting interval itself" */
+    usecs_t usecs;
+} time_how_t, *time_how_p;
+
+time_how_t th_wi, th_ri; /* "within ri", "reporting interval itself" */
 
 
 int binsecs = 0;		/* number of seconds in a bin */
@@ -169,24 +171,82 @@ static void delete_flow(flowentry_p fe);
  */
 
 static long
-tvusecs(struct timeval *tv)
+tvusecs(suseconds_t su_usecs)
 {
-    long usecs = tv->tv_usec;
+    long usecs = su_usecs;
 
     return usecs;
 }
 
     
+/*
+ * return the correct secs (based on delta_wi) for a timeval
+ */
 
 static long
-dtsecs(struct timeval tv) {
-    return tv.tv_sec;
+dtsecs(struct timeval *tv, time_how_t th)
+{
+    switch (th.delta) {
+    case absolute:
+        return tv->tv_sec;
+    case within_tr:
+        return TIMEDIFFSECS(tv, &starttime);
+    case within_ri:
+        return TIMEDIFFSECS(tv, &ri_starttime);
+    default:
+        fprintf(stderr, "%s:%d: delta parameter, invalid value\n",
+                __FILE__, __LINE__);
+        exit(1);
+        /*NOTREACHED*/
+    }
+}
+
+/*
+ * return the correct usecs (based on delta_wi) for a timeval
+ */
+
+static long
+dtusecs(struct timeval *tv, time_how_t th) {
+    switch (th.delta) {
+    case absolute:
+        return tvusecs(tv->tv_usec);
+    case within_tr:
+        return tvusecs(TIMEDIFFUSECS(tv, &starttime));
+    case within_ri:
+        return tvusecs(TIMEDIFFUSECS(tv, &ri_starttime));
+    default:
+        fprintf(stderr, "%s:%d: delta parameter, invalid value\n",
+                __FILE__, __LINE__);
+        exit(1);
+        /*NOTREACHED*/
+    }
+}
+
+
+static long
+dtsecs_wi(struct timeval *tv)
+{
+    return dtsecs(tv, th_wi);
 }
 
 static long
-dtusecs(struct timeval tv) {
-    return tvusecs(&tv);
+dtsecs_ri(struct timeval *tv)
+{
+    return dtsecs(tv, th_ri);
 }
+
+static long
+dtusecs_wi(struct timeval *tv)
+{
+    return dtusecs(tv, th_wi);
+}
+
+static long
+dtusecs_ri(struct timeval *tv)
+{
+    return dtusecs(tv, th_ri);
+}
+
 
 
 /*
@@ -529,8 +589,8 @@ flow_statistics(flowentry_p fe)
             flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_id),
             fe->fe_pkts-fe->fe_pkts_last_enum, fe->fe_bytes-fe->fe_bytes_last_enum,
             SIPG_TO_SECS(fe->fe_sipg), SIPG_TO_USECS(fe->fe_sipg),
-            dtsecs(fe->fe_created), dtusecs(fe->fe_created),
-            dtsecs(fe->fe_last_pkt_rcvd), dtusecs(fe->fe_last_pkt_rcvd));
+            dtsecs_ri(&fe->fe_created), dtusecs_ri(&fe->fe_created),
+            dtsecs_ri(&fe->fe_last_pkt_rcvd), dtusecs_ri(&fe->fe_last_pkt_rcvd));
 
     return summary;
 }
@@ -557,8 +617,8 @@ class_statistics(clstats_p clsp)
             clsp->cls_fragpkts,
             clsp->cls_fragbytes, clsp->cls_toosmallpkts, clsp->cls_toosmallbytes,
             clsp->cls_runtpkts, clsp->cls_runtbytes, clsp->cls_noportpkts,
-            clsp->cls_noportbytes, dtsecs(clsp->cls_last_pkt_rcvd),
-            dtusecs(clsp->cls_last_pkt_rcvd));
+            clsp->cls_noportbytes, dtsecs_ri(&clsp->cls_last_pkt_rcvd),
+            dtusecs_ri(&clsp->cls_last_pkt_rcvd));
 
     return summary;
 }
@@ -636,7 +696,7 @@ do_timers(Tcl_Interp *interp)
              *
              * XXX should this follow -D flag?
              */
-            sprintf(buf, " %ld.%06ld ", curtime.tv_sec, tvusecs(&curtime));
+            sprintf(buf, " %ld.%06ld ", curtime.tv_sec, tvusecs(curtime.tv_usec));
             if (Tcl_VarEval(interp,
                             ftinfo[fe->fe_flow_type].fti_timer_upcall, buf,
                             " FLOW ", flow_statistics(fe), 0) != TCL_OK) {
@@ -2084,20 +2144,20 @@ delta_decode(const char *string)
 {
     if (!strcasecmp(string, "absolute")) {
         return absolute;
-    } else if (!strcasecmp(string, "bot_relative")) {
-        return bot_relative;
-    } else if (!strcasecmp(string, "ri_relative")) {
-        return ri_relative;
+    } else if (!strcasecmp(string, "within_tr")) {
+        return within_tr;
+    } else if (!strcasecmp(string, "within_ri")) {
+        return within_ri;
     } else {
         return invalid;
     }
 }
 
-static delta_usecs_t
+static usecs_t
 delta_usecs_decode(const char *string)
 {
-    if (!strcasecmp(string, "seconds")) {
-        return seconds;
+    if (!strcasecmp(string, "secs")) {
+        return secs;
     } else if (!strcasecmp(string, "usecs")) {
         return usecs;
     } else {
@@ -2107,17 +2167,18 @@ delta_usecs_decode(const char *string)
 
         
 static int
-fl_delta_time(ClientData clientData, Tcl_Interp *interp,
+fl_time_format(ClientData clientData, Tcl_Interp *interp,
               int argc, const char *argv[])
 {
     static char usage[] =
-        "Usage: fl_delta_time {absolute|bot_relative_ri_relative} {seconds|usecs} "
-        "{absolute|bot_relative} {seconds|usecs}";
+        "Usage: fl_time_format {absolute|within_tr_within_ri} {secs|usecs} "
+        "{absolute|within_tr} {secs|usecs}";
     char *asret;
     delta_t l_delta_wi, l_delta_ri;
-    delta_usecs_t l_usecs_wi, l_usecs_ri;
+    usecs_t l_usecs_wi, l_usecs_ri;
     
     if (argc != 5) {
+        /* XXX return current settings... */
         Tcl_SetResult(interp, usage, TCL_STATIC);
         return TCL_ERROR;
     }
@@ -2139,7 +2200,7 @@ fl_delta_time(ClientData clientData, Tcl_Interp *interp,
         Tcl_SetResult(interp, asret, tclasfree);
         return TCL_ERROR;
     }
-    if ((l_delta_ri == invalid) || (l_delta_ri == ri_relative)) {
+    if ((l_delta_ri == invalid) || (l_delta_ri == within_ri)) {
         asprintf(&asret,
                  "invalid \"reporting interval\" delta parameter: %s.\n%s\n",
                  argv[3], usage);
@@ -2154,10 +2215,10 @@ fl_delta_time(ClientData clientData, Tcl_Interp *interp,
         return TCL_ERROR;
     }
 
-    delta_wi.delta = l_delta_wi;
-    delta_wi.usecs = l_usecs_wi;
-    delta_ri.delta = l_delta_ri;
-    delta_ri.usecs = l_usecs_ri;
+    th_wi.delta = l_delta_wi;
+    th_wi.usecs = l_usecs_wi;
+    th_ri.delta = l_delta_ri;
+    th_ri.usecs = l_usecs_ri;
     
     return TCL_OK;
 }
@@ -2201,7 +2262,7 @@ Tcl_AppInit(Tcl_Interp *interp)
                       fl_continue_class_enumeration, NULL, NULL);
     Tcl_CreateCommand(interp, "fl_continue_flow_enumeration",
                       fl_continue_flow_enumeration, NULL, NULL);
-    Tcl_CreateCommand(interp, "fl_delta_time", fl_delta_time,
+    Tcl_CreateCommand(interp, "fl_time_format", fl_time_format,
                       NULL, NULL);
     Tcl_CreateCommand(interp, "fl_flow_stats_format", 
                       fl_flow_stats_format, NULL, NULL);
@@ -2242,6 +2303,8 @@ main(int argc, char *const argv[])
     protohasports[6] = protohasports[17] = 1;
     flow_stats_format = strsave(flow_stats_template);
     class_stats_format = strsave(class_stats_template);
+    th_wi.delta = th_ri.delta = absolute;
+    th_wi.usecs = th_ri.usecs = usecs;
     if ((flow_stats_format == 0) || (class_stats_format == 0)) {
         fprintf(stderr,
                 "%s:%d: no room for allocating formats\n", __FILE__, __LINE__);

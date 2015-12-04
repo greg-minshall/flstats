@@ -1,7 +1,7 @@
 #
 # Tcl script as part of flstats
 #
-# $Id: flstats.tcl,v 1.54 1996/11/29 22:54:11 minshall Exp $
+# $Id$
 #
 #
 
@@ -17,7 +17,7 @@
 #
 # Tcl script portion of flstats
 #
-# $Id: flstats.tcl,v 1.54 1996/11/29 22:54:11 minshall Exp $
+# $Id$
 #
 
 proc elts {string even} {
@@ -384,22 +384,24 @@ proc fl_setup { {filename {}} {binsecs {}} {classifier {}} { flowtypes {} } } {
 
 proc usage {cmdname} {
     format {usage: %s\
-                 [-DHIST]\
-                 [--binsecs num]\
-                 [--{classes|flows|interactive}]\
-                 [--debug]\
-                 [--evaluate tclcommands]\
-                 [--kind tracefilekind]\
-                 [--label]\
-                 [--scriptfile filename]\
-                 [--types flowspecifier[s]]\
-                 [filename]} cmdname
+                [-HIST]\
+                [--binsecs num]\
+                [--{classes|flows|interactive}]\
+                [--debug]\
+                [--evaluate tclcommands]\
+                [--kind tracefilekind]\
+                [--label]\
+                [--scriptfile filename]\
+                [--timeformat formatspec] \
+                [--types flowspecifier[s]]\
+                [filename]} cmdname
 }
 
 # parse command line arguments.
 proc fl_set_parameters {argc argv} {
     global argv0
     global flstats
+    global tfmt
     set classes 0
     set flows 0
     set interactive 0
@@ -436,7 +438,7 @@ proc fl_set_parameters {argc argv} {
         } elseif {[string equal $arg --evaluate]} { ; # execute tcl script
             if {$argc < 2} {
                 error "not enough arguments for --evaluate in $argv\nlooking \
-                for '--evaluate tclcommands'"
+                       for '--evaluate tclcommands'"
             }
             set eval [lindex $argv 1]
             incr argc -2
@@ -444,9 +446,39 @@ proc fl_set_parameters {argc argv} {
         } elseif {[string equal $arg --scriptfile]} { ; # exec from file
             if {$argc < 2} {
                 error "not enough arguments for --scriptfile in $argv\nlooking \
-                for '--scriptfile tclscriptfile'"
+                       for '--scriptfile tclscriptfile'"
             }
             set scriptfile [lindex $argv 1]
+            incr argc -2
+            set argv [lrange $argv 2 end]
+        } elseif {[string equal $arg --timeformat]} { ; # format for time
+            # can be a shorthand, i.e., 4 characters
+            # "[abr][su][ab][su]"
+            # or a full spec:
+            # "{absolute|within_tr|within_ri} {secs|usecs}"
+            # "{absolute|within_tr}           {secs|usecs}"
+            #
+            # in the latter case, commas (','), along with spaces,
+            # will be considered separator characters, so one can
+            # specify like this:
+            # --timeformat "within_ri,usecs,within_tr,secs"
+            if {$argc < 2} {
+                error "not enough arguments for --timeformat in $argv\nlooking \
+                       for '--timeformat <format>'"
+            }
+            set spec [lindex $argv 1]
+            if {[string length $spec] == 4} { ; # shorthand
+                if {![string match {[Ttr][su][Tt][su]} $spec]} {
+                    error "invalid shorthand for --timeformat in $spec\nlooking \
+                           a string that matches \[Ttr\]\[su\]\[Tt\]\[su\].\n"
+                }
+                fl_time_format $tfmt([string index $spec 0]) \
+                               $tfmt([string index $spec 1]) \
+                               $tfmt([string index $spec 2]) \
+                               $tfmt([string index $spec 3])
+            } else {
+                fl_time_format [split $spec {[ ,]}];
+            }
             incr argc -2
             set argv [lrange $argv 2 end]
         } elseif {[string equal $arg --interactive]} { ; # interactive
@@ -491,11 +523,6 @@ proc fl_set_parameters {argc argv} {
                     set flstats(indent) 1; # print reporting interval separate
                 } elseif {[string equal $optchar T]} {
                     set flstats(tags) 1; # print labels of values inline
-                } elseif {[string equal $optchar D]} {
-                    # 0: absolute timestamps;
-                    # 1: # w/in run;
-                    # 2: for flow, class: w/in reporting interval
-                    incr flstats(delta);
                 } elseif {[string equal $optchar S]} { ; # respond to SIGUSR1
                     fl_catch_signal
                 } else {
@@ -521,7 +548,7 @@ proc fl_set_parameters {argc argv} {
     if {$argc > 0} {
         error "extra parameters at end of command line: $argv"
     }
-
+    
     if {$flstats(header)} {
         puts -nonewline "bin "
         if {$classes} {
@@ -540,9 +567,6 @@ proc fl_set_parameters {argc argv} {
     }
 
     if {$flstats(indent)} {
-    }
-
-    if {$flstats(delta)} {
     }
 
     if {$eval != 0} {
@@ -589,11 +613,17 @@ proc fl_startup { argc argv } {
     }
 }
 
+# decoding help for --timeformat
+set tfmt(T) absolute
+set tfmt(t) within_tr
+set tfmt(r) within_ri
+set tfmt(s) secs;               # could use separate variable, but ...
+set tfmt(u) usecs
+
 # set some defaults...
 set flstats(debug) 0
 set flstats(classifier) {}
 set flstats(binsecs) 0
-set flstats(delta) 0
 set flstats(header) 0
 set flstats(indent) 0
 set flstats(label) 0
