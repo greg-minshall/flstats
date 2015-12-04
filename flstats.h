@@ -11,7 +11,7 @@
  *
  */
 
-static char *rcsid = "$Id$";
+static char *flstats_h_rcsid = "$Id$";
 
 
 /* global preprocessor defines */
