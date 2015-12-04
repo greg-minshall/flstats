@@ -627,9 +627,10 @@ class_statistics(clstats_p clsp)
 }
 
 static char *ri_stats_template =
-    "binno %lu ri_stime %ld.%06ld ri_etime %ld.%06ld "
-    "ri_fptime %ld.%06ld ri_lptime %ld.%06ld ri_npkts %lu "
-    "ri_nbytes %lu ri_isipg %lu.%06lu",
+    "binno %lu ri_start %ld.%06ld ri_end %ld.%06ld "
+    "ri_firstpkt %ld.%06ld ri_lastpkt %ld.%06ld "
+    "ri_pkts %lu ri_bytes %lu "
+    "ri_tsipg %lu.%06lu ri_isipg %lu.%06lu",
     *ri_stats_format;
 
 static char *
@@ -643,7 +644,8 @@ ri_statistics() {
              dtsecs_wi(&ri.ri_first_pkt_rcvd), dtusecs_wi(&ri.ri_first_pkt_rcvd),
              dtsecs_wi(&ri.ri_last_pkt_rcvd), dtusecs_wi(&ri.ri_last_pkt_rcvd),
              ri.ri_pkts, ri.ri_bytes,
-             SIPG_TO_SECS(ri.ri_sipg), SIPG_TO_USECS(ri.ri_sipg));
+             SIPG_TO_SECS(ri.ri_isipg), SIPG_TO_USECS(ri.ri_isipg),
+             SIPG_TO_SECS(ri.ri_tsipg), SIPG_TO_USECS(ri.ri_tsipg));
     return asret;
 }
 
@@ -1010,6 +1012,12 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int class)
 }
 
 
+/*
+ * smoothed IPG (exponentially weighted moving average)
+ *
+ * sipg is expressed in units of 8 microseconds (usecs)
+ */
+
 static u_long
 sipg_update(u_long cur_sipg, struct timeval *last_pkt)
 {
@@ -1177,6 +1185,8 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
         ri.ri_first_pkt_rcvd = curtime;
     }
     ri.ri_last_pkt_rcvd = curtime;
+    ri.ri_isipg = sipg_update(ri.ri_isipg, &ri.ri_last_pkt_rcvd);
+    ri.ri_tsipg = sipg_update(ri.ri_tsipg, &ri.ri_last_pkt_rcvd);
 
     /* now, do the low level classification into a llft */
     pktprotohasports = protohasports[packet[9]];
@@ -2170,6 +2180,37 @@ fl_flow_stats_format(ClientData clientData, Tcl_Interp *interp,
 }
 
 
+
+static int
+fl_ri_stats_format(ClientData clientData, Tcl_Interp *interp,
+                       int argc, const char *argv[])
+{
+    char *new;
+
+    switch (argc) {
+    case 2:
+        new = strsave(argv[1]);
+        if (new == 0) {
+            Tcl_SetResult(interp,
+                         "fl_ri_stats_format: unable to allocate space for format",
+                         TCL_STATIC);
+            return TCL_ERROR;
+        }
+        free(ri_stats_format);
+        ri_stats_format = new;
+        /* fall through */
+    case 1:
+        Tcl_SetResult(interp, ri_stats_format, TCL_VOLATILE);
+        break;
+    default:
+        Tcl_SetResult(interp,
+                      "Usage: fl_ri_stats_format [newformat]", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    return TCL_OK;
+}
+
+
 static int
 fl_catch_signal(ClientData clientData, Tcl_Interp *interp,
 		int argc, const char *argv[])
@@ -2323,6 +2364,8 @@ Tcl_AppInit(Tcl_Interp *interp)
                       fl_flow_stats_format, NULL, NULL);
     Tcl_CreateCommand(interp, "fl_read_one_bin", fl_read_one_bin,
                       NULL, NULL);
+    Tcl_CreateCommand(interp, "fl_ri_stats_format", 
+                      fl_ri_stats_format, NULL, NULL);
     Tcl_CreateCommand(interp, "fl_set_file", fl_set_file,
                       NULL, NULL);
     Tcl_CreateCommand(interp, "fl_set_flow_type", fl_set_flow_type,
@@ -2343,7 +2386,9 @@ Tcl_AppInit(Tcl_Interp *interp)
         return TCL_ERROR;
     }
 
-    return Tcl_VarEval(interp, "fl_startup ", argcount, " { ", args, " }", (char *) NULL);
+    return Tcl_VarEval(interp, "fl_startup ",
+                       argcount, " { ",
+                       args, " }", (char *) NULL);
 }
 
 int
@@ -2358,6 +2403,7 @@ main(int argc, char *const argv[])
     protohasports[6] = protohasports[17] = 1;
     flow_stats_format = strsave(flow_stats_template);
     class_stats_format = strsave(class_stats_template);
+    ri_stats_format = strsave(ri_stats_template);
     th_wi.delta = th_ri.delta = absolute;
     th_wi.usecs = th_ri.usecs = usecs;
     if ((flow_stats_format == 0) || (class_stats_format == 0)) {

@@ -82,8 +82,11 @@ proc flll_delete {time FLOW args} {
 }
 
 
-proc fl_flow_details { {filename {}} {binsecs {}} {classifier {}} { flowtypes {} }} {
+proc fl_star_details { star {filename {}} {binsecs {}} \
+                           {classifier {}} { flowtypes {} }} {
     global flstats
+
+    set didrisats 0
 
     fl_setup $filename $binsecs $classifier $flowtypes
 
@@ -94,31 +97,27 @@ proc fl_flow_details { {filename {}} {binsecs {}} {classifier {}} { flowtypes {}
         if {$ristats == ""} {
             break;  # eof
         }
-        fl_start_flow_enumeration
-        while { [set x [fl_continue_flow_enumeration]] != ""} {
-            puts "$ristats $x"
+        if {$flstats(indent)} {
+            puts $ristats
+            set prefix $flstats(indentation);
+        } else {
+            set prefix $ristats
+        }
+        fl_start_${star}_enumeration
+        while { [set x [fl_continue_${star}_enumeration]] != ""} {
+            puts "$prefix$x"
         }
     }
 }
 
 
+proc fl_flow_details { {filename {}} {binsecs {}} {classifier {}} { flowtypes {} }} {
+    fl_star_details flow $filename $binsecs $classifier $flowtypes
+}
+
+
 proc fl_class_details { {filename {}} {binsecs {}} {classifier {}} { flowtypes {} }} {
-    global flstats
-
-    fl_setup $filename $binsecs $classifier $flowtypes
-
-    set binsecs $flstats(binsecs)
-
-    while {1} {
-        set ristats [fl_read_one_bin $binsecs]
-        if {$ristats == ""} {
-            break   ; # eof
-        }
-        fl_start_class_enumeration
-        while {[set x [fl_continue_class_enumeration]] != ""} {
-            puts "$ristats $x"
-        }
-    }
+    fl_star_details class $filename $binsecs $classifier $flowtypes
 }
 
 ######################
@@ -541,7 +540,13 @@ proc fl_set_parameters {argc argv} {
     }
     
     if {$flstats(header)} {
-        puts -nonewline "bin "
+        puts -nonewline [evenelts [fl_ri_stats_format]]
+        if {$flstats(indent)} {
+            puts ""
+            puts -nonewline $flstats(indentation)
+        } else {
+            puts -nonewline " "
+        }
         if {$classes} {
             puts [evenelts [fl_class_stats_format]]
         } elseif {$flows} {
@@ -622,6 +627,7 @@ set flstats(label) 0
 set flstats(tags) 0
 set flstats(tracefile.kind) {}
 set flstats(tracefile.filename) "-"     ; # from standard in...
+set flstats(indentation) "    ";          # XXX make configurable?
 # default flowtypes...
 set flstats(flowtypes) { \
     ihv/ihl/tos/ttl/prot/src/dst ihv/ihl/tos/ttl/prot/src/dst/sport/dport \

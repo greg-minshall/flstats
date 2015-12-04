@@ -105,13 +105,13 @@ struct flowentry {
     /* (0xffffffff ==> ignore sipg) */
     /* (0 ==> never call out) */
     struct timeval
-	    fe_created,		/* time created */
-        fe_last_pkt_rcvd,	/* time most recent packet seen */
+	    fe_created,             /* time created */
+        fe_last_pkt_rcvd,       /* time most recent packet seen */
         fe_upcall_when_secs_ge,	/* recv_upcall won't run till this time */
         fe_timer_time;	    	/* time to run timer routine */
     /* fields for hashing */
-    u_short fe_sum;		/* hash of id, speeds up searching */
-    u_char  fe_id_len;		/* length of id */
+    u_short fe_sum;             /* hash of id, speeds up searching */
+    u_char  fe_id_len;          /* length of id */
     flowentry_p
         fe_next_in_bucket,
 	    fe_prev_in_bucket,
@@ -119,7 +119,7 @@ struct flowentry {
 	    fe_prev_in_table,
 	    fe_next_in_timer,
 	    fe_prev_in_timer;
-    u_char  fe_id[1];		/* variable sized (KEEP AT END!) */
+    u_char  fe_id[1];           /* variable sized (KEEP AT END!) */
 };
 
 /*
@@ -157,6 +157,23 @@ typedef struct clstats {
     struct timeval
         cls_last_pkt_rcvd;		/* time last packet received in class */
 } clstats_t, *clstats_p;
+
+
+/*
+ * reporting interval structure
+ *
+ * only one, but defining for ease of use
+ */
+
+typedef struct ri {
+    u_long ri_pkts,           /* number of packets received this ri */
+        ri_bytes,             /* number of bytes seen this ri */
+        ri_isipg,             /* smoothed ipg (w/in this ri) */
+        ri_tsipg;             /* smoothed ipg (w/in trace) */
+    struct timeval ri_starttime, /* time this ri started */
+        ri_first_pkt_rcvd,    /* time first packet received this ri */
+        ri_last_pkt_rcvd;     /* time last packet received this ri */
+} ri_t, *ri_p;
 
 
 
