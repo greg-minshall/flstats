@@ -18,7 +18,8 @@ static char *flstats_c_rcsid =
 #define _GNU_SOURCE		/* needed for asprintf(3) */
 
 #if defined(HAVE_ERRNO_H)
-#include <errno.h> /* http://blog.nirkabel.org/2009/01/18/errnoh-problem/comment-page-1/ */
+/* http://blog.nirkabel.org/2009/01/18/errnoh-problem/comment-page-1/ */
+#include <errno.h>
 #endif /* defined(HAVE_ERRNO_H) */
 #include <signal.h>
 #if !defined(HAVE_ASPRINTF)
@@ -56,9 +57,11 @@ flowentry_p table;			/* list of everything */
 flowentry_p table_last;			/* last of everything */
 flowentry_p flow_enum_state;
 
-struct timeval curtime, ri_starttime, starttime;
+struct timeval curtime, starttime;
 
 struct timeval ZERO = { 0, 0 };
+
+ri_t ri;                        /* reporting interval structure */
 
 /*
  * delta time reporting:
@@ -192,7 +195,7 @@ dtsecs(struct timeval *tv, time_how_t th)
     case within_tr:
         return TIMEDIFFSECS(tv, &starttime);
     case within_ri:
-        return TIMEDIFFSECS(tv, &ri_starttime);
+        return TIMEDIFFSECS(tv, &ri.ri_starttime);
     default:
         fprintf(stderr, "%s:%d: delta parameter, invalid value\n",
                 __FILE__, __LINE__);
@@ -213,7 +216,7 @@ dtusecs(struct timeval *tv, time_how_t th) {
     case within_tr:
         return tvusecs(TIMEDIFFUSECS(tv, &starttime));
     case within_ri:
-        return tvusecs(TIMEDIFFUSECS(tv, &ri_starttime));
+        return tvusecs(TIMEDIFFUSECS(tv, &ri.ri_starttime));
     default:
         fprintf(stderr, "%s:%d: delta parameter, invalid value\n",
                 __FILE__, __LINE__);
@@ -623,6 +626,28 @@ class_statistics(clstats_p clsp)
     return summary;
 }
 
+static char *ri_stats_template =
+    "binno %lu ri_stime %ld.%06ld ri_etime %ld.%06ld "
+    "ri_fptime %ld.%06ld ri_lptime %ld.%06ld ri_npkts %lu "
+    "ri_nbytes %lu ri_isipg %lu.%06lu",
+    *ri_stats_format;
+
+static char *
+ri_statistics() {
+    char *asret;
+
+    asprintf(&asret, ri_stats_format,
+             binno,
+             dtsecs_ri(&ri.ri_starttime), dtusecs_ri(&ri.ri_starttime),
+             dtsecs_wi(&curtime), dtusecs_wi(&curtime),
+             dtsecs_wi(&ri.ri_first_pkt_rcvd), dtusecs_wi(&ri.ri_first_pkt_rcvd),
+             dtsecs_wi(&ri.ri_last_pkt_rcvd), dtusecs_wi(&ri.ri_last_pkt_rcvd),
+             ri.ri_pkts, ri.ri_bytes,
+             SIPG_TO_SECS(ri.ri_sipg), SIPG_TO_USECS(ri.ri_sipg));
+    return asret;
+}
+
+
 
 /*
  * arrange for something to run shortly after "timertime"
@@ -736,17 +761,20 @@ set_time(Tcl_Interp *interp, long sec, long usec)
     if (TIME_LT(&now, &ZERO)) {
         asprintf(&asret,
                  "[%s] bad trace file format -- negative time in packet",
+
                 pktloc());
         Tcl_SetResult(interp, asret, tclasfree);
         packet_error = TCL_ERROR;
         return;
     }
 
-    if ((starttime.tv_sec == ZERO.tv_sec) && 
-        (starttime.tv_usec == ZERO.tv_usec)) {
-        starttime.tv_sec = now.tv_sec;
-        starttime.tv_usec = now.tv_usec;
-        curtime = starttime;
+    if (TIME_EQ(&ri.ri_starttime, &ZERO)) {
+        ri.ri_starttime = now;
+    }
+
+    if (TIME_EQ(&starttime, &ZERO)) {
+        starttime = now;
+        curtime = now;
     } else {
         if (TIME_LT(&now, &curtime)) {
 #if	0
@@ -767,6 +795,9 @@ set_time(Tcl_Interp *interp, long sec, long usec)
             curtime.tv_sec++;		/* advance the time */
         }
         curtime.tv_usec = now.tv_usec;
+        if (TIME_EQ(&ri.ri_starttime, &ZERO)) {
+            ri.ri_starttime = curtime;
+        }
     }
     if (binno == -1) {
         binno = NOW_AS_BINNO();
@@ -979,6 +1010,23 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int class)
 }
 
 
+static u_long
+sipg_update(u_long cur_sipg, struct timeval *last_pkt)
+{
+    u_long sipg;
+
+    if (TIME_EQ(last_pkt, &ZERO)) {
+        return cur_sipg;
+    }
+
+    sipg  = (curtime.tv_sec - last_pkt->tv_sec)*1000000UL;
+    sipg += (curtime.tv_usec - last_pkt->tv_usec);
+    /* two lines from VJ '88 SIGCOMM */
+    sipg -= (cur_sipg>>3);
+    return cur_sipg + sipg;
+}
+
+
 /*
  * do per flow processing of a packet that has been received.
  *
@@ -999,24 +1047,14 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
     cl->cls_pkts++;
     cl->cls_bytes += len;
     if (cl->cls_last_pkt_rcvd.tv_sec) {		/* sipg */
-        register u_long ipg;
-        ipg = (curtime.tv_sec-cl->cls_last_pkt_rcvd.tv_sec)*1000000UL;
-        ipg += (curtime.tv_usec - cl->cls_last_pkt_rcvd.tv_usec);
-        /* two lines from VJ '88 SIGCOMM */
-        ipg -= (cl->cls_sipg>>3);
-        cl->cls_sipg += ipg;
+        cl->cls_sipg = sipg_update(cl->cls_sipg, &cl->cls_last_pkt_rcvd);
     }
     cl->cls_last_pkt_rcvd = curtime;
 
     fe->fe_pkts++;
     fe->fe_bytes += len;
     if (fe->fe_last_pkt_rcvd.tv_sec) {		/* sipg */
-        register u_long ipg;
-        ipg = (curtime.tv_sec-fe->fe_last_pkt_rcvd.tv_sec)*1000000UL;
-        ipg += (curtime.tv_usec - fe->fe_last_pkt_rcvd.tv_usec);
-        /* two lines from VJ '88 SIGCOMM */
-        ipg -= (fe->fe_sipg>>3);
-        fe->fe_sipg += ipg;
+        fe->fe_sipg = sipg_update(fe->fe_sipg, &fe->fe_last_pkt_rcvd);
     }
     fe->fe_last_pkt_rcvd = curtime;
 
@@ -1133,6 +1171,12 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
     }
 
     pktcount++;
+    ri.ri_pkts++;
+    ri.ri_bytes++;
+    if (TIME_EQ(&ri.ri_first_pkt_rcvd, &ZERO)) {
+        ri.ri_first_pkt_rcvd = curtime;
+    }
+    ri.ri_last_pkt_rcvd = curtime;
 
     /* now, do the low level classification into a llft */
     pktprotohasports = protohasports[packet[9]];
@@ -1543,7 +1587,6 @@ fl_read_one_bin(ClientData clientData, Tcl_Interp *interp,
 		int argc, const char *argv[])
 {
     int error;
-    char buf[200];
 
     if (argc > 2) {
         Tcl_SetResult(interp, "Usage: fl_read_one_bin ?binsecs?", TCL_STATIC);
@@ -1557,7 +1600,8 @@ fl_read_one_bin(ClientData clientData, Tcl_Interp *interp,
         ;		/* use old binsecs */
     }
 
-    binno = -1;
+    ri.ri_starttime = ZERO;
+
     if (!fileeof) {
         if (filetype == TYPE_UNKNOWN) {
             Tcl_SetResult(interp, "need to call fl_set_{tcpd,fix{2,4}4}_file first",
@@ -1569,7 +1613,8 @@ fl_read_one_bin(ClientData clientData, Tcl_Interp *interp,
             return TCL_ERROR;
         }
 
-        while (((binno == -1) || (binno == NOW_AS_BINNO())) && !fileeof && (signalled == lastsignalled)) {
+        while (((binno == -1) || (binno == NOW_AS_BINNO())) &&
+               (!fileeof) && (signalled == lastsignalled)) {
             error = process_one_packet(interp);
             if (error != TCL_OK) {
                 return error;
@@ -1578,8 +1623,18 @@ fl_read_one_bin(ClientData clientData, Tcl_Interp *interp,
     }
 
     lastsignalled = signalled;
-    sprintf(buf, "%ld", binno);
-    Tcl_SetResult(interp, buf, TCL_VOLATILE);
+    if (TIME_EQ(&ri.ri_starttime, &ZERO)) {
+        char *asret;
+
+        asprintf(&asret, "");
+        Tcl_SetResult(interp, asret, tclasfree);
+    } else {
+        /* 
+         * note: only ri_stime uses delta_ri; everything can be
+         * relative to it
+         */
+        Tcl_SetResult(interp, ri_statistics(), tclasfree);
+    }
     return TCL_OK;
 }
 
