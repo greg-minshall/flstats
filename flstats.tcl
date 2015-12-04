@@ -10,6 +10,9 @@
 # XXX What is consequence of running -script parameter during
 # "application initialization"?
 
+# http://www.tcl.tk/man/tcl8.5/tutorial/tcltutorial.html is a nice
+# tutorial.
+
 
 ### The following is useful, but is also provided as an
 ### example of how to use flstats.
@@ -86,20 +89,14 @@ proc fl_flow_details { {filename {}} {binsecs {}} {classifier {}} { flowtypes {}
 
     set binsecs $flstats(binsecs)   ; # make sure we have correct value
 
-    if {$flstats(tags)} {
-        set prefix "bin "
-    } else {
-        set prefix ""
-    }
-
     while {1} {
-        set binno [fl_read_one_bin $binsecs]
-        if {$binno == -1} {
+        set ristats [fl_read_one_bin $binsecs]
+        if {$ristats == ""} {
             break;  # eof
         }
         fl_start_flow_enumeration
         while { [set x [fl_continue_flow_enumeration]] != ""} {
-            puts "$prefix$binno $x"
+            puts "$ristats $x"
         }
     }
 }
@@ -112,20 +109,14 @@ proc fl_class_details { {filename {}} {binsecs {}} {classifier {}} { flowtypes {
 
     set binsecs $flstats(binsecs)
 
-    if {$flstats(tags)} {
-        set prefix "bin "
-    } else {
-        set prefix ""
-    }
-
     while {1} {
-        set binno [fl_read_one_bin $binsecs]
-        if {$binno == -1} {
+        set ristats [fl_read_one_bin $binsecs]
+        if {$ristats == ""} {
             break   ; # eof
         }
         fl_start_class_enumeration
         while {[set x [fl_continue_class_enumeration]] != ""} {
-            puts "$prefix$binno $x"
+            puts "$ristats $x"
         }
     }
 }
@@ -564,6 +555,7 @@ proc fl_set_parameters {argc argv} {
         } elseif {$flows} {
             fl_flow_stats_format [oddelts [fl_flow_stats_format]]
         }
+        fl_ri_stats_format [oddelts [fl_ri_stats_format]]
     }
 
     if {$flstats(indent)} {
