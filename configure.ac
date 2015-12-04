@@ -1,7 +1,6 @@
 AC_INIT([flstats], [`cat VERSION`])
 AC_CONFIG_AUX_DIR(build-aux)
 AC_CONFIG_MACRO_DIR([build-aux/m4])
-AC_CONFIG_SRCDIR([.])
 AC_CONFIG_HEADERS([config.h])
 
 AM_INIT_AUTOMAKE
