@@ -29,7 +29,7 @@
 *** TODO 26. allow specification of separator for reports
     "|", ";", "<TAB>", etc.
 *** DONE 27. flag to print a header line
-*** TODO 28. get rid of --kind, fix28/44, etc.
+*** DONE 28. get rid of --kind, fix28/44, etc.
 *** TODO 29. make parameterless options *short*
 *** TODO 30. if app init code (loading flstats.tcl, that is) fails
     we end up at a tclsh prompt -- program should rather exit
@@ -41,6 +41,7 @@
     probably only need this for simulation?
 *** TODO 34. in flstats.c, move binno into struct ri.
 *** TODO 35. make ce_created, etc., struct timeval
+*** TODO 36. get rid of [fl_set_tcpd_file]?
     they are current binno
 
 ** reporting times, bin numbers, etc.

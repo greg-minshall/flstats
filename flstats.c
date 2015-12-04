@@ -129,11 +129,6 @@ char pcap_errbuf[PCAP_ERRBUF_SIZE];
 
 int fddipad = FDDIPAD;
 
-
-FILE *fix24_descriptor;
-
-FILE *fix44_descriptor;
-
 int packet_error = 0;
 
 int pending, pendingcaplen, pendingpktlen, pending_maxpktlen;
@@ -342,20 +337,6 @@ newfile(Tcl_Interp *interp, int maxpktlen)
         if (pcap_descriptor != 0) {
             pcap_close(pcap_descriptor);
             pcap_descriptor = 0;
-        }
-        break;
-    case TYPE_FIX24:
-        if ((fix24_descriptor != 0) && (fclose(fix24_descriptor) == EOF)) {
-            asprintf(&asret, "fclose: %s", strerror(errno));
-            Tcl_SetResult(interp, asret, tclasfree);
-            return TCL_ERROR;
-        }
-        break;
-    case TYPE_FIX44:
-        if ((fix44_descriptor != 0) && (fclose(fix44_descriptor) == EOF)) {
-            asprintf(&asret, "fclose: %s", strerror(errno));
-            Tcl_SetResult(interp, asret, tclasfree);
-            return TCL_ERROR;
         }
         break;
     case TYPE_UNKNOWN:
@@ -1487,41 +1468,6 @@ receive_tcpd_null(u_char *user, const struct pcap_pkthdr *h,
              h->caplen-NULL_HDRLEN, h->len-NULL_HDRLEN);
 }
 
-static void
-receive_fix24(Tcl_Interp *interp, struct fix24pkt *pkt)
-{
-    static u_char pseudopkt[FIX24_PACKET_SIZE] = {
-        0x45, 0, 0, 0, 0, 0, 0, 0,
-        0x22, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0};
-
-    set_time(interp, ntohl(pkt->secs), ntohl(pkt->usecs));
-
-    *(u_short *)&pseudopkt[2] = pkt->len;
-    pseudopkt[9] = pkt->prot;
-    /* src and dst are in ??? intel order ??? */
-    *(u_long *)&pseudopkt[12] = ntohl(pkt->src);
-    *(u_long *)&pseudopkt[16] = ntohl(pkt->dst);
-    *(u_short *)&pseudopkt[20] = pkt->sport;
-    *(u_short *)&pseudopkt[22] = pkt->dport;
-
-    packetin(interp, pseudopkt, sizeof pseudopkt, ntohs(pkt->len));
-}
-
-
-static void
-receive_fix44(Tcl_Interp *interp, struct fix44pkt *pkt)
-{
-    set_time(interp, ntohl(pkt->secs), ntohl(pkt->usecs));
-
-    /* src and dst are in ??? intel order ??? */
-    pkt->ip.src = ntohl(pkt->ip.src);
-    pkt->ip.dst = ntohl(pkt->ip.dst);
-
-    packetin(interp, FIX44_TO_PACKET(pkt),
-             FIX44_PACKET_SIZE, ntohs(pkt->ip.len));
-}
-
 
 static int
 process_one_packet(Tcl_Interp *interp)
@@ -1538,46 +1484,6 @@ process_one_packet(Tcl_Interp *interp)
                 fileeof = 1;
                 filetype = TYPE_UNKNOWN;
             }
-            break;
-        case TYPE_FIX24: {
-            struct fix24pkt fix24packet;
-            int count;
-
-            count = fread(&fix24packet,
-                          sizeof fix24packet, 1, fix24_descriptor);
-            if (count == 0) {
-                if (feof(fix24_descriptor)) {
-                    fileeof = 1;
-                    filetype = TYPE_UNKNOWN;
-                } else {
-                    Tcl_SetResult(interp, "error on read", TCL_STATIC);
-                    return TCL_ERROR;
-                }
-            } else if (ntohs(fix24packet.len) != 65535) {
-                /* 65535 ==> not IP packet (ethertype in dport) */
-                receive_fix24(interp, &fix24packet);
-            }
-	    }
-            break;
-        case TYPE_FIX44: {
-            struct fix44pkt fix44packet;
-            int count;
-
-            count = fread(&fix44packet,
-                          sizeof fix44packet, 1, fix44_descriptor);
-            if (count == 0) {
-                if (feof(fix44_descriptor)) {
-                    fileeof = 1;
-                    filetype = TYPE_UNKNOWN;
-                } else {
-                    Tcl_SetResult(interp, "error on read", TCL_STATIC);
-                    return TCL_ERROR;
-                }
-            } else if (ntohs(fix44packet.ip.len) != 65535) {
-                /* 65535 ==> not IP packet (ethertype in dport) XXX */
-                receive_fix44(interp, &fix44packet);
-            }
-	    }
             break;
         }
     }
@@ -1614,7 +1520,7 @@ fl_read_one_bin(ClientData clientData, Tcl_Interp *interp,
 
     if (!fileeof) {
         if (filetype == TYPE_UNKNOWN) {
-            Tcl_SetResult(interp, "need to call fl_set_{tcpd,fix{2,4}4}_file first",
+            Tcl_SetResult(interp, "need to call fl_set_tcpd_file first",
                           TCL_STATIC);
             return TCL_ERROR;
         }
@@ -2013,49 +1919,10 @@ set_tcpd_file(ClientData clientData, Tcl_Interp *interp, const char *filename)
 }
 
 static int
-set_fix24_file(ClientData clientData, Tcl_Interp *interp, const char *filename)
-{
-    if (newfile(interp, FIX24_PACKET_SIZE) != TCL_OK) {
-        return TCL_ERROR;
-    }
-    if ((filename[0] == '-') && (filename[1] == 0)) {
-        fix24_descriptor = stdin;
-    } else {
-        fix24_descriptor = fopen(filename, "r");
-        if (fix24_descriptor == 0) {
-            Tcl_SetResult(interp, "error opening file", TCL_STATIC);
-            return TCL_ERROR;
-        }
-    }
-    filetype = TYPE_FIX24;
-    return TCL_OK;
-}
-
-static int
-set_fix44_file(ClientData clientData, Tcl_Interp *interp, const char *filename)
-{
-    if (newfile(interp, FIX44_PACKET_SIZE) != TCL_OK) {
-        return TCL_ERROR;
-    }
-
-    if ((filename[0] == '-') && (filename[1] == 0)) {
-        fix44_descriptor = stdin;
-    } else {
-        fix44_descriptor = fopen(filename, "r");
-        if (fix44_descriptor == 0) {
-            Tcl_SetResult(interp, "error opening file", TCL_STATIC);
-            return TCL_ERROR;
-        }
-    }
-    filetype = TYPE_FIX44;
-    return TCL_OK;
-}
-
-static int
 fl_set_file(ClientData clientData, Tcl_Interp *interp,
 		int argc, const char *argv[])
 {
-    static char *usage = "Usage: fl_set_file filename [tcpd|fix24|fix44]";
+    static char *usage = "Usage: fl_set_file filename tcpd";
 
     if ((argc < 2) || (argc > 3)) {
         Tcl_SetResult(interp, usage, TCL_STATIC);
@@ -2063,10 +1930,6 @@ fl_set_file(ClientData clientData, Tcl_Interp *interp,
     }
     if ((argc == 2) || !strcmp(argv[2], "tcpd")) {
         return set_tcpd_file(clientData, interp, argv[1]);
-    } else if (!strcmp(argv[2], "fix24")) {
-        return set_fix24_file(clientData, interp, argv[1]);
-    } else if (!strcmp(argv[2], "fix44")) {
-        return set_fix44_file(clientData, interp, argv[1]);
     } else {
         Tcl_SetResult(interp, usage, TCL_STATIC);
         return TCL_ERROR;

@@ -75,8 +75,6 @@ static char *flstats_h_rcsid = "$Id$";
 /* Types of input files to be processed */
 #define	TYPE_UNKNOWN	0
 #define	TYPE_PCAP	2
-#define	TYPE_FIX24	3
-#define	TYPE_FIX44	4
 
 /* type defines */
 
@@ -325,124 +323,6 @@ atoft_t atoft[] = {
 };
 
 
-/* definition of FIX 44 packet format */
-
-/*
- * The fixed sized records in the trace look like:
- * 
- *     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *  0  |                    timestamp (seconds)                        | Time
- *     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *  1  |                  timestamp (microseconds)                     |
- *     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *  2  |Version|  IHL  |Type of Service|          Total Length         | IP
- *     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *  3  |         Identification        |Flags|      Fragment Offset    |
- *     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *  4  |  Time to Live |    Protocol   |         Header Checksum       |
- *     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *  5  |                       Source Address                          |
- *     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *  6  |                    Destination Address                        |
- *     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *  7  |          Source Port          |       Destination Port        | TCP
- *     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *  8  |                        Sequence Number                        |
- *     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *  9  |                    Acknowledgment Number                      |
- *     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *     |  Data |           |U|A|P|R|S|F|                               |
- *  10 | Offset| Reserved  |R|C|S|S|Y|I|            Window             |
- *     |       |           |G|K|H|T|N|N|                               |
- *     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- */
-
-
-struct fix44pkt {
-    long    secs,
-	    usecs;
-    /* IP header */
-    struct {
-#if	(BYTE_ORDER == BIG_ENDIAN)
-        u_char  vers:4,
-            ihl:4,
-#else
-            u_char  ihl:4,
-            vers:4,
-#endif
-            tos;
-        u_short len,
-            id,
-            foff;
-        u_char  ttl,
-            prot;
-        u_short sum;
-        u_long  src,
-            dst;
-    } ip;
-    /* TCP/UDP header */
-    union {
-        struct {
-            u_short sport,
-                dport;
-        } udp;
-        struct {
-            u_short sport,
-                dport;
-            u_long  seq,
-                ack;
-#if	(BYTE_ORDER == BIG_ENDIAN)
-            u_char  doff:4,
-                resv:4,
-#else
-                u_char  resv:4,
-                doff:4,
-#endif
-                flags;
-            u_short window;
-        } tcp;
-    } tcpudp;
-};
-
-#define	FIX44_TO_PACKET(p)  (u_char *)(&p->ip)
-#define	FIX44_PACKET_SIZE   36
-
-
-/* definition of FIX 24 packet format */
-
-/*
- * The input of the file looks like:
- *
- *         +-------------------------------------+  
- *      0  |        timestamp in seconds         |
- *         +-------------------------------------+
- *      1  |      timestamp in microseconds      |
- *         +-------------------------------------+
- *      2  |          IP source address          |
- *         +-------------------------------------+
- *      3  |       IP destination address        |
- *         +--------+---------+------------------+
- *      4  | IPProt | TCPflags|  Packet-length   |
- *         +--------+---------+------------------+
- *      5  | destination port |   source port    |
- *         +------------------+------------------+
- */         
-            
-            
-struct fix24pkt {
-    long    secs,
-        usecs;
-    u_long
-    src,
-        dst;
-    u_short len;
-    u_char  prot,
-        tflags;
-    u_short sport,
-        dport;
-};
-
-#define	FIX24_PACKET_SIZE   24
 
 #if !defined(FDDIFC_LLC_ASYNC)
 /*
