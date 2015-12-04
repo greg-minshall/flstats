@@ -77,7 +77,7 @@ struct timeval ZERO = { 0, 0 };
  */
 
 typedef enum { absolute, bot_relative, ri_relative, invalid } delta_t;
-typedef enum { seconds, usecs, invalid } delta_usecs_t;
+typedef enum { seconds, usecs, invalid_usecs } delta_usecs_t;
 
 struct {
     delta_t delta;
@@ -2080,7 +2080,7 @@ fl_catch_signal(ClientData clientData, Tcl_Interp *interp,
 }
 
 static delta_t
-delta_decode(char *string)
+delta_decode(const char *string)
 {
     if (!strcasecmp(string, "absolute")) {
         return absolute;
@@ -2094,14 +2094,14 @@ delta_decode(char *string)
 }
 
 static delta_usecs_t
-delta_usecs_decode(char *string)
+delta_usecs_decode(const char *string)
 {
     if (!strcasecmp(string, "seconds")) {
         return seconds;
     } else if (!strcasecmp(string, "usecs")) {
         return usecs;
     } else {
-        return invalid;
+        return invalid_usecs;
     }
 }
 
@@ -2125,34 +2125,32 @@ fl_delta_time(ClientData clientData, Tcl_Interp *interp,
     l_delta_wi = delta_decode(argv[1]);
     l_usecs_wi = delta_usecs_decode(argv[2]);
     l_delta_ri = delta_decode(argv[3]);
-    l_usecs_ri = delta_usecs_decode(arg[4]);
+    l_usecs_ri = delta_usecs_decode(argv[4]);
 
     if (l_delta_wi == invalid) {
-        Tcl_SetResult(interp,
-                      asprintf(&asret,
-                               "invalid \"within\" delta parameter: %s.\n%s\n",
-                               within, usage), tclasfree);
+        asprintf(&asret, "invalid \"within\" delta parameter: %s.\n%s\n",
+                 argv[1], usage);
+        Tcl_SetResult(interp, asret, tclasfree);
         return TCL_ERROR;
     }
-    if (l_usecs_wi == invalid) {
-        Tcl_SetResult(interp,
-                      asprintf(&asret,
-                               "invalid \"within\" usecs parameter: %s.\n%s\n",
-                               within, usage), tclasfree);
+    if (l_usecs_wi == invalid_usecs) {
+        asprintf(&asret, "invalid \"within\" usecs parameter: %s.\n%s\n",
+                 argv[2], usage);
+        Tcl_SetResult(interp, asret, tclasfree);
         return TCL_ERROR;
     }
-    if (l_delta_ri == invalid) {
-        Tcl_SetResult(interp,
-                      asprintf(&asret,
-                         "invalid \"reporting interval\" delta parameter: %s.\n%s\n",
-                               within, usage), tclasfree);
+    if ((l_delta_ri == invalid) || (l_delta_ri == ri_relative)) {
+        asprintf(&asret,
+                 "invalid \"reporting interval\" delta parameter: %s.\n%s\n",
+                 argv[3], usage);
+        Tcl_SetResult(interp, asret, tclasfree);
         return TCL_ERROR;
     }
-    if (l_usecs_ri == invalid) {
-        Tcl_SetResult(interp,
-                      asprintf(&asret,
-                        "invalid \"reporting interval\" usecs parameter: %s.\n%s\n",
-                               within, usage), tclasfree);
+    if (l_usecs_ri == invalid_usecs) {
+        asprintf(&asret,
+                 "invalid \"reporting interval\" usecs parameter: %s.\n%s\n",
+                 argv[4], usage);
+        Tcl_SetResult(interp, asret, tclasfree);
         return TCL_ERROR;
     }
 
