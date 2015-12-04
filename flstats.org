@@ -28,8 +28,20 @@
 *** DONE 25. require *entire* long_option names
 *** TODO 26. allow specification of separator for reports
     "|", ";", "<TAB>", etc.
-*** TODO 27 flag to print a header line
+*** DONE 27. flag to print a header line
+*** TODO 28. get rid of --kind, fix28/44, etc.
+*** TODO 29. make parameterless options *short*
+*** TODO 30. if app init code (loading flstats.tcl, that is) fails
+    we end up at a tclsh prompt -- program should rather exit
+    ([catch]?)
+*** TODO 31. [fl_time_format] return current state
 
+*** TODO 32. make fe_id a char*
+*** TODO 33. set_time() does a while loop of do_timers()
+    probably only need this for simulation?
+*** TODO 34. in flstats.c, move binno into struct ri.
+*** TODO 35. make ce_created, etc., struct timeval
+    they are current binno
 
 ** reporting times, bin numbers, etc.
 
@@ -66,7 +78,7 @@ for reporting interval:
 | binno    | sequential id of reporting intervals               | just a counter                                                         |
 | stime    | time this interval started                         | etime of *previous* interval                                           |
 | etime    | time this interval ended                           | timestamp of last packet (if binsecs, round to integer)                |
-| duration | who long this interval lasted                      | can be computed from etime-stime                                       |
+| duration | how long this interval lasted                      | can be computed from etime-stime                                       |
 | fptime   | time first packet arrived this interval            | can be derived by MINing class/flow reports (if everything classified) |
 | lptime   | time last packet arrived this interval             | can be derived by MAXing class/flow reports (ditto)                    |
 | npkts    | number of packets seen this interval               | can be derived by summing class/flow reports                           |
