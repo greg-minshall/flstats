@@ -28,6 +28,7 @@ static char *flstats_c_rcsid =
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <unistd.h>
 
 #include <arpa/inet.h>
@@ -55,9 +56,34 @@ flowentry_p table;			/* list of everything */
 flowentry_p table_last;			/* last of everything */
 flowentry_p flow_enum_state;
 
-struct timeval curtime, starttime;
+struct timeval curtime, ri_starttime, starttime;
 
 struct timeval ZERO = { 0, 0 };
+
+/*
+ * delta time reporting:
+ *
+ * (BOT == beginning of trace run; RI == reporting interval)
+ *
+ * absolute: absolute time (seconds.usecs since epoch)
+ * bot_relative: BOT relative time (seconds.usecs since BOT)
+ * ri_relative: RI relative time (seconds.usecs within RI)
+ *
+ * (note that "ri_relative" does *not* make sense for reporting the
+ * start time of the RI itself; delta_ri.delta can *only* be
+ * 'absolute' or 'bot_relative')
+ *
+ * then, seconds.usecs?  or, just seconds?
+ */
+
+typedef enum { absolute, bot_relative, ri_relative, invalid } delta_t;
+typedef enum { seconds, usecs, invalid } delta_usecs_t;
+
+struct {
+    delta_t delta;
+    delta_usecs_t usecs;
+} delta_wi, delta_ri;           /* "within ri", "reporting interval itself" */
+
 
 int binsecs = 0;		/* number of seconds in a bin */
 
@@ -97,44 +123,6 @@ char pcap_errbuf[PCAP_ERRBUF_SIZE];
 #endif
 
 int fddipad = FDDIPAD;
-
-#if !defined(FDDIFC_LLC_ASYNC)
-/*
- * if we can't find any FDDI header files...
- */     
-        
-struct fddi_header {
-    u_char  fddi_fc; 
-    u_char  fddi_dhost[6];              /* destination */
-    u_char  fddi_shost[6];              /* source */
-};      
-
-#define FDDIFC_LLC_ASYNC    0x50
-#endif  /* !defined(FDDIFC_LLC_ASYNC) */
- 
-#if !defined(FDDIFC_CLFF)
-#define FDDIFC_CLFF         0xf0        /* length/class/format bits */
-#endif /* !defined(FDDIFC_CLFF) */
-
-            
-#if !defined(LLC_UI)
-/*              
- * if we can't find LLC header files...
- *                  
- * (this is a very minimal LLC header, sufficient only for our
- * limited needs.)
- */
-
-struct llc {
-    u_char  llc_dsap;                   /* source SAP (service access point) */
-    u_char  llc_ssap;                   /* destination SAP */
-    u_char  llc_control;                /* control byte (in some frames) */
-};
-
-#define LLC_UI          0x03            /* this is an unnumbered info frame */
-#define LLC_SNAP_LSAP   0xaa            /* SNAP SAP */
-#endif /* !defined(LLC_UI) */
-
 
 
 FILE *fix24_descriptor;
@@ -1845,6 +1833,7 @@ fl_continue_flow_enumeration(ClientData clientData, Tcl_Interp *interp,
 }
 
 
+
 static int
 set_tcpd_file(ClientData clientData, Tcl_Interp *interp, const char *filename)
 {
@@ -2090,6 +2079,91 @@ fl_catch_signal(ClientData clientData, Tcl_Interp *interp,
     return TCL_OK;
 }
 
+static delta_t
+delta_decode(char *string)
+{
+    if (!strcasecmp(string, "absolute")) {
+        return absolute;
+    } else if (!strcasecmp(string, "bot_relative")) {
+        return bot_relative;
+    } else if (!strcasecmp(string, "ri_relative")) {
+        return ri_relative;
+    } else {
+        return invalid;
+    }
+}
+
+static delta_usecs_t
+delta_usecs_decode(char *string)
+{
+    if (!strcasecmp(string, "seconds")) {
+        return seconds;
+    } else if (!strcasecmp(string, "usecs")) {
+        return usecs;
+    } else {
+        return invalid;
+    }
+}
+
+        
+static int
+fl_delta_time(ClientData clientData, Tcl_Interp *interp,
+              int argc, const char *argv[])
+{
+    static char usage[] =
+        "Usage: fl_delta_time {absolute|bot_relative_ri_relative} {seconds|usecs} "
+        "{absolute|bot_relative} {seconds|usecs}";
+    char *asret;
+    delta_t l_delta_wi, l_delta_ri;
+    delta_usecs_t l_usecs_wi, l_usecs_ri;
+    
+    if (argc != 5) {
+        Tcl_SetResult(interp, usage, TCL_STATIC);
+        return TCL_ERROR;
+    }
+
+    l_delta_wi = delta_decode(argv[1]);
+    l_usecs_wi = delta_usecs_decode(argv[2]);
+    l_delta_ri = delta_decode(argv[3]);
+    l_usecs_ri = delta_usecs_decode(arg[4]);
+
+    if (l_delta_wi == invalid) {
+        Tcl_SetResult(interp,
+                      asprintf(&asret,
+                               "invalid \"within\" delta parameter: %s.\n%s\n",
+                               within, usage), tclasfree);
+        return TCL_ERROR;
+    }
+    if (l_usecs_wi == invalid) {
+        Tcl_SetResult(interp,
+                      asprintf(&asret,
+                               "invalid \"within\" usecs parameter: %s.\n%s\n",
+                               within, usage), tclasfree);
+        return TCL_ERROR;
+    }
+    if (l_delta_ri == invalid) {
+        Tcl_SetResult(interp,
+                      asprintf(&asret,
+                         "invalid \"reporting interval\" delta parameter: %s.\n%s\n",
+                               within, usage), tclasfree);
+        return TCL_ERROR;
+    }
+    if (l_usecs_ri == invalid) {
+        Tcl_SetResult(interp,
+                      asprintf(&asret,
+                        "invalid \"reporting interval\" usecs parameter: %s.\n%s\n",
+                               within, usage), tclasfree);
+        return TCL_ERROR;
+    }
+
+    delta_wi.delta = l_delta_wi;
+    delta_wi.usecs = l_usecs_wi;
+    delta_ri.delta = l_delta_ri;
+    delta_ri.usecs = l_usecs_ri;
+    
+    return TCL_OK;
+}
+
 
 static int
 fl_version(ClientData clientData, Tcl_Interp *interp,
@@ -2129,6 +2203,8 @@ Tcl_AppInit(Tcl_Interp *interp)
                       fl_continue_class_enumeration, NULL, NULL);
     Tcl_CreateCommand(interp, "fl_continue_flow_enumeration",
                       fl_continue_flow_enumeration, NULL, NULL);
+    Tcl_CreateCommand(interp, "fl_delta_time", fl_delta_time,
+                      NULL, NULL);
     Tcl_CreateCommand(interp, "fl_flow_stats_format", 
                       fl_flow_stats_format, NULL, NULL);
     Tcl_CreateCommand(interp, "fl_read_one_bin", fl_read_one_bin,
