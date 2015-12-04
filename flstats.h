@@ -12,7 +12,7 @@
  */
 
 static char *rcsid =
-	"$Id$
+	"$Id$";
 
 
 /* global preprocessor defines */
