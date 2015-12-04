@@ -42,6 +42,7 @@
 *** TODO 34. in flstats.c, move binno into struct ri.
 *** TODO 35. make ce_created, etc., struct timeval
 *** TODO 36. get rid of [fl_set_tcpd_file]?
+*** DONE 37. sipg for ri not working?
     they are current binno
 
 ** reporting times, bin numbers, etc.

@@ -1165,9 +1165,9 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
     if (TIME_EQ(&ri.ri_first_pkt_rcvd, &ZERO)) {
         ri.ri_first_pkt_rcvd = curtime;
     }
-    ri.ri_last_pkt_rcvd = curtime;
     ri.ri_isipg = sipg_update(ri.ri_isipg, &ri.ri_last_pkt_rcvd);
     ri.ri_tsipg = sipg_update(ri.ri_tsipg, &ri.ri_last_pkt_rcvd);
+    ri.ri_last_pkt_rcvd = curtime;
 
     /* now, do the low level classification into a llft */
     pktprotohasports = protohasports[packet[9]];
