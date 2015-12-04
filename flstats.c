@@ -1516,7 +1516,18 @@ fl_read_one_bin(ClientData clientData, Tcl_Interp *interp,
         ;		/* use old binsecs */
     }
 
-    ri.ri_starttime = ZERO;
+    lastsignalled = signalled;
+    /* reset ri statistics */
+    {
+        u_long savesipg = ri.ri_tsipg;
+
+        memset(&ri, 0, sizeof ri);
+        ri.ri_starttime = ZERO;
+        ri.ri_tsipg = savesipg;
+    }
+    
+
+    binno = -1;
 
     if (!fileeof) {
         if (filetype == TYPE_UNKNOWN) {
@@ -1538,7 +1549,6 @@ fl_read_one_bin(ClientData clientData, Tcl_Interp *interp,
         }
     }
 
-    lastsignalled = signalled;
     if (TIME_EQ(&ri.ri_starttime, &ZERO)) {
         char *asret;
 
