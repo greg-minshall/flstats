@@ -48,6 +48,23 @@
     they are current binno
 *** DONE 38. count runt, and other bad packets, in ri structure
     currently they are counted in class 0.
+*** TODO 39. new output format scheme
+table of: [printed name; fe->fe_foo; {int,time,sipg}]
+
+then, run it twice, once to get "format" array, once to get code to to
+fill array (array has union to hold the three possible types).
+
+then, after array filled, run a second array which is [index (into
+above array); label; {int, time, sipg}] to create output string.
+
+to set up this second array, fl_{ri,flow,class}_format "printed_name
+label {int,time,sipg} ...", then map "printed_name" into index values.
+
+advantage: o(1) on output (setup takes the expense)
+
+then, can produce some derived statistics (such as "errpkts", to hold
+runt, et al.)
+
 
 ** reporting times, bin numbers, etc.
 
