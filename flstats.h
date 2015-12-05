@@ -143,15 +143,7 @@ typedef struct clstats {
 	    cls_active,			/* flows active this interval */
 	    cls_pkts,			/* packets read */
 	    cls_bytes,			/* bytes read */
-	    cls_sipg,			/* smoothed ipg (in 8 usec units) */
-	    cls_fragpkts,		/* fragments seen (using ports) */
-	    cls_fragbytes,		/* bytes seen in those frags */
-	    cls_toosmallpkts,		/* packet length too small */
-	    cls_toosmallbytes,		/* bytes seen in those frags */
-	    cls_runtpkts,		/* captured portion too small */
-	    cls_runtbytes,		/* bytes seen in those frags */
-	    cls_noportpkts,		/* packet had no ports (but needed) */
-	    cls_noportbytes;		/* bytes seen in those frags */
+	    cls_sipg;			/* smoothed ipg (in 8 usec units) */
     struct timeval
         cls_last_pkt_rcvd;		/* time last packet received in class */
 } clstats_t, *clstats_p;
@@ -167,7 +159,15 @@ typedef struct ri {
     u_long ri_pkts,           /* number of packets received this ri */
         ri_bytes,             /* number of bytes seen this ri */
         ri_isipg,             /* smoothed ipg (w/in this ri) */
-        ri_tsipg;             /* smoothed ipg (w/in trace) */
+        ri_tsipg,             /* smoothed ipg (w/in trace) */
+	    ri_fragpkts,          /* fragments seen (using ports) */
+	    ri_fragbytes,         /* bytes seen in those frags */
+	    ri_toosmallpkts,      /* packet length too small */
+	    ri_toosmallbytes,     /* bytes seen in those frags */
+	    ri_runtpkts,          /* captured portion too small */
+	    ri_runtbytes,         /* bytes seen in those frags */
+	    ri_noportpkts,        /* packet had no ports (but needed) */
+	    ri_noportbytes;       /* bytes seen in those frags */
     struct timeval ri_starttime, /* time this ri started */
         ri_first_pkt_rcvd,    /* time first packet received this ri */
         ri_last_pkt_rcvd;     /* time last packet received this ri */

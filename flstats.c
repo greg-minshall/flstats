@@ -583,9 +583,7 @@ flow_statistics(flowentry_p fe)
 static char *class_stats_template =
     "class %ld created %lu deleted %lu added %lu removed %lu "
     "active %lu pkts %lu bytes %lu sipg %lu.%06lu "
-    "fragpkts %lu fragbytes %lu "
-    "toosmallpkts %lu toosmallbytes %lu runtpkts %lu runtbytes %lu "
-    "noportpkts %lu noportbytes %lu lastrecv %ld.%06ld",
+    " lastrecv %ld.%06ld",
     *class_stats_format;
 
 static char *
@@ -598,10 +596,7 @@ class_statistics(clstats_p clsp)
             clsp->cls_added, clsp->cls_removed, clsp->cls_active,
             clsp->cls_pkts, clsp->cls_bytes,
             SIPG_TO_SECS(clsp->cls_sipg), SIPG_TO_USECS(clsp->cls_sipg),
-            clsp->cls_fragpkts,
-            clsp->cls_fragbytes, clsp->cls_toosmallpkts, clsp->cls_toosmallbytes,
-            clsp->cls_runtpkts, clsp->cls_runtbytes, clsp->cls_noportpkts,
-            clsp->cls_noportbytes, dtsecs_ri(&clsp->cls_last_pkt_rcvd),
+            dtsecs_ri(&clsp->cls_last_pkt_rcvd),
             dtusecs_ri(&clsp->cls_last_pkt_rcvd));
 
     return summary;
@@ -611,6 +606,8 @@ static char *ri_stats_template =
     "binno %lu ri_start %ld.%06ld ri_end %ld.%06ld "
     "ri_firstpkt %ld.%06ld ri_lastpkt %ld.%06ld "
     "ri_pkts %lu ri_bytes %lu "
+    "fragpkts %lu fragbytes %lu toosmallpkts %lu toosmallbytes %lu "
+    "runtpkts %lu runtbytes %lu noportpkts %lu noportbytes %lu "
     "ri_tsipg %lu.%06lu ri_isipg %lu.%06lu",
     *ri_stats_format;
 
@@ -625,6 +622,10 @@ ri_statistics() {
              dtsecs_wi(&ri.ri_first_pkt_rcvd), dtusecs_wi(&ri.ri_first_pkt_rcvd),
              dtsecs_wi(&ri.ri_last_pkt_rcvd), dtusecs_wi(&ri.ri_last_pkt_rcvd),
              ri.ri_pkts, ri.ri_bytes,
+             ri.ri_fragpkts,
+             ri.ri_fragbytes, ri.ri_toosmallpkts, ri.ri_toosmallbytes,
+             ri.ri_runtpkts, ri.ri_runtbytes, ri.ri_noportpkts,
+             ri.ri_noportbytes, 
              SIPG_TO_SECS(ri.ri_isipg), SIPG_TO_USECS(ri.ri_isipg),
              SIPG_TO_SECS(ri.ri_tsipg), SIPG_TO_USECS(ri.ri_tsipg));
     return asret;
@@ -1210,31 +1211,32 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
     }
 
     if (llclindex >= NUM(llclasses)) {
+        /* XXX count in ri_ struct instead? */
         clstats[0].cls_pkts++;
         clstats[0].cls_bytes += pktlen;
         clstats[0].cls_last_bin_active = binno;
         if (pktbigenough) {	/* packet was big enough, but... */
             if (capbigenough) {
                 if (packet[6]&0x1fff) {
-                    clstats[0].cls_fragpkts++;
-                    clstats[0].cls_fragbytes += pktlen;
+                    ri.ri_fragpkts++;
+                    ri.ri_fragbytes += pktlen;
                 } else {
                     /*
                      * this means there is no flow type for protocols
                      * which don't have a port number field (i.e., this
                      * is probably a bug...
                      */
-                    clstats[0].cls_noportpkts++;
-                    clstats[0].cls_noportbytes += pktlen;
+                    ri.ri_noportpkts++;
+                    ri.ri_noportbytes += pktlen;
                 }
             } else {
-                clstats[0].cls_runtpkts++;
-                clstats[0].cls_runtbytes += pktlen;
+                ri.ri_runtpkts++;
+                ri.ri_runtbytes += pktlen;
             }
         } else {
             /* never found a flow type into which it fit */
-            clstats[0].cls_toosmallpkts++;
-            clstats[0].cls_toosmallbytes += pktlen;
+            ri.ri_toosmallpkts++;
+            ri.ri_toosmallbytes += pktlen;
         }
         return;
     }

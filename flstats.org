@@ -41,9 +41,13 @@
     probably only need this for simulation?
 *** TODO 34. in flstats.c, move binno into struct ri.
 *** TODO 35. make ce_created, etc., struct timeval
+    probably need for general scheme for time format (so can make
+    these integers, if we want; etc.)
 *** TODO 36. get rid of [fl_set_tcpd_file]?
 *** DONE 37. sipg for ri not working?
     they are current binno
+*** DONE 38. count runt, and other bad packets, in ri structure
+    currently they are counted in class 0.
 
 ** reporting times, bin numbers, etc.
 
