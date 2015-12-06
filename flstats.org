@@ -20,13 +20,13 @@
     (maybe default to underlying flows' type, if only one type in the
     class?)
 *** DONE 20. catch a signal (SIGINFO, C-t) as a way of terminating a bin, printing out a line.
-*** TODO 21. option for timestamp (rather than binno) time of printing lines?  
+*** DONE 21. option for timestamp (rather than binno) time of printing lines?  
     also, number of seconds spanned by this report line
 *** TODO 22. hosta/hostb type (sort numerically/lexicographically)
 *** TODO 23. flag to disable printing "name val" pairs; 
-*** TODO 24. flag to have separate "reporting interval" line; indent class/flow lines after
+*** DONE 24. flag to have separate "reporting interval" line; indent class/flow lines after
 *** DONE 25. require *entire* long_option names
-*** TODO 26. allow specification of separator for reports
+*** TODO 26. allow specification of column separator for reports
     "|", ";", "<TAB>", etc.
 *** DONE 27. flag to print a header line
 *** DONE 28. get rid of --kind, fix28/44, etc.
@@ -39,17 +39,28 @@
 *** TODO 32. make fe_id a char*
 *** TODO 33. set_time() does a while loop of do_timers()
     probably only need this for simulation?
-*** TODO 34. in flstats.c, move binno into struct ri.
+*** DONE 34. in flstats.c, move binno into struct ri.
 *** TODO 35. make ce_created, etc., struct timeval
     probably need for general scheme for time format (so can make
     these integers, if we want; etc.)
 *** TODO 36. get rid of [fl_set_tcpd_file]?
+    maybe leave it?  in case some future file type (so will remember
+    how to deal with it).
 *** DONE 37. sipg for ri not working?
     they are current binno
 *** DONE 38. count runt, and other bad packets, in ri structure
     currently they are counted in class 0.
 *** TODO 39. new output format scheme
-table of: [printed name; fe->fe_foo; {int,time,sipg}]
+    table of: [printed name; fe->fe_foo; {int,time,sipg}].  can do in
+    .c, but can also easily (if a bit slower) do in .tcl.
+*** TODO 40.  IPv6
+*** DONE 41. runt packets, etc., should maybe be counted earlier
+    in, e.g., receive_tcpd...
+*** DONE 42. "errpkts" includes perfectly good, but ignored packets
+     ARP, say
+*** TODO 43. there are *two* labels "type" on output line
+*** TODO 44. allow --dontoutput {cl|fl|ri} taglist
+    probably more useful than --output
 
 then, run it twice, once to get "format" array, once to get code to to
 fill array (array has union to hold the three possible types).
