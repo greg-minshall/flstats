@@ -48,7 +48,6 @@ proc flget_summary_vec {class} {
 }
 
 
-
 # this doesn't need $pre, since the subst is performed at the caller...
 #
 # the $pre_\1 variables need to have been created prior to the
@@ -81,6 +80,61 @@ proc flll_delete {time FLOW args} {
     return "- $time.0"
 }
 
+
+# see the documentation in [putsill]; we create the DESIRED table.
+
+# the input consists of a string of non-empty "words", each word of
+# which looks like:
+
+# [tag][:[label][:"int"]]
+# (so, you can have tag, tag::"int", tag:label, tag:label:"int")
+
+# where: if tag is missing, then this is just a string constant to be
+# printed, surrounded by separators (unless ":int" is specified); if
+# "/"label"/" is missing, the tag is used as the label; and, if ":int"
+# is present, the (presumably) floating point values at this location
+# are rounded to integer before being printed.
+
+# XXX need to call this *after* argument parsing: indexing depends on
+# -T flag
+proc crack_output { spec stats_format } {
+    global flstats
+
+    set tags [split stats_format]
+    set tlen [llength $tags]
+    if {[expr $tlen % 2]} {
+        error{"[crack_output] internal error: stats_format parameter contains *odd* number of elements:\n${stats_format}"}
+    }
+    # set up for a bit of speed (probably unnecessary)
+    array unset indices formats
+    for {set i 0} {$i < $tlen} {incr i 2} {
+        set valindex [expr $i + 1]
+        set indices ([lindex $tags $i]) $valindex
+        set formats ([lindex $tags $i]) [lindex $tags $valindex]
+    }
+    set desired [];             # empty list
+    set swords [split $spec {[ ,]}]; # split on blank, comma
+    set slen [llength $swords]
+    for {set i 0} {$i < $slen} {incr i} {
+        set sbits [split [lindex $swords $i] ":"]
+        if {{[llength $sbits] == 0} || {[llength $sbits] > 3}} {
+            error("invalid output specification: [lindex $swords $i]\n
+                   should be: [tag][:[label][:\"int\"]]")
+        }
+        set stag [lindex $sbits 0]
+        set slabel [lindex $sbits 1]
+        set sint [lindex $sbits 2]
+        if {[string equal [lindex $sbits 0] ""]} { # this is just a string literal
+            lappend desired { {} "string" -1 $slabel $sint }
+        } elseif {![info exists indices($tag)]} {
+            error("unknown tag \"$stag\"; should be one of: $tags");
+        }
+        set index $indices($stag)
+        lappend desired { $stag $formats($stag) $indices($stag) $slabel $sint }
+    }
+}
+
+
 proc putsill { line desired } {
     global flstats
 
@@ -112,9 +166,15 @@ proc putsill { line desired } {
         set dtype [lindex $delt 1]
         set dindex [lindex $delt 2]
         set dlabel [lindex $delt 3]
-        set dinteger [lindex $delt 4]; # "" if d.n.e.
+        set dinteger [expr [string length [lindex $delt 4]] > 0]; # "" if d.n.e.
         if {$dindex == -1} {
-            puts -nonewline $xsep $dlabel
+            if {!$dinteger} {
+                puts -nonewline $xsep $dlabel
+                set xsep $sep
+            } else {
+                puts -nonewline $dlabel
+                set xsep "";    # no separator bewteen this and next
+            }
         } elseif {$dindex >= $plen} {
             puts stderr $line
             puts stderr $delt
@@ -125,8 +185,8 @@ proc putsill { line desired } {
                 pval = [expr round $pval]
             }
             puts -nonewline $xsep $dlabel $pval
+            set xsep $sep
         }
-        set xsep $sep
     }
     puts "";                    # \n, as it were
 }
@@ -429,7 +489,7 @@ proc usage {cmdname} {
                 [--{classes|flows|interactive}]\
                 [--debug]\
                 [--evaluate tclcommands]\
-                [--output outputspecifier]\
+                [--output {cl|fl|ri} outputspecifier]\
                 [--kind tracefilekind]\
                 [--label]\
                 [--scriptfile filename]\
@@ -514,14 +574,24 @@ proc fl_set_parameters {argc argv} {
                     error "invalid shorthand for --timebase in $spec\nlooking \
                            a string that matches \[Ttr\]\[Tt\].\n"
                 }
-                fl_time_format $tfmt([string index $spec 0]) \
+                fl_time_base $tfmt([string index $spec 0]) \
                                $tfmt([string index $spec 1])
             } else {
-                fl_time_format [split $spec {[ ,]}];
+                fl_time_base [split $spec {[ ,]}];
             }
             incr argc -2
             set argv [lrange $argv 2 end]
-        } elseif {[string equal $arg --interactive]} { ; # interactive
+        } elseif {[string equal $arg --output]} { # what to output
+            if {$argc < 3} {
+                error "not enough arguments for --output in $argv\nlooking \
+                     for '--output {cl|fl|ri} outputspec"
+            }
+            set which [lindex $argv 1]
+            if {![info exists ofmt($which)]} {
+                error "first argument for --output should be one of: cl, fl, ri"
+            }
+            set flstats(${which}_output_spec) [fl_crack_output [lindex $argv 2]]
+        } elseif {[string equal $arg --interactive]} { # interactive
             if {$classes || $flows} {
                 error "can only specify *one* of {classes|flows|interactive}"
             }
@@ -613,9 +683,6 @@ proc fl_set_parameters {argc argv} {
         fl_ri_stats_format [oddelts [fl_ri_stats_format]]
     }
 
-    if {$flstats(indent)} {
-    }
-
     if {$eval != 0} {
         uplevel #0 [$eval]
     }
@@ -664,6 +731,11 @@ proc fl_startup { argc argv } {
 set tfmt(T) absolute
 set tfmt(t) within_tr
 set tfmt(r) within_ri
+
+#decoding help for --output
+set ofmt(cl) 1
+set ofmt(fl) 1
+set ofmt(ri) 1
 
 # set some defaults...
 set flstats(debug) 0
