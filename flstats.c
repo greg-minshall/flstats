@@ -2041,7 +2041,12 @@ fl_stats_format(ClientData clientData, Tcl_Interp *interp,
         } else {
             Tcl_SetResult(interp, *current, TCL_VOLATILE);
         }
-    } else {
+    } else {                    /* argc == 4 */
+        if (templatep) {
+            Tcl_SetResult(interp, "[fl_stats_format]: can\'t change \"template\"",
+                          TCL_STATIC);
+            return TCL_ERROR;
+        }
         new = strsave(argv[3]);
         if (new == 0) {
             Tcl_SetResult(interp,
