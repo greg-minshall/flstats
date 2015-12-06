@@ -81,7 +81,7 @@ proc flll_delete {time FLOW args} {
 }
 
 
-# see the documentation in [putsill]; we create the DESIRED table.
+# see the documentation in [sill]; we create the DESIRED table.
 
 # the input consists of a string of non-empty "words", each word of
 # which looks like:
@@ -140,7 +140,7 @@ proc crack_output { spec stats_format } {
 }
 
 
-proc putsill { line desired } {
+proc sill { line desired } {
     global flstats
 
     # LINE is a string of value elements (i.e., printed w/OUT tags)
@@ -156,16 +156,17 @@ proc putsill { line desired } {
     # is true, in which case leave out the separator characters in
     # this special case).
 
-    if {info exists flstats(separator)} {
+    if {[info exists flstats(separator)]} {
         set sep $flstats(separator)
     } else {
         set set " ";            # default
     }
     set xsep "";                # not before *first* pair
+    set output "";
     set pelts [split $line]
     set plen [llength $pelts]
     set dlen [llength $desired]
-    for {set i 0} {$i < dlen} {incr i} {
+    for {set i 0} {$i < $dlen} {incr i} {
         set delt [lindex $desired $i]
         set dtag [lindex $delt 0]
         set dtype [lindex $delt 1]
@@ -174,10 +175,10 @@ proc putsill { line desired } {
         set dinteger [expr [string length [lindex $delt 4]] > 0]; # "" if d.n.e.
         if {$dindex == -1} {
             if {!$dinteger} {
-                puts -nonewline $xsep $dlabel
+                append output $xsep $dlabel
                 set xsep $sep
             } else {
-                puts -nonewline $dlabel
+                append output $dlabel
                 set xsep "";    # no separator bewteen this and next
             }
         } elseif {$dindex >= $plen} {
@@ -189,7 +190,7 @@ proc putsill { line desired } {
             if {[string length $dinteger] > 0} {
                 pval = [expr round $pval]
             }
-            puts -nonewline $xsep $dlabel $pval
+            append output $xsep $dlabel $pval
             set xsep $sep
         }
     }
@@ -213,14 +214,14 @@ proc fl_star_details { star {filename {}} {binsecs {}} \
             break;  # eof
         }
         if {$flstats(indent)} {
-            putsill $ristats $flstats(ristats)
+            puts [sill $ristats $flstats(ri_output_spec)]
             set prefix $flstats(indentation); # fold into [putsill]?
         } else {
-            set prefix $ristats
+            set prefix [sill $ristats $flstats(ri_output_spec)]
         }
         fl_start_${star}_enumeration
         while { [set x [fl_continue_${star}_enumeration]] != ""} {
-            putsill "$prefix$x" $flstats(${star}stats_format)
+            puts "$prefix[sill $x $flstats(${star}_output_spec)]"
         }
     }
 }
@@ -665,6 +666,7 @@ proc fl_set_parameters {argc argv} {
     }
     
     if {$flstats(header)} {
+        # XXX needs, also, to go through [sill]
         puts -nonewline [evenelts [fl_stats_format ri template]]
         if {$flstats(indent)} {
             puts ""
