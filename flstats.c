@@ -1995,92 +1995,62 @@ fl_tcl_code(ClientData clientData, Tcl_Interp *interp,
 }
 
 
-static int
-fl_class_stats_format(ClientData clientData, Tcl_Interp *interp,
-                       int argc, const char *argv[])
-{
-    char *new;
 
-    switch (argc) {
-    case 2:
-        new = strsave(argv[1]);
-        if (new == 0) {
-            Tcl_SetResult(interp,
-                       "fl_class_stats_format: unable to allocate space for format",
-                       TCL_STATIC);
-            return TCL_ERROR;
-        }
-        free(class_stats_format);
-        class_stats_format = new;
-        /* fall through */
-    case 1:
-        Tcl_SetResult(interp, class_stats_format, TCL_VOLATILE);
-        break;
-    default:
-        Tcl_SetResult(interp,
-                      "Usage: fl_class_stats_format [newformat]", TCL_STATIC);
+
+static int
+fl_stats_format(ClientData clientData, Tcl_Interp *interp,
+                int argc, const char *argv[])
+{
+    char *new, **current, *template;
+    int templatep = 0;
+    static char *usage = \
+        "Usage: fl_ri_stats_format {cl|fl|ri} {current|template} [newformat]";
+
+
+    if ((argc != 3) && (argc != 4)) {
+        Tcl_SetResult(interp, usage, TCL_STATIC);
         return TCL_ERROR;
     }
-    return TCL_OK;
-}
 
-
-static int
-fl_flow_stats_format(ClientData clientData, Tcl_Interp *interp,
-                       int argc, const char *argv[])
-{
-    char *new;
-
-    switch (argc) {
-    case 2:
-        new = strsave(argv[1]);
-        if (new == 0) {
-            Tcl_SetResult(interp,
-                         "fl_flow_stats_format: unable to allocate space for format",
-                         TCL_STATIC);
-            return TCL_ERROR;
-        }
-        free(flow_stats_format);
-        flow_stats_format = new;
-        /* fall through */
-    case 1:
-        Tcl_SetResult(interp, flow_stats_format, TCL_VOLATILE);
-        break;
-    default:
-        Tcl_SetResult(interp,
-                      "Usage: fl_flow_stats_format [newformat]", TCL_STATIC);
+    if (!strcmp(argv[1], "cl")) {
+        current = &class_stats_format;
+        template = class_stats_template;
+    } else if (!strcmp(argv[1], "fl")) {
+        current = &flow_stats_format;
+        template = flow_stats_template;
+    } else if (!strcmp(argv[1], "ri")) {
+        current = &ri_stats_format;
+        template = ri_stats_template;
+    } else {
+        Tcl_SetResult(interp, usage, TCL_STATIC);
         return TCL_ERROR;
     }
-    return TCL_OK;
-}
 
+    if (!strcmp(argv[2], "current")) {
+        templatep = 0;
+    } else if (!strcmp(argv[2], "template")) {
+        templatep = 1;
+    } else {
+        Tcl_SetResult(interp, usage, TCL_STATIC);
+        return TCL_ERROR;
+    }
 
-
-static int
-fl_ri_stats_format(ClientData clientData, Tcl_Interp *interp,
-                       int argc, const char *argv[])
-{
-    char *new;
-
-    switch (argc) {
-    case 2:
-        new = strsave(argv[1]);
+    if (argc == 3) {
+        if (templatep) {
+            Tcl_SetResult(interp, template, TCL_VOLATILE);
+        } else {
+            Tcl_SetResult(interp, *current, TCL_VOLATILE);
+        }
+    } else {
+        new = strsave(argv[3]);
         if (new == 0) {
             Tcl_SetResult(interp,
-                         "fl_ri_stats_format: unable to allocate space for format",
-                         TCL_STATIC);
+                         "fl_stats_format: unable to allocate space for new format",
+                          TCL_STATIC);
             return TCL_ERROR;
         }
-        free(ri_stats_format);
-        ri_stats_format = new;
-        /* fall through */
-    case 1:
-        Tcl_SetResult(interp, ri_stats_format, TCL_VOLATILE);
-        break;
-    default:
-        Tcl_SetResult(interp,
-                      "Usage: fl_ri_stats_format [newformat]", TCL_STATIC);
-        return TCL_ERROR;
+        free(*current);
+        *current = new;
     }
     return TCL_OK;
 }
@@ -2193,8 +2163,6 @@ Tcl_AppInit(Tcl_Interp *interp)
 
     Tcl_CreateCommand(interp, "fl_catch_signal", fl_catch_signal,
                       NULL, NULL);
-    Tcl_CreateCommand(interp, "fl_class_stats_format", 
-                      fl_class_stats_format, NULL, NULL);
     Tcl_CreateCommand(interp, "fl_class_stats", fl_class_stats,
                       NULL, NULL);
     Tcl_CreateCommand(interp, "fl_continue_class_enumeration",
@@ -2203,12 +2171,8 @@ Tcl_AppInit(Tcl_Interp *interp)
                       fl_continue_flow_enumeration, NULL, NULL);
     Tcl_CreateCommand(interp, "fl_time_base", fl_time_base,
                       NULL, NULL);
-    Tcl_CreateCommand(interp, "fl_flow_stats_format", 
-                      fl_flow_stats_format, NULL, NULL);
     Tcl_CreateCommand(interp, "fl_read_one_bin", fl_read_one_bin,
                       NULL, NULL);
-    Tcl_CreateCommand(interp, "fl_ri_stats_format", 
-                      fl_ri_stats_format, NULL, NULL);
     Tcl_CreateCommand(interp, "fl_set_file", fl_set_file,
                       NULL, NULL);
     Tcl_CreateCommand(interp, "fl_set_flow_type", fl_set_flow_type,
@@ -2219,6 +2183,8 @@ Tcl_AppInit(Tcl_Interp *interp)
                       fl_start_class_enumeration, NULL, NULL);
     Tcl_CreateCommand(interp, "fl_start_flow_enumeration",
                       fl_start_flow_enumeration, NULL, NULL);
+    Tcl_CreateCommand(interp, "fl_stats_format", 
+                      fl_stats_format, NULL, NULL);
     Tcl_CreateCommand(interp, "fl_tcl_code", fl_tcl_code,
                       NULL, NULL);
     Tcl_CreateCommand(interp, "fl_version", fl_version,

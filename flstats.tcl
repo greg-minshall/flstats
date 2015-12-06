@@ -91,9 +91,10 @@ proc flll_delete {time FLOW args} {
 
 # where: if tag is missing, then this is just a string constant to be
 # printed, surrounded by separators (unless ":int" is specified); if
-# "/"label"/" is missing, the tag is used as the label; and, if ":int"
-# is present, the (presumably) floating point values at this location
-# are rounded to integer before being printed.
+# "/"label"/" is missing, the tag is used as the label (suppressed if
+# -T is specified on the command line); and, if ":int" is present, the
+# (presumably) floating point values at this location are rounded to
+# integer before being printed.
 
 # XXX need to call this *after* argument parsing: indexing depends on
 # -T flag
@@ -590,7 +591,7 @@ proc fl_set_parameters {argc argv} {
             if {![info exists ofmt($which)]} {
                 error "first argument for --output should be one of: cl, fl, ri"
             }
-            set flstats(${which}_output_spec) [fl_crack_output [lindex $argv 2]]
+            set flstats(${{which}_output_arg}) [lindex $argv 2]
         } elseif {[string equal $arg --interactive]} { # interactive
             if {$classes || $flows} {
                 error "can only specify *one* of {classes|flows|interactive}"
@@ -660,7 +661,7 @@ proc fl_set_parameters {argc argv} {
     }
     
     if {$flstats(header)} {
-        puts -nonewline [evenelts [fl_ri_stats_format]]
+        puts -nonewline [evenelts [fl_stats_format ri template]]
         if {$flstats(indent)} {
             puts ""
             puts -nonewline $flstats(indentation)
@@ -668,19 +669,31 @@ proc fl_set_parameters {argc argv} {
             puts -nonewline " "
         }
         if {$classes} {
-            puts [evenelts [fl_class_stats_format]]
+            puts [evenelts [fl_stats_format cl template]]
         } elseif {$flows} {
-            puts [evenelts [fl_flow_stats_format]]
+            puts [evenelts [fl_stats_format fl template]]
         }
     }
 
     if {!$flstats(tags)} {
         if {$classes} {
-            fl_class_stats_format [oddelts [fl_class_stats_format]]
+            fl_class_stats_format [oddelts [fl_stats_format cl template]]
         } elseif {$flows} {
-            fl_flow_stats_format [oddelts [fl_flow_stats_format]]
+            fl_flow_stats_format [oddelts [fl_stats_format cl template]]
         }
-        fl_ri_stats_format [oddelts [fl_ri_stats_format]]
+        fl_ri_stats_format [oddelts [fl_stats_format ri template]]
+    }
+
+    # *AFTER* deciding on tags...
+
+    foreach which in { cl fl ri } {
+        if {[info exists $flstats(${which}_output_arg)]} {
+            set flstats(${which}_output_spec) \
+                [fl_crack_output $flstats(${which}_output_arg)]
+        } else {
+            set flstats(${which}_output_spec) \
+                [fl_crack_output $flstats(default_${which}_output_arg)]
+        }
     }
 
     if {$eval != 0} {
@@ -752,3 +765,5 @@ set flstats(indentation) "    ";          # XXX make configurable?
 set flstats(flowtypes) { \
     ihv/ihl/tos/ttl/prot/src/dst ihv/ihl/tos/ttl/prot/src/dst/sport/dport \
 }
+
+set flstats(default_cl_output_spec) [fl_
