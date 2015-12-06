@@ -10,8 +10,8 @@
 # XXX What is consequence of running -script parameter during
 # "application initialization"?
 
-# http://www.tcl.tk/man/tcl8.5/tutorial/tcltutorial.html is a nice
-# tutorial.
+# http://www.tcl.tk/man/tcl8.5/tutorial/tcltutorial.html
+# is a nice tutorial.
 
 
 ### The following is useful, but is also provided as an
@@ -81,6 +81,55 @@ proc flll_delete {time FLOW args} {
     return "- $time.0"
 }
 
+proc putsill { line desired } {
+    global flstats
+
+    # LINE is a string of "tag value" elements.
+    # DESIRED is a list of elements, each of the form:
+    #     tag type index label integer
+    # where TAG is the matching tag from LINE; TYPE is the type of
+    # value (string, integer, sipg, timeval); INDEX is the position of
+    # TAG in LINE; LABEL is what to print out (defaults to TAG); and
+    # INTEGER, if it exists, specifies that the timeval should be
+    # rounded to the nearest integer and printed out as an integer.
+    # NB: if INDEX equals -1, then just print out the label
+    # (surrounded by separator characters, as normal, unless INTEGER
+    # is true, in which case leave out the separator characters in
+    # this special case).
+
+    if {info exists flstats(separator)} {
+        set sep $flstats(separator)
+    } else {
+        set set " ";            # default
+    }
+    set xsep "";                # not before *first* pair
+    set pairs [split $line]
+    set plen [llength $pairs]
+    set pnum [expr $plen / 2];  # number of tag/value pairs
+    set dlen [llength $desired]
+    for {set i 0} {$i < dlen} {incr i} {
+        set delt [lindex $desired $i]
+        set dtag [lindex $delt 0]
+        set dtype [lindex $delt 1]
+        set dindex [lindex $delt 2]
+        if {$dindex == -1} {
+        } elseif {$dindex >= $pnum} {
+            puts stderr $line
+            puts stderr $delt
+            error "index value $dindex too high"
+        } else {
+            set pval [lindex $pairs [expr ($dindex * 2)+1]]
+            set dlabel [lindex $delt 3]
+            set dinteger [lindex $delt 4]; # "" if d.n.e.
+            if {[string length $dinteger] > 0} {
+                pval = [expr round $pval]
+            }
+            puts -nonewline $xsep $dlabel $pval
+            set xsep $sep
+        }
+    }
+}
+
 
 proc fl_star_details { star {filename {}} {binsecs {}} \
                            {classifier {}} { flowtypes {} }} {
@@ -98,14 +147,14 @@ proc fl_star_details { star {filename {}} {binsecs {}} \
             break;  # eof
         }
         if {$flstats(indent)} {
-            puts $ristats
-            set prefix $flstats(indentation);
+            putsill $ristats $flstats(ristats)
+            set prefix $flstats(indentation); # fold into [putsill]?
         } else {
             set prefix $ristats
         }
         fl_start_${star}_enumeration
         while { [set x [fl_continue_${star}_enumeration]] != ""} {
-            puts "$prefix$x"
+            putsill "$prefix$x" $flstats(${star}stats)
         }
     }
 }
