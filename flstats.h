@@ -156,18 +156,24 @@ typedef struct clstats {
  */
 
 typedef struct ri {
-    u_long ri_pkts,           /* number of packets received this ri */
-        ri_bytes,             /* number of bytes seen this ri */
-        ri_isipg,             /* smoothed ipg (w/in this ri) */
-        ri_tsipg,             /* smoothed ipg (w/in trace) */
-	    ri_fragpkts,          /* fragments seen (using ports) */
-	    ri_fragbytes,         /* bytes seen in those frags */
-	    ri_toosmallpkts,      /* packet length too small */
-	    ri_toosmallbytes,     /* bytes seen in those frags */
-	    ri_runtpkts,          /* captured portion too small */
-	    ri_runtbytes,         /* bytes seen in those frags */
-	    ri_noportpkts,        /* packet had no ports (but needed) */
-	    ri_noportbytes;       /* bytes seen in those frags */
+    u_long ri_binno,         /* current ri bin number */
+        ri_pkts,             /* number of packets received this ri */
+        ri_bytes,            /* number of bytes seen this ri */
+        ri_isipg,            /* smoothed ipg (w/in this ri) */
+        ri_tsipg,            /* smoothed ipg (w/in trace) */
+        ri_ignorepkts,       /* not an IPv4 packet (so, didn't even classify) */
+        ri_ignorebytes,      /* bytes of same */
+        ri_unclpkts,         /* packets that didn't match any class */
+        ri_unclbytes,        /* bytes that didn't match any class */
+    /* the following are all included in above "uncl" */
+	    ri_fragpkts,         /* fragments seen (using ports) */
+	    ri_fragbytes,        /* bytes seen in those frags */
+	    ri_toosmallpkts,     /* packet length too small */
+	    ri_toosmallbytes,    /* bytes seen in those frags */
+	    ri_runtpkts,         /* captured portion too small */
+	    ri_runtbytes,        /* bytes seen in those frags */
+	    ri_noportpkts,       /* packet had no ports (but needed) */
+	    ri_noportbytes;      /* bytes seen in those frags */
     struct timeval ri_starttime, /* time this ri started */
         ri_first_pkt_rcvd,    /* time first packet received this ri */
         ri_last_pkt_rcvd,     /* time last packet received this ri */

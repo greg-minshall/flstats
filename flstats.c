@@ -136,7 +136,7 @@ u_char *pending_packet, *pktbuffer;;
 
 flowentry_t timers[150];
 
-u_long binno, pktcount, signalled, lastsignalled;
+u_long pktcount, signalled, lastsignalled;
 
 char	*args,			/* arguments... */
 	argcount[200];		/* number of them */
@@ -606,28 +606,37 @@ static char *ri_stats_template =
     "binno %lu ri_start %ld.%06ld ri_end %ld.%06ld "
     "ri_firstpkt %ld.%06ld ri_lastpkt %ld.%06ld "
     "ri_pkts %lu ri_bytes %lu "
+    "ri_tsipg %lu.%06lu ri_isipg %lu.%06lu "
+    "ignorepkts %lu ignorebytes %lu "
+    "unclpkts %lu unclbytes %lu "
     "fragpkts %lu fragbytes %lu toosmallpkts %lu toosmallbytes %lu "
-    "runtpkts %lu runtbytes %lu noportpkts %lu noportbytes %lu "
-    "ri_tsipg %lu.%06lu ri_isipg %lu.%06lu",
+    "runtpkts %lu runtbytes %lu noportpkts %lu noportbytes %lu",
     *ri_stats_format;
 
 static char *
 ri_statistics() {
     char *asret;
 
+    /* 
+     * note: only ri_stime uses delta_ri; everything can be
+     * relative to it
+     */
+
     asprintf(&asret, ri_stats_format,
-             binno,
+             ri.ri_binno,
              dtsecs_ri(&ri.ri_starttime), dtusecs_ri(&ri.ri_starttime),
              dtsecs_wi(&ri.ri_endtime), dtusecs_wi(&ri.ri_endtime),
              dtsecs_wi(&ri.ri_first_pkt_rcvd), dtusecs_wi(&ri.ri_first_pkt_rcvd),
              dtsecs_wi(&ri.ri_last_pkt_rcvd), dtusecs_wi(&ri.ri_last_pkt_rcvd),
              ri.ri_pkts, ri.ri_bytes,
-             ri.ri_fragpkts,
-             ri.ri_fragbytes, ri.ri_toosmallpkts, ri.ri_toosmallbytes,
-             ri.ri_runtpkts, ri.ri_runtbytes, ri.ri_noportpkts,
-             ri.ri_noportbytes, 
              SIPG_TO_SECS(ri.ri_isipg), SIPG_TO_USECS(ri.ri_isipg),
-             SIPG_TO_SECS(ri.ri_tsipg), SIPG_TO_USECS(ri.ri_tsipg));
+             SIPG_TO_SECS(ri.ri_tsipg), SIPG_TO_USECS(ri.ri_tsipg),
+             ri.ri_ignorepkts, ri.ri_ignorebytes,
+             ri.ri_unclpkts, ri.ri_unclbytes,
+             ri.ri_fragpkts, ri.ri_fragbytes,
+             ri.ri_toosmallpkts, ri.ri_toosmallbytes,
+             ri.ri_runtpkts, ri.ri_runtbytes,
+             ri.ri_noportpkts, ri.ri_noportbytes);
     return asret;
 }
 
@@ -784,8 +793,8 @@ set_time(Tcl_Interp *interp, long sec, long usec)
             ri.ri_starttime = curtime;
         }
     }
-    if (binno == -1) {
-        binno = NOW_AS_BINNO();
+    if (ri.ri_binno == -1) {
+        ri.ri_binno = NOW_AS_BINNO();
     }
 }
 
@@ -906,7 +915,7 @@ static void
 delete_flow(flowentry_p fe)
 {
     clstats[fe->fe_class].cls_deleted++;
-    clstats[fe->fe_class].cls_last_bin_active = binno;
+    clstats[fe->fe_class].cls_last_bin_active = ri.ri_binno;
     tbl_delete(fe);
 }
 
@@ -990,7 +999,7 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int class)
         }
     }
     clstats[fe->fe_class].cls_created++;
-    clstats[fe->fe_class].cls_last_bin_active = binno;
+    clstats[fe->fe_class].cls_last_bin_active = ri.ri_binno;
     return fe;
 }
 
@@ -1031,7 +1040,7 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
     clstats_p cl;
 
     cl = &clstats[fe->fe_class];
-    cl->cls_last_bin_active = binno;
+    cl->cls_last_bin_active = ri.ri_binno;
 
     /* update statistics */
 
@@ -1050,8 +1059,8 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
     fe->fe_last_pkt_rcvd = curtime;
 
     /* count activity in this bin */
-    if (fe->fe_last_bin_active != binno) {
-        fe->fe_last_bin_active = binno;
+    if (fe->fe_last_bin_active != ri.ri_binno) {
+        fe->fe_last_bin_active = ri.ri_binno;
         cl->cls_active++;
     }
 
@@ -1104,7 +1113,7 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
             clstats[fe->fe_class].cls_removed++;
             fe->fe_class = outcls;
             clstats[fe->fe_class].cls_added++;
-            clstats[fe->fe_class].cls_last_bin_active = binno;
+            clstats[fe->fe_class].cls_last_bin_active = ri.ri_binno;
         }
         if (n >= 2) {
             if (!TIME_EQ(&fe->fe_upcall_when_secs_ge, &ZERO)) {
@@ -1146,12 +1155,12 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
             return;
         }
         pending = 0;
-        binno = NOW_AS_BINNO();
+        ri.ri_binno = NOW_AS_BINNO();
         /* use the pending packet */
         packet = (const u_char *)pending_packet;
         caplen = pendingcaplen;
         pktlen = pendingpktlen;
-    } else if (binno != NOW_AS_BINNO()) {
+    } else if (ri.ri_binno != NOW_AS_BINNO()) {
         /* if we've gone over to another bin number... */
         pending = 1;
         memcpy(pending_packet, packet, MIN(caplen, pending_maxpktlen));
@@ -1212,11 +1221,10 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
     }
 
     if (llclindex >= NUM(llclasses)) {
-        /* XXX count in ri_ struct instead? */
-        clstats[0].cls_pkts++;
-        clstats[0].cls_bytes += pktlen;
-        clstats[0].cls_last_bin_active = binno;
+        ri.ri_unclpkts++;
+        ri.ri_unclbytes += pktlen;
         if (pktbigenough) {	/* packet was big enough, but... */
+            /* never found a flow type into which it fit */
             if (capbigenough) {
                 if (packet[6]&0x1fff) {
                     ri.ri_fragpkts++;
@@ -1234,8 +1242,7 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
                 ri.ri_runtpkts++;
                 ri.ri_runtbytes += pktlen;
             }
-        } else {
-            /* never found a flow type into which it fit */
+        } else {                /* packet was too small for *any* defined flow */
             ri.ri_toosmallpkts++;
             ri.ri_toosmallbytes += pktlen;
         }
@@ -1309,10 +1316,10 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
         if (llfe->fe_parent_class > ulfe->fe_class) {
             /* class is changing --- update statistics */
             clstats[ulfe->fe_class].cls_removed++;
-            clstats[ulfe->fe_class].cls_last_bin_active = binno;
+            clstats[ulfe->fe_class].cls_last_bin_active = ri.ri_binno;
             ulfe->fe_class = llfe->fe_parent_class;
             clstats[ulfe->fe_class].cls_added++;
-            clstats[ulfe->fe_class].cls_last_bin_active = binno;
+            clstats[ulfe->fe_class].cls_last_bin_active = ri.ri_binno;
         }
 
         /* track packet stats */
@@ -1345,6 +1352,8 @@ receive_tcpd_en10mb(u_char *user, const struct pcap_pkthdr *h,
     type = buffer[12]<<8|buffer[13];
 
     if (type != IPtype) {
+        ri.ri_ignorepkts++;
+        ri.ri_ignorebytes += h->caplen-14; /* not that 14 is a magic number... */
         return;         /* only IP packets */
     }
 
@@ -1532,7 +1541,7 @@ fl_read_one_bin(ClientData clientData, Tcl_Interp *interp,
     }
     
 
-    binno = -1;
+    ri.ri_binno = -1;
 
     if (!fileeof) {
         if (filetype == TYPE_UNKNOWN) {
@@ -1545,7 +1554,7 @@ fl_read_one_bin(ClientData clientData, Tcl_Interp *interp,
             return TCL_ERROR;
         }
 
-        while (((binno == -1) || (binno == NOW_AS_BINNO())) &&
+        while (((ri.ri_binno == -1) || (ri.ri_binno == NOW_AS_BINNO())) &&
                (!fileeof) && (signalled == lastsignalled)) {
             error = process_one_packet(interp);
             if (error != TCL_OK) {
@@ -1560,10 +1569,6 @@ fl_read_one_bin(ClientData clientData, Tcl_Interp *interp,
         asprintf(&asret, "");
         Tcl_SetResult(interp, asret, tclasfree);
     } else {
-        /* 
-         * note: only ri_stime uses delta_ri; everything can be
-         * relative to it
-         */
         Tcl_SetResult(interp, ri_statistics(), tclasfree);
     }
     return TCL_OK;
@@ -1828,14 +1833,14 @@ fl_continue_class_enumeration(ClientData clientData, Tcl_Interp *interp,
         if (class_enum_state >= &clstats[NUM(clstats)]) {
             class_enum_state = 0;
         }
-        if (cl->cls_last_bin_active == binno) {
+        if (cl->cls_last_bin_active == ri.ri_binno) {
             Tcl_SetResult(interp, class_statistics(cl), TCL_VOLATILE);
             /* now, clear stats for next go round... */
             /* but, preserve sipg and last rcvd... */
             sipg = cl->cls_sipg;
             last_rcvd = cl->cls_last_pkt_rcvd;
             memset(cl, 0, sizeof *cl);
-            cl->cls_last_bin_active = binno;
+            cl->cls_last_bin_active = ri.ri_binno;
             cl->cls_sipg = sipg;
             cl->cls_last_pkt_rcvd = last_rcvd;
             return TCL_OK;
@@ -1864,7 +1869,7 @@ fl_continue_flow_enumeration(ClientData clientData, Tcl_Interp *interp,
 		int argc, const char *argv[])
 {
     while (flow_enum_state) {
-        if (flow_enum_state->fe_last_bin_active == binno) {
+        if (flow_enum_state->fe_last_bin_active == ri.ri_binno) {
             Tcl_SetResult(interp,
                           flow_statistics(flow_enum_state), TCL_VOLATILE);
             flow_enum_state->fe_pkts_last_enum = flow_enum_state->fe_pkts;
