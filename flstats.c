@@ -1162,7 +1162,7 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
 
     pktcount++;
     ri.ri_pkts++;
-    ri.ri_bytes++;
+    ri.ri_bytes += pktlen;
     if (TIME_EQ(&ri.ri_first_pkt_rcvd, &ZERO)) {
         ri.ri_first_pkt_rcvd = curtime;
     }
