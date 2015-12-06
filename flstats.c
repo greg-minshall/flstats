@@ -575,7 +575,7 @@ flow_statistics(flowentry_p fe)
 static char *class_stats_template =
     "class %ld created %lu deleted %lu added %lu removed %lu "
     "active %lu pkts %lu bytes %lu sipg %lu.%06lu "
-    " lastrecv %ld.%06ld",
+    "lastrecv %ld.%06ld",
     *class_stats_format;
 
 static char *
