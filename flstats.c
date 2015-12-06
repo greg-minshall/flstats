@@ -550,7 +550,7 @@ flow_type_to_string(int ftype)
  */
 
 static char *flow_stats_template =
-    "type %d class %d type %s id %s pkts %lu bytes "
+    "class %d type %s id %s pkts %lu bytes "
     "%lu sipg %lu.%06lu created %ld.%06ld last %ld.%06ld",
     *flow_stats_format;
 
@@ -560,7 +560,7 @@ flow_statistics(flowentry_p fe)
     static char summary[2000];
 
     sprintf(summary, flow_stats_format,
-            fe->fe_flow_type, fe->fe_class,
+            fe->fe_class,
             flow_type_to_string(&ftinfo[fe->fe_flow_type]),
             flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_id),
             fe->fe_pkts-fe->fe_pkts_last_enum, fe->fe_bytes-fe->fe_bytes_last_enum,
@@ -2001,37 +2001,44 @@ static int
 fl_stats_format(ClientData clientData, Tcl_Interp *interp,
                 int argc, const char *argv[])
 {
-    char *new, **current, *template;
+    char *new, **current, *template, *asret;
     int templatep = 0;
     static char *usage = \
-        "Usage: fl_ri_stats_format {cl|fl|ri} {current|template} [newformat]";
+        "Usage: fl_stats_format {class|flow|ri} {current|template} [newformat]";
 
 
     if ((argc != 3) && (argc != 4)) {
-        Tcl_SetResult(interp, usage, TCL_STATIC);
+        asprintf(&asret, "not the right number of arguments (%d given)\n%s",
+                 argc, usage);
+        Tcl_SetResult(interp, asret, tclasfree);
         return TCL_ERROR;
     }
 
-    if (!strcmp(argv[1], "cl")) {
+    if (!strcasecmp(argv[1], "class")) {
         current = &class_stats_format;
         template = class_stats_template;
-    } else if (!strcmp(argv[1], "fl")) {
+    } else if (!strcasecmp(argv[1], "flow")) {
         current = &flow_stats_format;
         template = flow_stats_template;
-    } else if (!strcmp(argv[1], "ri")) {
+    } else if (!strcasecmp(argv[1], "ri")) {
         current = &ri_stats_format;
         template = ri_stats_template;
     } else {
-        Tcl_SetResult(interp, usage, TCL_STATIC);
+        asprintf(&asret, "unknown kind \"%s\", looking for {class|flow|ri}.\n%s",
+                 argv[1], usage);
+        Tcl_SetResult(interp, asret, tclasfree);
         return TCL_ERROR;
     }
 
-    if (!strcmp(argv[2], "current")) {
+    if (!strcasecmp(argv[2], "current")) {
         templatep = 0;
-    } else if (!strcmp(argv[2], "template")) {
+    } else if (!strcasecmp(argv[2], "template")) {
         templatep = 1;
     } else {
-        Tcl_SetResult(interp, usage, TCL_STATIC);
+        asprintf(&asret,
+                 "unknown instance \"%s\", looking for {current|template}\n%s",
+                 argv[2], usage);
+        Tcl_SetResult(interp, asret, tclasfree);
         return TCL_ERROR;
     }
 

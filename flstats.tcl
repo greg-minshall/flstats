@@ -105,6 +105,10 @@ proc flll_delete {time FLOW args} {
 proc crack_output { spec stats_format } {
     global flstats
 
+    if {$flstats(debug)} {
+        puts "\[crack_output\] with: $spec"
+        puts "with: $stats_format"
+    }
     set tags [split $stats_format]
     set tlen [llength $tags]
     if {[expr $tlen % 2]} {
@@ -120,7 +124,7 @@ proc crack_output { spec stats_format } {
     set desired [];             # empty list
     set swords [split $spec {[ ,]}]; # split on blank, comma
     set slen [llength $swords]
-    for {set i 0} {$i < $slen} {incr i 2} {
+    for {set i 0} {$i < $slen} {incr i} {
         set sbits [split [lindex $swords $i] ":"]
         if {([llength $sbits] == 0) || ([llength $sbits] > 3)} {
             error "invalid output specification: [lindex $swords $i]\n \
@@ -135,8 +139,9 @@ proc crack_output { spec stats_format } {
             error "unknown tag \"$stag\"; should be one of: $tags"
         }
         set index $indices($stag)
-        lappend desired { $stag $formats($stag) $indices($stag) $slabel $sint }
+        lappend desired [list $stag $formats($stag) $indices($stag) $slabel $sint]
     }
+    return $desired;
 }
 
 
@@ -156,10 +161,14 @@ proc sill { line desired } {
     # is true, in which case leave out the separator characters in
     # this special case).
 
+    if {$flstats(debug)} {
+        puts stderr "silling: $line"
+        puts stderr "with: $desired"
+    }
     if {[info exists flstats(separator)]} {
         set sep $flstats(separator)
     } else {
-        set set " ";            # default
+        set sep " ";            # default
     }
     set xsep "";                # not before *first* pair
     set output "";
@@ -182,19 +191,17 @@ proc sill { line desired } {
                 set xsep "";    # no separator bewteen this and next
             }
         } elseif {$dindex >= $plen} {
-            puts stderr $line
-            puts stderr $delt
             error "index value $dindex too high"
         } else {
             set pval [lindex $pelts $dindex]
-            if {[string length $dinteger] > 0} {
-                pval = [expr round $pval]
+            if {$dinteger} {
+                set pval [expr round($pval)]
             }
             append output $xsep $dlabel $pval
             set xsep $sep
         }
     }
-    puts "";                    # \n, as it were
+    return $output
 }
 
 
@@ -214,13 +221,13 @@ proc fl_star_details { star {filename {}} {binsecs {}} \
             break;  # eof
         }
         if {$flstats(indent)} {
-            puts [sill $ristats $flstats(ri_output_spec)]
             set prefix $flstats(indentation); # fold into [putsill]?
         } else {
             set prefix [sill $ristats $flstats(ri_output_spec)]
         }
         fl_start_${star}_enumeration
         while { [set x [fl_continue_${star}_enumeration]] != ""} {
+            puts [sill $ristats $flstats(ri_output_spec)]
             puts "$prefix[sill $x $flstats(${star}_output_spec)]"
         }
     }
@@ -675,9 +682,9 @@ proc fl_set_parameters {argc argv} {
             puts -nonewline " "
         }
         if {$classes} {
-            puts [evenelts [fl_stats_format cl template]]
+            puts [evenelts [fl_stats_format class template]]
         } elseif {$flows} {
-            puts [evenelts [fl_stats_format fl template]]
+            puts [evenelts [fl_stats_format flow template]]
         }
     }
 
@@ -685,15 +692,15 @@ proc fl_set_parameters {argc argv} {
     # eliminate it
 
     if {$classes} {
-        fl_stats_format cl current [oddelts [fl_stats_format cl template]]
+        fl_stats_format class current [oddelts [fl_stats_format class template]]
     } elseif {$flows} {
-        fl_stats_format fl current [oddelts [fl_stats_format cl template]]
+        fl_stats_format flow current [oddelts [fl_stats_format flow template]]
     }
     fl_stats_format ri current [oddelts [fl_stats_format ri template]]
 
     # *AFTER* deciding on tags...
 
-    foreach which { cl fl ri } {
+    foreach which { class flow ri } {
         if {[info exists flstats(${which}_output_arg)]} {
             set flstats(${which}_output_spec) \
                 [crack_output "$flstats(${which}_output_arg)" \
@@ -775,6 +782,6 @@ set flstats(flowtypes) { \
     ihv/ihl/tos/ttl/prot/src/dst ihv/ihl/tos/ttl/prot/src/dst/sport/dport \
 }
 
-set flstats(default_cl_output_arg) [fl_stats_format cl template]
-set flstats(default_fl_output_arg) [fl_stats_format fl template]
-set flstats(default_ri_output_arg) [fl_stats_format ri template]
+set flstats(default_class_output_arg) [evenelts [fl_stats_format class template]]
+set flstats(default_flow_output_arg) [evenelts [fl_stats_format flow template]]
+set flstats(default_ri_output_arg) [evenelts [fl_stats_format ri template]]
