@@ -101,34 +101,34 @@ proc flll_delete {time FLOW args} {
 proc crack_output { spec stats_format } {
     global flstats
 
-    set tags [split stats_format]
+    set tags [split $stats_format]
     set tlen [llength $tags]
     if {[expr $tlen % 2]} {
-        error{"[crack_output] internal error: stats_format parameter contains *odd* number of elements:\n${stats_format}"}
+        error "\[crack_output\] internal error: stats_format parameter contains *odd* number of elements:\n${stats_format}"
     }
     # set up for a bit of speed (probably unnecessary)
     array unset indices formats
     for {set i 0} {$i < $tlen} {incr i 2} {
         set valindex [expr $i + 1]
-        set indices ([lindex $tags $i]) $valindex
-        set formats ([lindex $tags $i]) [lindex $tags $valindex]
+        set indices([lindex $tags $i]) $valindex
+        set formats([lindex $tags $i]) [lindex $tags $valindex]
     }
     set desired [];             # empty list
     set swords [split $spec {[ ,]}]; # split on blank, comma
     set slen [llength $swords]
     for {set i 0} {$i < $slen} {incr i} {
         set sbits [split [lindex $swords $i] ":"]
-        if {{[llength $sbits] == 0} || {[llength $sbits] > 3}} {
-            error("invalid output specification: [lindex $swords $i]\n
-                   should be: [tag][:[label][:\"int\"]]")
+        if {([llength $sbits] == 0) || ([llength $sbits] > 3)} {
+            error "invalid output specification: [lindex $swords $i]\n \
+                   should be: [tag][:[label][:\"int\"]]"
         }
         set stag [lindex $sbits 0]
         set slabel [lindex $sbits 1]
         set sint [lindex $sbits 2]
         if {[string equal [lindex $sbits 0] ""]} { # this is just a string literal
             lappend desired { {} "string" -1 $slabel $sint }
-        } elseif {![info exists indices($tag)]} {
-            error("unknown tag \"$stag\"; should be one of: $tags");
+        } elseif {![info exists indices($stag)]} {
+            error "unknown tag \"$stag\"; should be one of: $tags"
         }
         set index $indices($stag)
         lappend desired { $stag $formats($stag) $indices($stag) $slabel $sint }
@@ -686,13 +686,15 @@ proc fl_set_parameters {argc argv} {
 
     # *AFTER* deciding on tags...
 
-    foreach which in { cl fl ri } {
-        if {[info exists $flstats(${which}_output_arg)]} {
+    foreach which { cl fl ri } {
+        if {[info exists flstats(${which}_output_arg)]} {
             set flstats(${which}_output_spec) \
-                [fl_crack_output $flstats(${which}_output_arg)]
+                [crack_output "$flstats(${which}_output_arg)" \
+                     "[fl_stats_format ${which} template ]" ]
         } else {
             set flstats(${which}_output_spec) \
-                [fl_crack_output $flstats(default_${which}_output_arg)]
+                [crack_output "$flstats(default_${which}_output_arg)" \
+                     "[fl_stats_format ${which} template ]" ]
         }
     }
 
@@ -766,4 +768,6 @@ set flstats(flowtypes) { \
     ihv/ihl/tos/ttl/prot/src/dst ihv/ihl/tos/ttl/prot/src/dst/sport/dport \
 }
 
-set flstats(default_cl_output_spec) [fl_
+set flstats(default_cl_output_arg) [fl_stats_format cl template]
+set flstats(default_fl_output_arg) [fl_stats_format fl template]
+set flstats(default_ri_output_arg) [fl_stats_format ri template]
