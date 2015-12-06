@@ -98,6 +98,10 @@ proc flll_delete {time FLOW args} {
 
 # XXX need to call this *after* argument parsing: indexing depends on
 # -T flag
+
+# NB: stats_format is from a call [fl_stats_format ?? template], i.e.,
+# it contains tags
+
 proc crack_output { spec stats_format } {
     global flstats
 
@@ -109,14 +113,14 @@ proc crack_output { spec stats_format } {
     # set up for a bit of speed (probably unnecessary)
     array unset indices formats
     for {set i 0} {$i < $tlen} {incr i 2} {
-        set valindex [expr $i + 1]
-        set indices([lindex $tags $i]) $valindex
-        set formats([lindex $tags $i]) [lindex $tags $valindex]
+        set valindex [expr $i/2]
+        set indices([lindex $tags $i]) [expr $i/2]
+        set formats([lindex $tags $i]) [lindex $tags [expr $i+1]]
     }
     set desired [];             # empty list
     set swords [split $spec {[ ,]}]; # split on blank, comma
     set slen [llength $swords]
-    for {set i 0} {$i < $slen} {incr i} {
+    for {set i 0} {$i < $slen} {incr i 2} {
         set sbits [split [lindex $swords $i] ":"]
         if {([llength $sbits] == 0) || ([llength $sbits] > 3)} {
             error "invalid output specification: [lindex $swords $i]\n \
@@ -675,14 +679,15 @@ proc fl_set_parameters {argc argv} {
         }
     }
 
-    if {!$flstats(tags)} {
-        if {$classes} {
-            fl_class_stats_format [oddelts [fl_stats_format cl template]]
-        } elseif {$flows} {
-            fl_flow_stats_format [oddelts [fl_stats_format cl template]]
-        }
-        fl_ri_stats_format [oddelts [fl_stats_format ri template]]
+    # now, tagging isn't really done in .c file any more, so
+    # eliminate it
+
+    if {$classes} {
+        fl_stats_format cl current [oddelts [fl_stats_format cl template]]
+    } elseif {$flows} {
+        fl_stats_format fl current [oddelts [fl_stats_format cl template]]
     }
+    fl_stats_format ri current [oddelts [fl_stats_format ri template]]
 
     # *AFTER* deciding on tags...
 
