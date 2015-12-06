@@ -10,8 +10,7 @@
  *
  */
 
-static char *flstats_c_rcsid =
-    "$Id$";
+static char *flstats_c_rcsid = "$Id$"
 
 #include "config.h"
 
