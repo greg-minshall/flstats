@@ -10,7 +10,7 @@
  *
  */
 
-static char *flstats_c_rcsid = "$Id$"
+static char *flstats_c_rcsid = "$Id$";
 
 #include "config.h"
 
@@ -79,15 +79,8 @@ ri_t ri;                        /* reporting interval structure */
  */
 
 typedef enum { absolute, within_tr, within_ri, invalid } delta_t;
-typedef enum { secs, usecs, invalid_usecs } usecs_t;
 
-typedef struct {
-    delta_t delta;
-    usecs_t usecs;
-} time_how_t, *time_how_p;
-
-time_how_t th_wi, th_ri; /* "within ri", "reporting interval itself" */
-
+delta_t delta_wi, delta_ri;
 
 int binsecs = 0;		/* number of seconds in a bin */
 
@@ -181,9 +174,9 @@ tvusecs(suseconds_t su_usecs)
  */
 
 static long
-dtsecs(struct timeval *tv, time_how_t th)
+dtsecs(struct timeval *tv, delta_t delta)
 {
-    switch (th.delta) {
+    switch (delta) {
     case absolute:
         return tv->tv_sec;
     case within_tr:
@@ -203,8 +196,8 @@ dtsecs(struct timeval *tv, time_how_t th)
  */
 
 static long
-dtusecs(struct timeval *tv, time_how_t th) {
-    switch (th.delta) {
+dtusecs(struct timeval *tv, delta_t delta) {
+    switch (delta) {
     case absolute:
         return tvusecs(tv->tv_usec);
     case within_tr:
@@ -223,25 +216,25 @@ dtusecs(struct timeval *tv, time_how_t th) {
 static long
 dtsecs_wi(struct timeval *tv)
 {
-    return dtsecs(tv, th_wi);
+    return dtsecs(tv, delta_wi);
 }
 
 static long
 dtsecs_ri(struct timeval *tv)
 {
-    return dtsecs(tv, th_ri);
+    return dtsecs(tv, delta_ri);
 }
 
 static long
 dtusecs_wi(struct timeval *tv)
 {
-    return dtusecs(tv, th_wi);
+    return dtusecs(tv, delta_wi);
 }
 
 static long
 dtusecs_ri(struct timeval *tv)
 {
-    return dtusecs(tv, th_ri);
+    return dtusecs(tv, delta_ri);
 }
 
 
@@ -2131,50 +2124,27 @@ delta_decode(const char *string)
     }
 }
 
-static usecs_t
-delta_usecs_decode(const char *string)
-{
-    if (!strcasecmp(string, "secs")) {
-        return secs;
-    } else if (!strcasecmp(string, "usecs")) {
-        return usecs;
-    } else {
-        return invalid_usecs;
-    }
-}
-
-        
 static int
-fl_time_format(ClientData clientData, Tcl_Interp *interp,
+fl_time_base(ClientData clientData, Tcl_Interp *interp,
               int argc, const char *argv[])
 {
     static char usage[] =
-        "Usage: fl_time_format {absolute|within_tr_within_ri} {secs|usecs} "
-        "{absolute|within_tr} {secs|usecs}";
+        "Usage: fl_time_base {absolute|within_tr_within_ri} {absolute|within_tr}";
     char *asret;
     delta_t l_delta_wi, l_delta_ri;
-    usecs_t l_usecs_wi, l_usecs_ri;
     
-    if (argc != 5) {
+    if (argc != 3) {
         /* XXX return current settings... */
         Tcl_SetResult(interp, usage, TCL_STATIC);
         return TCL_ERROR;
     }
 
     l_delta_wi = delta_decode(argv[1]);
-    l_usecs_wi = delta_usecs_decode(argv[2]);
-    l_delta_ri = delta_decode(argv[3]);
-    l_usecs_ri = delta_usecs_decode(argv[4]);
+    l_delta_ri = delta_decode(argv[2]);
 
     if (l_delta_wi == invalid) {
         asprintf(&asret, "invalid \"within\" delta parameter: %s.\n%s\n",
                  argv[1], usage);
-        Tcl_SetResult(interp, asret, tclasfree);
-        return TCL_ERROR;
-    }
-    if (l_usecs_wi == invalid_usecs) {
-        asprintf(&asret, "invalid \"within\" usecs parameter: %s.\n%s\n",
-                 argv[2], usage);
         Tcl_SetResult(interp, asret, tclasfree);
         return TCL_ERROR;
     }
@@ -2185,18 +2155,9 @@ fl_time_format(ClientData clientData, Tcl_Interp *interp,
         Tcl_SetResult(interp, asret, tclasfree);
         return TCL_ERROR;
     }
-    if (l_usecs_ri == invalid_usecs) {
-        asprintf(&asret,
-                 "invalid \"reporting interval\" usecs parameter: %s.\n%s\n",
-                 argv[4], usage);
-        Tcl_SetResult(interp, asret, tclasfree);
-        return TCL_ERROR;
-    }
 
-    th_wi.delta = l_delta_wi;
-    th_wi.usecs = l_usecs_wi;
-    th_ri.delta = l_delta_ri;
-    th_ri.usecs = l_usecs_ri;
+    delta_wi = l_delta_wi;
+    delta_ri = l_delta_ri;
     
     return TCL_OK;
 }
@@ -2240,7 +2201,7 @@ Tcl_AppInit(Tcl_Interp *interp)
                       fl_continue_class_enumeration, NULL, NULL);
     Tcl_CreateCommand(interp, "fl_continue_flow_enumeration",
                       fl_continue_flow_enumeration, NULL, NULL);
-    Tcl_CreateCommand(interp, "fl_time_format", fl_time_format,
+    Tcl_CreateCommand(interp, "fl_time_base", fl_time_base,
                       NULL, NULL);
     Tcl_CreateCommand(interp, "fl_flow_stats_format", 
                       fl_flow_stats_format, NULL, NULL);
@@ -2286,8 +2247,7 @@ main(int argc, char *const argv[])
     flow_stats_format = strsave(flow_stats_template);
     class_stats_format = strsave(class_stats_template);
     ri_stats_format = strsave(ri_stats_template);
-    th_wi.delta = th_ri.delta = absolute;
-    th_wi.usecs = th_ri.usecs = usecs;
+    delta_wi = delta_ri = absolute;
     if ((flow_stats_format == 0) || (class_stats_format == 0)) {
         fprintf(stderr,
                 "%s:%d: no room for allocating formats\n", __FILE__, __LINE__);

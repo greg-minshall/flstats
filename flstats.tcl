@@ -84,7 +84,7 @@ proc flll_delete {time FLOW args} {
 proc putsill { line desired } {
     global flstats
 
-    # LINE is a string of "tag value" elements.
+    # LINE is a string of value elements (i.e., printed w/OUT tags)
     # DESIRED is a list of elements, each of the form:
     #     tag type index label integer
     # where TAG is the matching tag from LINE; TYPE is the type of
@@ -103,31 +103,32 @@ proc putsill { line desired } {
         set set " ";            # default
     }
     set xsep "";                # not before *first* pair
-    set pairs [split $line]
-    set plen [llength $pairs]
-    set pnum [expr $plen / 2];  # number of tag/value pairs
+    set pelts [split $line]
+    set plen [llength $pelts]
     set dlen [llength $desired]
     for {set i 0} {$i < dlen} {incr i} {
         set delt [lindex $desired $i]
         set dtag [lindex $delt 0]
         set dtype [lindex $delt 1]
         set dindex [lindex $delt 2]
+        set dlabel [lindex $delt 3]
+        set dinteger [lindex $delt 4]; # "" if d.n.e.
         if {$dindex == -1} {
-        } elseif {$dindex >= $pnum} {
+            puts -nonewline $xsep $dlabel
+        } elseif {$dindex >= $plen} {
             puts stderr $line
             puts stderr $delt
             error "index value $dindex too high"
         } else {
-            set pval [lindex $pairs [expr ($dindex * 2)+1]]
-            set dlabel [lindex $delt 3]
-            set dinteger [lindex $delt 4]; # "" if d.n.e.
+            set pval [lindex $pelts $dindex]
             if {[string length $dinteger] > 0} {
                 pval = [expr round $pval]
             }
             puts -nonewline $xsep $dlabel $pval
-            set xsep $sep
         }
+        set xsep $sep
     }
+    puts "";                    # \n, as it were
 }
 
 
@@ -154,7 +155,7 @@ proc fl_star_details { star {filename {}} {binsecs {}} \
         }
         fl_start_${star}_enumeration
         while { [set x [fl_continue_${star}_enumeration]] != ""} {
-            putsill "$prefix$x" $flstats(${star}stats)
+            putsill "$prefix$x" $flstats(${star}stats_format)
         }
     }
 }
@@ -428,10 +429,11 @@ proc usage {cmdname} {
                 [--{classes|flows|interactive}]\
                 [--debug]\
                 [--evaluate tclcommands]\
+                [--output outputspecifier]\
                 [--kind tracefilekind]\
                 [--label]\
                 [--scriptfile filename]\
-                [--timeformat formatspec] \
+                [--timebase timebasespec] \
                 [--types flowspecifier[s]]\
                 [filename]} cmdname
 }
@@ -490,31 +492,30 @@ proc fl_set_parameters {argc argv} {
             set scriptfile [lindex $argv 1]
             incr argc -2
             set argv [lrange $argv 2 end]
-        } elseif {[string equal $arg --timeformat]} { ; # format for time
-            # can be a shorthand, i.e., 4 characters
-            # "[abr][su][ab][su]"
+        } elseif {[string equal $arg --timebase]} {
+            # format for time
+            # can be a shorthand, i.e., 2 characters
+            # "[Ttr][Tt]"
+            # (where T means absolute; t within_tr, and r within_ri)
             # or a full spec:
-            # "{absolute|within_tr|within_ri} {secs|usecs}"
-            # "{absolute|within_tr}           {secs|usecs}"
+            # "{absolute|within_tr|within_ri} {absolute|within_tr}"
             #
             # in the latter case, commas (','), along with spaces,
             # will be considered separator characters, so one can
             # specify like this:
-            # --timeformat "within_ri,usecs,within_tr,secs"
+            # --timebase "within_ri,usecs,within_tr,secs"
             if {$argc < 2} {
-                error "not enough arguments for --timeformat in $argv\nlooking \
-                       for '--timeformat <format>'"
+                error "not enough arguments for --timebase in $argv\nlooking \
+                       for '--timebase <format>'"
             }
             set spec [lindex $argv 1]
-            if {[string length $spec] == 4} { ; # shorthand
-                if {![string match {[Ttr][su][Tt][su]} $spec]} {
-                    error "invalid shorthand for --timeformat in $spec\nlooking \
-                           a string that matches \[Ttr\]\[su\]\[Tt\]\[su\].\n"
+            if {[string length $spec] == 2} { ; # shorthand
+                if {![string match {[Ttr][Tt]} $spec]} {
+                    error "invalid shorthand for --timebase in $spec\nlooking \
+                           a string that matches \[Ttr\]\[Tt\].\n"
                 }
                 fl_time_format $tfmt([string index $spec 0]) \
-                               $tfmt([string index $spec 1]) \
-                               $tfmt([string index $spec 2]) \
-                               $tfmt([string index $spec 3])
+                               $tfmt([string index $spec 1])
             } else {
                 fl_time_format [split $spec {[ ,]}];
             }
@@ -659,12 +660,10 @@ proc fl_startup { argc argv } {
     }
 }
 
-# decoding help for --timeformat
+# decoding help for --timebase
 set tfmt(T) absolute
 set tfmt(t) within_tr
 set tfmt(r) within_ri
-set tfmt(s) secs;               # could use separate variable, but ...
-set tfmt(u) usecs
 
 # set some defaults...
 set flstats(debug) 0
