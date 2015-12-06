@@ -170,7 +170,8 @@ typedef struct ri {
 	    ri_noportbytes;       /* bytes seen in those frags */
     struct timeval ri_starttime, /* time this ri started */
         ri_first_pkt_rcvd,    /* time first packet received this ri */
-        ri_last_pkt_rcvd;     /* time last packet received this ri */
+        ri_last_pkt_rcvd,     /* time last packet received this ri */
+        ri_endtime;           /* time this ri ended */
 } ri_t, *ri_p;
 
 

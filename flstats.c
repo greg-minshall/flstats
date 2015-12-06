@@ -618,7 +618,7 @@ ri_statistics() {
     asprintf(&asret, ri_stats_format,
              binno,
              dtsecs_ri(&ri.ri_starttime), dtusecs_ri(&ri.ri_starttime),
-             dtsecs_wi(&curtime), dtusecs_wi(&curtime),
+             dtsecs_wi(&ri.ri_endtime), dtusecs_wi(&ri.ri_endtime),
              dtsecs_wi(&ri.ri_first_pkt_rcvd), dtusecs_wi(&ri.ri_first_pkt_rcvd),
              dtsecs_wi(&ri.ri_last_pkt_rcvd), dtusecs_wi(&ri.ri_last_pkt_rcvd),
              ri.ri_pkts, ri.ri_bytes,
@@ -755,6 +755,7 @@ set_time(Tcl_Interp *interp, long sec, long usec)
     if (TIME_EQ(&ri.ri_starttime, &ZERO)) {
         ri.ri_starttime = now;
     }
+    ri.ri_endtime = now;
 
     if (TIME_EQ(&starttime, &ZERO)) {
         starttime = now;
@@ -1522,10 +1523,12 @@ fl_read_one_bin(ClientData clientData, Tcl_Interp *interp,
     /* reset ri statistics */
     {
         u_long savesipg = ri.ri_tsipg;
+        struct timeval savestart = ri.ri_endtime;
 
         memset(&ri, 0, sizeof ri);
         ri.ri_starttime = ZERO;
         ri.ri_tsipg = savesipg;
+        ri.ri_starttime = savestart; /* one ends, next starts */
     }
     
 
