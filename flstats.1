@@ -1,3 +1,5 @@
+.\" for help on these macros, the mdoc package, see:
+.\" http://mdocml.bsd.lv/man/mdoc.7.html
 .Dd March 15, 1996
 .Dt FLSTATS 1
 .Os BSD 4.3
@@ -11,11 +13,11 @@
 .Op Fl -binsecs Ar num
 .Op Fl -evaluate Ar tclcommands
 .Op Fl -flowtypes Ar flowspecifier[s]
-.Op Fl -oexcl {class|flow|ri} fieldnames
-.Op Fl -ospec {class|flow|ri} outputspecifier
+.Op Fl -oexcl {class|flow|ri} Ar fieldnames
+.Op Fl -ospec {class|flow|ri} Ar outputspecifier
 .Op Fl -scriptfile Ar filename
-.Op Fl -sep separator
-.Op Fl -timebase {T|t}{T|t|r}
+.Op Fl -sep Ar separator
+.Op Fl -timebase Ar {T|t}{T|t|r}
 .Op Ar filename
 .Sh DESCRIPTION
 .Nm Flstats
@@ -30,10 +32,18 @@ of flows) contained in the file.
 .Pp
 .Bl -tag -width Ic
 .It Fl c
-Report statistics of flow "classes", rather than about individual
-flows themselves.
+Report statistics of flow "classes" (aggregates of flows), rather than
+about individual flows themselves.  The difference might be that
+different individual flows have different source and destination IP
+addresses, whereas the class for all these flows is the class of flows
+which looks at (only) source and destination IP addresses.  (This
+would be the case if
+.Fl -flowtypes Ar dst/src
+were specified on the command line -- there would be one class that
+held its own statistics for all packets with source and destination
+[IP] addresses in them.)
 
-Only *one* of
+Usage note: only *one* of
 .Fl c ,
 .Fl f ,
 and
@@ -45,10 +55,13 @@ for users of
 .Nm flstats
 ).
 .It Fl f
-Report statistics about individual flows, rather than "classes".
+Report statistics about individual flows, rather than "classes".  See
+usage note under
+.Fl c .
 .It Fl i
 Run in "interactive" mode, in which the user is prompted for Tcl
-commands to execute.
+commands to execute.  See usage note under
+.Fl c .
 .It Fl s
 Set the process to react to USR1 signals.  After the reception of a USR1
 signal the current reporting interval will be terminated and a report
@@ -75,18 +88,20 @@ prefixed with a '#' (hash mark).
 flag) that describe the environment in which the trace is being run.
 (This is done to help with repeatability.)
 .It Fl T
-.It Fl -binsecs
+When printing summary statistics (at the end of a reporting interval),
+print the field name before printing the value.
+.It Fl -binsecs Ar num
 How many seconds (in the time sequence of the input file) should each
 reporting interval last.  The default is zero (0), which causes the
 statistics to be reported only once, at the end of the input file
 (unless USR1 signals are caught by use of the
 .Fl s
 flag).
-.It Fl -evaluate
+.It Fl -evaluate Ar tclcommands
 .Ar Tclcommands
 is a list of Tcl commands to be executed while starting
 .Nm flstats .
-.It Fl -flowtypes
+.It Fl -flowtypes Ar flowspecifier[s]
 A list of one or more flow specifiers.  While the format of a flow
 specifier can, in general, be fairly complicated (see the
 .Nm flstats
@@ -95,7 +110,7 @@ man page a flow specifier is a list of one or more IP header field
 names (plus the port fields from TCP and/or UDP headers) separated by
 slashes ("/").  The header fields supported are named: ihv, ihl, tos,
 len, id, df, mf, foff, ttl, prot, sum, src, dst, sport, dport.
-.It Fl -oexcl {class|flow|ri} fieldnames
+.It Fl -oexcl Ar {class|flow|ri} fieldnames
 This allows the deletion of fields from the summary statistics reported
 at the end of each reporting interval.  This is not as general a
 mechanism as is
@@ -115,7 +130,7 @@ interval.  This option can be repeated multiple times (for each of
 and
 .Ar ri ,
 say).
-.It Fl -ospec {class|flow|ri}
+.It Fl -ospec Ar {class|flow|ri}
 This allows finer control of what is printed out than does the
 .Fl -oexcl
 option.  For a given set of statistics (specified, as in the
@@ -171,97 +186,117 @@ those fields, the
 .Fl -ospec
 parameter *does* change to order of fields printed to the order in
 .Ar outputspecifier .)
-.It Fl -scriptfile
+.It Fl -scriptfile Ar filename
 The name of a file to be passed to
 .Nm flstats'
 internal Tcl interpreter during startup.
+.It Fl -sep Ar separator
+Specify the
+.Ar separator
+used to separate values in the summary statistics.  The
+.Ar separator
+is *not* printed before the first, or after that last, statistic on
+the line.
+.It Fl -timebase Ar {T|t}{T|t|r}
+The default (which can be specified by specifying
+.Ar TT )
+is to print all times in the summary statistics as
+secs.usecs from the Unix epoch (01.01.1970).  The
+.Fl -timebase
+option allows re-basing the printed times.  The time of the beginning
+of reporting intervals, as well as the time the last packet in a given
+class was received, can be printed relative to the beginning of the
+trace by specifying a
+.Ar t
+as the first character of this option.
+
+The rest of the times printed in the trace can also be specified to be
+relative to the start of the trace by specifying
+.Ar t
+as the second character of this option.  Alternatively, the rest of
+the times can be printed relative to the start of the
+currently-being-reported reporting interval by specfying
+.Ar r
+as the second character of this option.
 .Sh EXAMPLES
 To see how many source/destination pairs there were in a trace, along
 with the number of packets, bytes, and other information about the data
 flowing between them:
 .Bd -literal -offset indent
-% flstats --c --t src/dst file.tcpd
-bin 0 class 0 created 245 deleted 0 added 0 removed 0 active 245
-pkts 32546 bytes 11296427 sipg 0.018453 fragpkts 0 fragbytes 0
-toosmallpkts 0 toosmallbytes 0 runtpkts 0 runtbytes 0 noportpkts 0
-noportbytes 0 lastrecv 821828470.105442
+% flstats -T -c --flowtypes src/dst --timebase tr file.tcpd
+binno 0 ri_start 0.000000 ri_end 15.762258 ri_firstpkt 0.002680 ri_lastpkt 15.559384 ri_pkts 507 ri_bytes 355444 ri_tsipg 0.105973 ri_isipg 0.105973 ignorepkts 24 ignorebytes 1132 unclpkts 0 unclbytes 0 type src/dst created 18 deleted 0 added 0 removed 0 active 18 pkts 507 bytes 355444 sipg 0.105973 lastrecv 15.559384
 .Ed
 .Pp
 The above says that in bin number 0 (the only bin)
-there were 245 unique source/destination pairs
-which together exchanged 32,546 packets totalling 11,296,427 bytes.
-The smoothed interpacket arrival time was 18,453 microseconds.
+there were 18 unique source/destination pairs
+which together exchanged 507 packets totalling 355,444 bytes.
+The smoothed interpacket arrival time was 105,973 microseconds.
 .Pp
 To actually list out the source/destination pairs in the trace:
 .Bd -literal -offset indent
-% flstats --f --t src/dst file.tcpd
- ...
-bin 0 type 0 class 0 type src/dst id 193.240.48.242/193.240.56.24
-pkts 29 bytes 8179 sipg 0.162880 created 821828304.762731
-last 821828308.562019
-bin 0 type 0 class 0 type src/dst id 193.240.56.24/193.240.48.242
-pkts 30 bytes 2657 sipg 0.144441 created 821828304.761962
-last 821828308.561519
-bin 0 type 0 class 0 type src/dst id 145.209.108.112/224.2.174.102
-pkts 2 bytes 120 sipg 0.812446 created 821828297.977696
-last 821828304.477264
-bin 0 type 0 class 0 type src/dst id 147.171.160.186/224.2.149.161
-pkts 1 bytes 180 sipg 0.000000 created 821828296.659958
-last 821828296.659958
- ...
-bin 0 type 0 class 0 type src/dst id 145.27.139.211/193.240.48.255
-pkts 716 bytes 16 4570 sipg 0.513208 created 821828173.562031
-last 821828469.957219
-bin 0 type 0 class 0 type src/dst id 145.27.138.18/193.240.53.75
-pkts 1 bytes 84 sipg 0.000000 created 821828173.403583
-last 821828173.403583
-bin 0 type 0 class 0 type src/dst id 193.240.53.75/145.27.138.18
-pkts 1 bytes 84 sipg 0.000000 created 821828173.397634
-last 821828173.397634
-bin 0 type 0 class 0 type src/dst id 193.240.50.17/229.78.197.56
-pkts 30 bytes 2520 sipg 9.792677 created 821828173.375589
-last 821828463.384810
-bin 0 type 0 class 0 type src/dst id 193.240.50.17/229.78.197.57
-pkts 142 bytes 56560 sipg 2.203605 created 821828173.255857
-last 821828468.266259
-bin 0 type 0 class 0 type src/dst id 193.240.53.75/193.240.56.24
-pkts 4216 bytes 5075351 sipg 0.239131 created 821828172.801565
-last 821828465.208086
-bin 0 type 0 class 0 type src/dst id 193.240.56.24/193.240.53.75
-pkts 1728 bytes 897203 sipg 0.362075 created 821828172.800775
-last 821828465.188792
-bin 0 type 0 class 0 type src/dst id 193.240.48.255/145.27.139.211
-pkts 372 bytes 67140 sipg 0.813475 created 821828172.750563
-last 821828468.663906
-bin 0 type 0 class 0 type src/dst id 62.201.51.92/224.60.60.60
-pkts 14880 bytes 952320 sipg 0.019997 created 821828172.546355
-last 821828470.105442
+% flstats -TI -f --flowtypes src/dst --timebase tr file.tcpd
+binno 0 ri_start 0.000000 ri_end 15.762258 ri_firstpkt 0.002680 ri_lastpkt 15.559384 ri_pkts 507 ri_bytes 355444 ri_tsipg 0.105973 ri_isipg 0.105973 ignorepkts 24 ignorebytes 1132 unclpkts 0 unclbytes 0
+    class 1 type src/dst id 192.168.2.184/99.19.69.197 pkts 4 bytes 256 sipg 0.455354 created 0.002680 last 4.004762
+    class 1 type src/dst id 192.168.2.176/239.255.255.250 pkts 10 bytes 3342 sipg 0.768854 created 2.730328 last 13.231953
+    class 1 type src/dst id 192.168.2.176/255.255.255.255 pkts 10 bytes 3342 sipg 0.768861 created 2.730601 last 13.232308
+    class 1 type src/dst id 192.168.2.184/192.168.2.255 pkts 2 bytes 88 sipg 0.887533 created 3.038121 last 10.138392
+    class 1 type src/dst id 192.168.2.184/224.0.0.1 pkts 2 bytes 88 sipg 0.887542 created 3.038132 last 10.138474
+    class 1 type src/dst id 192.168.2.83/192.168.2.184 pkts 2 bytes 112 sipg 0.889530 created 3.043029 last 10.159276
+    class 1 type src/dst id 192.168.2.184/208.80.154.224 pkts 48 bytes 7228 sipg 0.280332 created 5.719181 last 15.017931
+    class 1 type src/dst id 208.80.154.224/192.168.2.184 pkts 52 bytes 43405 sipg 0.313053 created 5.883181 last 15.245128
+    class 1 type src/dst id 192.168.2.184/208.80.154.240 pkts 143 bytes 13047 sipg 0.003487 created 6.030878 last 13.286928
+    class 1 type src/dst id 192.168.2.83/239.255.255.250 pkts 26 bytes 8878 sipg 0.308499 created 6.163833 last 15.559384
+    class 1 type src/dst id 208.80.154.240/192.168.2.184 pkts 197 bytes 274037 sipg 0.016148 created 6.194215 last 13.398893
+    class 1 type src/dst id 192.168.2.184/192.168.2.1 pkts 1 bytes 64 sipg 0.000000 created 6.454218 last 6.454218
+    class 1 type src/dst id 192.168.2.1/192.168.2.184 pkts 1 bytes 182 sipg 0.000000 created 6.464751 last 6.464751
+    class 1 type src/dst id 192.168.2.184/216.17.8.52 pkts 2 bytes 112 sipg 0.000000 created 7.218210 last 7.218213
+    class 1 type src/dst id 216.17.8.52/192.168.2.184 pkts 2 bytes 92 sipg 0.004998 created 7.385571 last 7.425555
+    class 1 type src/dst id 192.168.2.94/224.0.0.251 pkts 1 bytes 180 sipg 0.000000 created 9.009267 last 9.009267
+    class 1 type src/dst id 108.160.163.109/192.168.2.184 pkts 2 bytes 429 sipg 0.027229 created 10.857595 last 11.075427
+    class 1 type src/dst id 192.168.2.184/108.160.163.109 pkts 2 bytes 562 sipg 0.000313 created 10.857668 last 10.860177
 .Ed
 .Pp
-Which tells us that source 193.240.48.242 sent 29 packets, totalling
-8179 bytes, to destination 193.240.56.24, as well as information about
-244 other sources (including, presumably, information about source
-193.240.56.24 sending to destination 193.240.48.242).
+Here, we've specified
+.Ar I
+in order to make the output a bit easier for we humans to understand.
+The above output tells us that source 192.168.2.184 sent 143 packets,
+totalling 13047 bytes, to destination 208.80.154.240, as well as
+information about 17 other sources (including information about source
+208.80.154.240 sending to destination 192.168.2.184).
 .Pp
 To see how many different TOS values there are in the trace:
 .Bd -literal -offset indent
-% flstats --c --t tos file.tcpd
-bin 0 class 0 created 2 deleted 0 added 0 removed 0 active 2
-pkts 32546 bytes 11296427 sipg 0.018453 fragpkts 0 fragbytes 0
-toosmallpkts 0 toosmallbytes 0 runtpkts 0 runtbytes 0 noportpkts 0
-noportbytes 0 lastrecv 821828470.105442
+% flstats -HI -c --flowtypes tos --timebase tr file.tcpd
+binno ri_start ri_end ri_firstpkt ri_lastpkt ri_pkts ri_bytes ri_tsipg ri_isipg ignorepkts ignorebytes unclpkts unclbytes
+    type created deleted added removed active pkts bytes sipg lastrecv
+0 0.000000 15.762258 0.002680 15.559384 507 355444 0.105973 0.105973 24 1132 0 0
+    tos 1 0 0 0 1 507 355444 0.105973 15.559384
 .Ed
 .Pp
-Which tells us there are two.  To see which values:
+Here, we've changed the
+.Fl T
+to
+.Fl H
+to print out the column labels once, at the beginning of the trace.
+This is a bit harder to read, but more compact.  The above output
+tells us same tos field was set in all the processed packet.  To see
+which value this was:
 .Bd -literal -offset indent
-% flstats --f --t tos file.tcpd
-bin 0 type 0 class 0 type tos id 16 pkts 1798 bytes 139746
-sipg 0.100101 created 821828175.866634 last 821828469.722588
-bin 0 type 0 class 0 type tos id 0 pkts 30748 bytes 11156681
-sipg 0.018637 created 821828172.546355 last 821828470.105442
+% flstats -HI -f --flowtypes tos --ospec flow id --timebase tr file.tcpd
+binno ri_start ri_end ri_firstpkt ri_lastpkt ri_pkts ri_bytes ri_tsipg ri_isipg ignorepkts ignorebytes unclpkts unclbytes
+    id
+0 0.000000 15.762258 0.002680 15.559384 507 355444 0.105973 0.105973 24 1132 0 0
+    0
 .Ed
 .Pp
-So, the values are decimal 1 and decimal 16.
+Here we've used the
+.Fl -ospec
+option to change the reporting for
+.Ar flow
+statistics to *only* print out the
+.Ar id
+field.  We see that the tos value used in all the packets in this
+trace was the value 0.
 .Pp
 What about packet size distribution in the trace file?  First, to see
 how many different packet sizes are in the file:
@@ -304,6 +339,13 @@ and byte counts, we could pipe the above through
 .Bd -literal -offset indent
 awk '{print $10, $12, $14}'
 .Ed
+.Sh BUGS
+.Nm flstats
+does not support IPv6.
+
+Specifying output formats for
+.Nm flstats
+is a bit tricky.
 .Sh SEE ALSO
 .Xr tclsh 1 ,
 .Xr tcpdump 1 ,
