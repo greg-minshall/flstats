@@ -51,6 +51,17 @@ proc elts {string even} {
 
 proc evenelts {string} { return [elts $string 1] }
 proc oddelts {string} { return [elts $string 0] }
+
+
+
+proc nth { spec n } {
+    set ans []
+    for {set i 0} {$i < [llength $spec]} {incr i} {
+        lappend ans [lindex [lindex $spec $i] $n]
+    }
+    return $ans
+}
+
         
 # this doesn't need $pre, since the subst is performed at the caller...
 
@@ -181,7 +192,7 @@ proc crack_output { spec stats_format } {
         if {[string equal [lindex $sbits 0] ""]} { # this is just a string literal
             lappend desired { {} "string" -1 $slabel $sint }
         } elseif {![info exists indices($stag)]} {
-            error "unknown tag \"$stag\"; should be one of: $tags"
+            error "unknown tag \"$stag\"; should be one of: [evenelts $tags]"
         }
         set index $indices($stag)
         lappend desired [list $stag $formats($stag) $indices($stag) $slabel $sint]
@@ -192,6 +203,7 @@ proc crack_output { spec stats_format } {
     return $desired;
 }
 
+
 # find mods in spec and, well, modify them
 proc crack_modify { spec mods stats_format } {
     global flstats
@@ -199,24 +211,30 @@ proc crack_modify { spec mods stats_format } {
     if {$flstats(debug) > 1} {
         puts stderr "\[crack_modify \"$spec\" \"$mods\" \"$stats_format\"\]"
     }
-    set modspec [crack_output $mods $stats_format]
+    set mspec [crack_output $mods $stats_format]
     # now, run through the two lists.  this is n^2, but hopefully for
     # a small n
     set desired []
     set slen [llength $spec]
-    set mlen [llength $modspec]
     for {set i 0} {$i < $slen} {incr i} {
         set selt [lindex $spec $i]
         set stag [lindex $selt 0]
+        set mlen [llength $mspec]
         for {set j 0} {$j < $mlen} {incr j} {
-            set melt [lindex $modspec $j]
+            set melt [lindex $mspec $j]
             if {[string equal $stag [lindex $melt 0]]} {
                 # found our element
                 set selt $melt
+                set mspec [lreplace $mspec $j $j]; # delete this member
                 break;
             }
         }
         lappend desired $selt
+    }
+    # did we see everything?
+    if {[llength $mspec] != 0} {
+        error "attempt to modify tag(s) \"[nth $mspec 0]\"; \
+                            valid tags are \"[nth $spec 0]\""
     }
     if {$flstats(debug) > 1} {
         puts stderr "\[crack_modify\] returning \"$desired\""
