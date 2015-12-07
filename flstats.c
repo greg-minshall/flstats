@@ -84,6 +84,7 @@ delta_t delta_wi, delta_ri;
 
 int binsecs = 0;		/* number of seconds in a bin */
 
+/* XXX any bounds checking from upper level (Tcl) calls? */
 ftinfo_t ftinfo[10];		/* number of distinct flow types in use */
 
 llcl_t llclasses[NUM(ftinfo)];
@@ -92,6 +93,7 @@ llcl_t llclasses[NUM(ftinfo)];
  * application defined "classes".  Clstats[0] is special, in that
  * it gets any counts not tied to any other flow type or flow.
  */
+/* XXX any bounds checking from upper level (Tcl) calls? */
 clstats_t clstats[NUM(ftinfo)];
 clstats_p class_enum_state;
 
@@ -255,6 +257,23 @@ strsave(const char *s)
     }
     return new;
 }
+
+/*
+ * save some bytes
+ */
+
+u_char *
+u_char_save(const u_char *u, int len)
+{
+    u_char *new;
+
+    new = (u_char *) malloc(len);
+    if (new) {
+        memcpy(new, u, len);
+    }
+    return new;
+}
+
 
 #if !defined(HAVE_ASPRINTF)
 /*
@@ -833,7 +852,7 @@ tbl_add(u_char *id, int id_len)
     memset(fe, 0, sizeof *fe);
     fe->fe_sum = sum;
     fe->fe_id_len = id_len;
-    memcpy(fe->fe_id, id, id_len);
+    fe->fe_id = u_char_save(id, id_len);
 
     fe->fe_next_in_bucket = *hbucket;
     if (fe->fe_next_in_bucket) {
@@ -896,6 +915,8 @@ tbl_delete(flowentry_p fe)
     } else {
         table_last = fe->fe_prev_in_table;
     }
+
+    free(fe->fe_id);            /* free up id */
 
     free(fe);
 }
