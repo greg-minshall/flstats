@@ -81,13 +81,25 @@ proc flll_delete {time FLOW args} {
 }
 
 
+proc crack_exclude { spec excludes } {
+    set elist [split $excludes]
+    foreach excl $elist {
+        set re "^$excl|(\[^:\])\\m$excl\\M"
+        puts "crack_exclude re $re"
+        regsub -all $re $spec {\1} spec
+    }
+    return $spec
+}
+
 # see the documentation in [sill]; we create the DESIRED table.
 
 # the input consists of a string of non-empty "words", each word of
 # which looks like:
 
 # [tag][:[label][:"int"]]
-# (so, you can have tag, tag::"int", tag:label, tag:label:"int")
+
+# (so, you can have tag, tag::"int", tag:label, tag:label:"int",
+# :label:"int", :label -- only ::"int" is illegal)
 
 # where: if tag is missing, then this is just a string constant to be
 # printed, surrounded by separators (unless ":int" is specified); if
@@ -99,7 +111,7 @@ proc flll_delete {time FLOW args} {
 # XXX need to call this *after* argument parsing: indexing depends on
 # -T flag
 
-# NB: stats_format is from a call [fl_stats_format ?? template], i.e.,
+# NB: STATS_FORMAT is from a call [fl_stats_format ?? template], i.e.,
 # it contains tags
 
 proc crack_output { spec stats_format } {
@@ -566,7 +578,7 @@ proc fl_set_parameters {argc argv} {
         } elseif {[string equal $arg --types]} { ; # flow types
             if {$argc < 2} {
                 error "not enough arguments for --types in $argv\nlooking \
-                for '--flows flowtypes'"
+                for '--types flowtypes'"
             }
             set flstats(flowtypes) [lindex $argv 1]
             incr argc -2
@@ -627,6 +639,19 @@ proc fl_set_parameters {argc argv} {
                    looking for one of: class, flow, ri"
             }
             set flstats(${which}_output_arg) [lindex $argv 2]
+            incr argc -3
+            set argv [lrange $argv 3 end]
+        } elseif {[string equal $arg --oexclude]} { # output tags to exclude
+            if {$argc < 3} {
+                error "not enough arguments for --oexclude in $argv\nlooking \
+                     for '--oexclude {class|flow|ri} outputspec"
+            }
+            set which [lindex $argv 1]
+            if {![info exists ofmt($which)]} {
+                error "invalid stats identifier for --oexclude in $which\n \
+                   looking for one of: class, flow, ri"
+            }
+            set flstats(${which}_oexclude_arg) [lindex $argv 2]
             incr argc -3
             set argv [lrange $argv 3 end]
         } elseif {[string equal $arg --interactive]} { # interactive
@@ -809,3 +834,7 @@ set flstats(flowtypes) { \
 set flstats(default_class_output_arg) [evenelts [fl_stats_format class template]]
 set flstats(default_flow_output_arg) [evenelts [fl_stats_format flow template]]
 set flstats(default_ri_output_arg) [evenelts [fl_stats_format ri template]]
+
+set flstats(default_class_output_exclude) ""
+set flstats(default_flow_output_exclude) ""
+set flstats(default_ri_output_exclude) ""
