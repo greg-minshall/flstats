@@ -285,15 +285,13 @@ proc fl_star_details { star {filename {}} {binsecs {}} \
         }
         set silld_ristats [sill $ristats $flstats(ri_output_spec)]
         if {$flstats(indent)} {
+            puts $silld_ristats
             set prefix $flstats(indentation); # fold into [putsill]?
         } else {
             set prefix "$silld_ristats "
         }
         fl_start_${star}_enumeration
         while { [set x [fl_continue_${star}_enumeration]] != ""} {
-            if {$flstats(indent)} {
-                puts $silld_ristats
-            }
             puts "$prefix[sill $x $flstats(${star}_output_spec)]"
         }
     }
