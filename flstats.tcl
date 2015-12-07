@@ -82,12 +82,28 @@ proc flll_delete {time FLOW args} {
 
 
 proc crack_exclude { spec excludes } {
+    global flstats
+
     set elist [split $excludes]
     foreach excl $elist {
-        set re "^$excl|(\[^:\])\\m$excl\\M"
-        puts "crack_exclude re $re"
-        regsub -all $re $spec {\1} spec
+        # excl at beginning of line;
+        #     or, excl preceded by something *other* than a colon (:)
+        #        and followed by exactly two colons,
+        #            or not
+        set repre { {^} {([^:])} }
+        set repost { {\M::\w*\W} {\M} }
+        foreach pre $repre {
+            foreach post $repost {
+                set re $pre$excl$post
+                if {$flstats(debug)} {
+                    puts stderr "regsub -all $re $spec {\1} spec"
+                }
+                regsub -all $re $spec {\1} spec
+            }
+        }
     }
+    regsub -all "  " $spec " " spec
+    regsub "^ " $spec "" spec
     return $spec
 }
 
