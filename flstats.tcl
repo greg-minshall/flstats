@@ -216,11 +216,7 @@ proc sill { line desired {justtags 0} } {
         puts stderr "silling: $line"
         puts stderr "jussttags $justtags, with: $desired"
     }
-    if {[info exists flstats(separator)]} {
-        set sep $flstats(separator)
-    } else {
-        set sep " ";            # default
-    }
+    set sep $flstats(separator)
     set xsep "";                # not before *first* pair
     set output ""
     set wanttags [expr $flstats(tags) || $justtags]; # does user want tags
@@ -568,7 +564,8 @@ proc usage {cmdname} {
                 [--kind tracefilekind]\
                 [--ospec {cl|fl|ri} outputspecifier]\
                 [--oexcl {cl|fl|ri} tagstoexclude] \
-                [--scriptfile filename]\
+                [--scriptfile filename] \
+                [--sep separator] \
                 [--timebase {T|t|r}{T|t}] \
                 [filename]} cmdname
 }
@@ -626,6 +623,14 @@ proc fl_set_parameters {argc argv} {
                        for '--scriptfile tclscriptfile'"
             }
             set scriptfile [lindex $argv 1]
+            incr argc -2
+            set argv [lrange $argv 2 end]
+        } elseif {[string equal $arg --sep]} {
+            if {$argc < 2} {
+                error "not enough arguments for --sep in $argv\nlooking \
+                       for '--sep separator'"
+            }
+            set flstats(separator) [lindex $argv 1]
             incr argc -2
             set argv [lrange $argv 2 end]
         } elseif {[string equal $arg --timebase]} {
@@ -839,6 +844,7 @@ set flstats(tags) 0
 set flstats(tracefile.kind) {}
 set flstats(tracefile.filename) "-"     ; # from standard in...
 set flstats(indentation) "    ";          # XXX make configurable?
+set flstats(separator) " "
 # default flowtypes...
 set flstats(flowtypes) { \
     ihv/ihl/tos/ttl/prot/src/dst ihv/ihl/tos/ttl/prot/src/dst/sport/dport \
