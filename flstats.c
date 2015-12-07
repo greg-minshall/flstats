@@ -1961,18 +1961,13 @@ static int
 fl_set_file(ClientData clientData, Tcl_Interp *interp,
 		int argc, const char *argv[])
 {
-    static char *usage = "Usage: fl_set_file filename tcpd";
+    static char *usage = "Usage: fl_set_file filename";
 
-    if ((argc < 2) || (argc > 3)) {
+    if (argc < 2) {
         Tcl_SetResult(interp, usage, TCL_STATIC);
         return TCL_ERROR;
     }
-    if ((argc == 2) || !strcmp(argv[2], "tcpd")) {
-        return set_tcpd_file(clientData, interp, argv[1]);
-    } else {
-        Tcl_SetResult(interp, usage, TCL_STATIC);
-        return TCL_ERROR;
-    }
+    return set_tcpd_file(clientData, interp, argv[1]);
 }
 
 static int
@@ -2138,7 +2133,7 @@ fl_time_base(ClientData clientData, Tcl_Interp *interp,
               int argc, const char *argv[])
 {
     static char usage[] =
-        "Usage: fl_time_base {absolute|within_tr|within_ri} {absolute|within_tr}";
+        "Usage: fl_time_base {absolute|within_tr} {absolute|within_tr|within_ri}";
     char *asret;
     delta_t l_delta_wi, l_delta_ri;
     
@@ -2148,19 +2143,19 @@ fl_time_base(ClientData clientData, Tcl_Interp *interp,
         return TCL_ERROR;
     }
 
-    l_delta_wi = delta_decode(argv[1]);
-    l_delta_ri = delta_decode(argv[2]);
+    l_delta_ri = delta_decode(argv[1]);
+    l_delta_wi = delta_decode(argv[2]);
 
-    if (l_delta_wi == invalid) {
-        asprintf(&asret, "invalid \"within\" delta parameter: %s.\n%s\n",
+    if ((l_delta_ri == invalid) || (l_delta_ri == within_ri)) {
+        asprintf(&asret,
+                 "invalid \"reporting interval\" delta parameter: %s.\n%s\n",
                  argv[1], usage);
         Tcl_SetResult(interp, asret, tclasfree);
         return TCL_ERROR;
     }
-    if ((l_delta_ri == invalid) || (l_delta_ri == within_ri)) {
-        asprintf(&asret,
-                 "invalid \"reporting interval\" delta parameter: %s.\n%s\n",
-                 argv[3], usage);
+    if (l_delta_wi == invalid) {
+        asprintf(&asret, "invalid \"within\" delta parameter: %s.\n%s\n",
+                 argv[2], usage);
         Tcl_SetResult(interp, asret, tclasfree);
         return TCL_ERROR;
     }

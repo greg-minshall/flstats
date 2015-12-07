@@ -236,7 +236,7 @@ proc sill { line desired {justtags 0} } {
         if {$dindex == -1} {
             if {!$dinteger} {
                 append output $xsep $dlabel
-                            set xsep $sep
+                set xsep $sep
             } else {
                 append output $dlabel
                 set xsep "";    # no separator bewteen this and next
@@ -541,7 +541,7 @@ proc fl_setup { {filename {}} {binsecs {}} {classifier {}} { flowtypes {} } } {
         set fname $filename
     }
     # "eval" to get the filename in argv[1] and (optional) type in argv[2]...
-    eval "fl_set_file $fname $flstats(tracefile.kind)"
+    eval "fl_set_file $fname"
 
     if {$flstats(label)} {
         puts "#"
@@ -561,12 +561,11 @@ proc usage {cmdname} {
                 [--binsecs num]\
                 [--evaluate tclcommands]\
                 [--flowtypes flowspecifier[s]]\
-                [--kind tracefilekind]\
-                [--ospec {cl|fl|ri} outputspecifier]\
-                [--oexcl {cl|fl|ri} tagstoexclude] \
+                [--oexcl {class|flow|ri} tagstoexclude] \
+                [--ospec {class|flow|ri} outputspecifier]\
                 [--scriptfile filename] \
                 [--sep separator] \
-                [--timebase {T|t|r}{T|t}] \
+                [--timebase {T|t}{T|t|r}] \
                 [filename]} cmdname
 }
 
@@ -585,15 +584,7 @@ proc fl_set_parameters {argc argv} {
     set arg [lindex $argv 0]
     while {$argc && ([string length $arg] > 1) &&
            ([string range $arg 0 0] == "-")} {
-        if {[string equal $arg --kind]} { ; # trace file kind
-            if {$argc < 2} {
-                error "not enough arguments for --kind in $argv\nlooking for\
-                '--kind [tracefilekind]'"
-            }
-            set flstats(tracefile.kind) [lindex $argv 1]
-            incr argc -2
-            set argv [lrange $argv 2 end]
-        } elseif {[string equal $arg --binsecs]} { ; # bin time (seconds)
+        if {[string equal $arg --binsecs]} { ; # bin time (seconds)
             if {$argc < 2} {
                 error "not enough arguments for --binsecs in $argv\nlooking for\
                 '--binsecs number'"
@@ -651,9 +642,9 @@ proc fl_set_parameters {argc argv} {
             }
             set spec [lindex $argv 1]
             if {[string length $spec] == 2} { ; # shorthand
-                if {![string match {[Ttr][Tt]} $spec]} {
+                if {![string match {[Tt][Ttr]} $spec]} {
                     error "invalid shorthand for --timebase in $spec\nlooking \
-                           for a string that matches \[Ttr\]\[Tt\].\n"
+                           for a string that matches \[Tt\]\[Ttr\].\n"
                 }
                 fl_time_base $tfmt([string index $spec 0]) \
                                $tfmt([string index $spec 1])
@@ -841,7 +832,6 @@ set flstats(header) 0
 set flstats(indent) 0
 set flstats(label) 0
 set flstats(tags) 0
-set flstats(tracefile.kind) {}
 set flstats(tracefile.filename) "-"     ; # from standard in...
 set flstats(indentation) "    ";          # XXX make configurable?
 set flstats(separator) " "
