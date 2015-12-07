@@ -192,6 +192,39 @@ proc crack_output { spec stats_format } {
     return $desired;
 }
 
+# find mods in spec and, well, modify them
+proc crack_modify { spec mods stats_format } {
+    global flstats
+
+    if {$flstats(debug) > 1} {
+        puts stderr "\[crack_modify \"$spec\" \"$mods\" \"$stats_format\"\]"
+    }
+    set modspec [crack_output $mods $stats_format]
+    # now, run through the two lists.  this is n^2, but hopefully for
+    # a small n
+    set desired []
+    set slen [llength $spec]
+    set mlen [llength $modspec]
+    for {set i 0} {$i < $slen} {incr i} {
+        set selt [lindex $spec $i]
+        set stag [lindex $selt 0]
+        for {set j 0} {$j < $mlen} {incr j} {
+            set melt [lindex $modspec $j]
+            if {[string equal $stag [lindex $melt 0]]} {
+                # found our element
+                set selt $melt
+                break;
+            }
+        }
+        lappend desired $selt
+    }
+    if {$flstats(debug) > 1} {
+        puts stderr "\[crack_modify\] returning \"$desired\""
+    }
+    return $desired
+}
+    
+
 
 proc sill { line desired {justtags 0} } {
     global flstats
@@ -561,8 +594,8 @@ proc usage {cmdname} {
                 [--binsecs num]\
                 [--evaluate tclcommands]\
                 [--flowtypes flowspecifier[s]]\
-                [--oexcl {class|flow|ri} tagstoexclude] \
-                [--ospec {class|flow|ri} outputspecifier]\
+                [--omodify {class|flow|ri} outputspecifierlist] \
+                [--ospec {class|flow|ri} outputspecifierlist] \
                 [--scriptfile filename] \
                 [--sep separator] \
                 [--timebase {T|t}{T|t|r}] \
@@ -666,6 +699,19 @@ proc fl_set_parameters {argc argv} {
             set flstats(${which}_output_arg) [lindex $argv 2]
             incr argc -3
             set argv [lrange $argv 3 end]
+        } elseif {[string equal $arg --omodify]} { # what to output
+            if {$argc < 3} {
+                error "not enough arguments for --omodify in $argv\nlooking \
+                     for '--omodify {class|flow|ri} outputspec"
+            }
+            set which [lindex $argv 1]
+            if {![info exists ofmt($which)]} {
+                error "invalid stats identifier for --ospec in $which\n \
+                   looking for one of: class, flow, ri"
+            }
+            set flstats(${which}_omodify_arg) [lindex $argv 2]
+            incr argc -3
+            set argv [lrange $argv 3 end]
         } elseif {[string equal $arg --oexcl]} { # output tags to exclude
             if {$argc < 3} {
                 error "not enough arguments for --oexcl in $argv\nlooking \
@@ -746,13 +792,25 @@ proc fl_set_parameters {argc argv} {
 
     foreach which { class flow ri } {
         set woa [eitheror "flstats(${which}_output_arg)" \
-                 "flstats(default_${which}_output_arg)"]
+                     "flstats(default_${which}_output_arg)"]
         set wox [eitheror "flstats(${which}_oexcl_arg)" \
-                 "flstats(default_${which}_oexcl_arg)"]
+                     "flstats(default_${which}_oexcl_arg)"]
 
         set woa [crack_exclude $woa $wox]
         set flstats(${which}_output_spec) \
                 [crack_output $woa "[fl_stats_format ${which} template ]" ]
+    }
+
+    # *AFTER* setting flstats(star_output_arg)
+
+    foreach which { class flow ri } {
+        if {[info exists flstats(${which}_output_arg)]} {
+            set flstats(${which}_output_spec) \
+                            [crack_modify \
+                                 $flstats(${which}_output_spec) \
+                                 $flstats(${which}_output_arg) \
+                                 [fl_stats_format ${which} template]]
+        }
     }
 
     if {$flstats(header)} {
