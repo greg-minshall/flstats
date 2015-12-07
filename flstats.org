@@ -76,6 +76,11 @@ advantage: o(1) on output (setup takes the expense)
 then, can produce some derived statistics (such as "errpkts", to hold
 runt, et al.)
 
+*** TODO 45. allow --oSOMETHING  
+    one would just list the fields whose output representation one
+    wanted to change, like "ri first_recv::int".  --omodify ??
+*** TODO 46. a flag to print out the list of available flow specifiers
+    i.e., the "atoft" table
 
 ** reporting times, bin numbers, etc.
 
