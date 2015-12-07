@@ -23,6 +23,20 @@
 # $Id$
 #
 
+# given the *names* of two variables, return the value of EITHER if it
+# exists, otherwise return the value of OR.
+proc eitheror { either or } {
+    upvar $either e
+    upvar $or o
+
+    if {[info exists e]} {
+        set ret $e
+    } else {
+        set ret $o
+    }
+    return $ret
+}
+
 proc elts {string even} {
     set a [regexp -all -inline {\S+} $string]
     set b []
@@ -84,6 +98,9 @@ proc flll_delete {time FLOW args} {
 proc crack_exclude { spec excludes } {
     global flstats
 
+    if {$flstats(debug)} {
+        puts "\[crack_exclude spec \"$spec\" excludes \"$excludes\"\]"
+    }
     set elist [split $excludes]
     foreach excl $elist {
         # excl at beginning of line;
@@ -95,15 +112,16 @@ proc crack_exclude { spec excludes } {
         foreach pre $repre {
             foreach post $repost {
                 set re $pre$excl$post
-                if {$flstats(debug)} {
-                    puts stderr "regsub -all $re $spec {\1} spec"
+                if {$flstats(debug) > 1} {
+                    puts stderr "regsub -all \"$re\" \"$spec\" \"\\1\" spec"
                 }
                 regsub -all $re $spec {\1} spec
             }
         }
     }
-    regsub -all "  " $spec " " spec
+    regsub -all "  +" $spec " " spec
     regsub "^ " $spec "" spec
+    regsub " $" $spec "" spec
     return $spec
 }
 
@@ -134,8 +152,7 @@ proc crack_output { spec stats_format } {
     global flstats
 
     if {$flstats(debug)} {
-        puts stderr "\[crack_output\] with: $spec"
-        puts stderr "with: $stats_format"
+        puts stderr "\[crack_output spec \"$spec\" stats_format \"$stats_format\""
     }
     set tags [split $stats_format]
     set tlen [llength $tags]
@@ -156,7 +173,7 @@ proc crack_output { spec stats_format } {
         set sbits [split [lindex $swords $i] ":"]
         if {([llength $sbits] == 0) || ([llength $sbits] > 3)} {
             error "invalid output specification: [lindex $swords $i]\n \
-                   should be: [tag][:[label][:\"int\"]]"
+                   should be: \[tag\]\[:\[label\]\[:\"int\"\]\]"
         }
         set stag [lindex $sbits 0]
         set slabel [lindex $sbits 1]
@@ -170,7 +187,7 @@ proc crack_output { spec stats_format } {
         lappend desired [list $stag $formats($stag) $indices($stag) $slabel $sint]
     }
     if {$flstats(debug)} {
-        puts stderr $desired
+        puts stderr \"$desired\"
     }
     return $desired;
 }
@@ -657,17 +674,17 @@ proc fl_set_parameters {argc argv} {
             set flstats(${which}_output_arg) [lindex $argv 2]
             incr argc -3
             set argv [lrange $argv 3 end]
-        } elseif {[string equal $arg --oexclude]} { # output tags to exclude
+        } elseif {[string equal $arg --oexcl]} { # output tags to exclude
             if {$argc < 3} {
-                error "not enough arguments for --oexclude in $argv\nlooking \
-                     for '--oexclude {class|flow|ri} outputspec"
+                error "not enough arguments for --oexcl in $argv\nlooking \
+                     for '--oexcl {class|flow|ri} outputspec"
             }
             set which [lindex $argv 1]
             if {![info exists ofmt($which)]} {
-                error "invalid stats identifier for --oexclude in $which\n \
+                error "invalid stats identifier for --oexcl in $which\n \
                    looking for one of: class, flow, ri"
             }
-            set flstats(${which}_oexclude_arg) [lindex $argv 2]
+            set flstats(${which}_oexcl_arg) [lindex $argv 2]
             incr argc -3
             set argv [lrange $argv 3 end]
         } elseif {[string equal $arg --interactive]} { # interactive
@@ -692,7 +709,7 @@ proc fl_set_parameters {argc argv} {
             incr argc -1
             set argv [lrange $argv 1 end]
         } elseif {[string equal $arg --debug]} { ; # flow details
-            set flstats(debug) 1
+            incr flstats(debug)
             incr argc -1
             set argv [lrange $argv 1 end]
         } elseif {[string equal $arg --label]} { ; # label output
@@ -751,15 +768,14 @@ proc fl_set_parameters {argc argv} {
     # *AFTER* deciding on tags...
 
     foreach which { class flow ri } {
-        if {[info exists flstats(${which}_output_arg)]} {
-            set flstats(${which}_output_spec) \
-                [crack_output "$flstats(${which}_output_arg)" \
-                     "[fl_stats_format ${which} template ]" ]
-        } else {
-            set flstats(${which}_output_spec) \
-                [crack_output "$flstats(default_${which}_output_arg)" \
-                     "[fl_stats_format ${which} template ]" ]
-        }
+        set woa [eitheror "flstats(${which}_output_arg)" \
+                 "flstats(default_${which}_output_arg)"]
+        set wox [eitheror "flstats(${which}_oexcl_arg)" \
+                 "flstats(default_${which}_oexcl_arg)"]
+
+        set woa [crack_exclude $woa $wox]
+        set flstats(${which}_output_spec) \
+                [crack_output $woa "[fl_stats_format ${which} template ]" ]
     }
 
     if {$flstats(header)} {
@@ -851,6 +867,6 @@ set flstats(default_class_output_arg) [evenelts [fl_stats_format class template]
 set flstats(default_flow_output_arg) [evenelts [fl_stats_format flow template]]
 set flstats(default_ri_output_arg) [evenelts [fl_stats_format ri template]]
 
-set flstats(default_class_output_exclude) ""
-set flstats(default_flow_output_exclude) ""
-set flstats(default_ri_output_exclude) ""
+set flstats(default_class_oexcl_arg) ""
+set flstats(default_flow_oexcl_arg) ""
+set flstats(default_ri_oexcl_arg) "fragpkts fragbytes toosmallpkts toosmallbytes runtpkts runtbytes noportpkts noportbytes"
