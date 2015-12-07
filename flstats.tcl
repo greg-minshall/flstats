@@ -106,8 +106,8 @@ proc crack_output { spec stats_format } {
     global flstats
 
     if {$flstats(debug)} {
-        puts "\[crack_output\] with: $spec"
-        puts "with: $stats_format"
+        puts stderr "\[crack_output\] with: $spec"
+        puts stderr "with: $stats_format"
     }
     set tags [split $stats_format]
     set tlen [llength $tags]
@@ -141,6 +141,9 @@ proc crack_output { spec stats_format } {
         set index $indices($stag)
         lappend desired [list $stag $formats($stag) $indices($stag) $slabel $sint]
     }
+    if {$flstats(debug)} {
+        puts stderr $desired
+    }
     return $desired;
 }
 
@@ -166,7 +169,7 @@ proc sill { line desired {justtags 0} } {
 
     if {$flstats(debug)} {
         puts stderr "silling: $line"
-        puts stderr "with: $desired"
+        puts stderr "jussttags $justtags, with: $desired"
     }
     if {[info exists flstats(separator)]} {
         set sep $flstats(separator)
@@ -175,7 +178,7 @@ proc sill { line desired {justtags 0} } {
     }
     set xsep "";                # not before *first* pair
     set output ""
-    set wanttags $flstats(tags); # does user want tags
+    set wanttags [expr $flstats(tags) || $justtags]; # does user want tags
     set pelts [split $line]
     set plen [llength $pelts]
     set dlen [llength $desired]
@@ -192,7 +195,7 @@ proc sill { line desired {justtags 0} } {
         if {$dindex == -1} {
             if {!$dinteger} {
                 append output $xsep $dlabel
-                set xsep $sep
+                            set xsep $sep
             } else {
                 append output $dlabel
                 set xsep "";    # no separator bewteen this and next
@@ -719,7 +722,6 @@ proc fl_set_parameters {argc argv} {
     }
 
     if {$flstats(header)} {
-        # XXX needs, also, to go through [sill]
         puts -nonewline [sill {} $flstats(ri_output_spec) 1]
         if {$flstats(indent)} {
             puts ""
