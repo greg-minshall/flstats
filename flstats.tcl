@@ -171,7 +171,8 @@ proc sill { line desired } {
         set sep " ";            # default
     }
     set xsep "";                # not before *first* pair
-    set output "";
+    set output ""
+    set wanttags $flstats(tags); # does user want tags
     set pelts [split $line]
     set plen [llength $pelts]
     set dlen [llength $desired]
@@ -181,6 +182,9 @@ proc sill { line desired } {
         set dtype [lindex $delt 1]
         set dindex [lindex $delt 2]
         set dlabel [lindex $delt 3]
+        if {[string equal $dlabel ""]} {
+            set dlabel $dtag
+        }
         set dinteger [expr [string length [lindex $delt 4]] > 0]; # "" if d.n.e.
         if {$dindex == -1} {
             if {!$dinteger} {
@@ -197,7 +201,11 @@ proc sill { line desired } {
             if {$dinteger} {
                 set pval [expr round($pval)]
             }
-            append output $xsep $dlabel $pval
+            if {$wanttags} {
+                append output $xsep $dlabel $sep $pval
+            } else {
+                append output $xsep $pval
+            }
             set xsep $sep
         }
     }
