@@ -129,7 +129,8 @@ interval.  This option can be repeated multiple times (for each of
 .Ar flow ,
 and
 .Ar ri ,
-say).
+say).  The fieldnames can be separated by a space (" ") or, to keep
+from having to type quotation marks, by commas (",")
 .It Fl -ospec Ar {class|flow|ri}
 This allows finer control of what is printed out than does the
 .Fl -oexcl
@@ -143,7 +144,7 @@ and
 the
 .Ar outputspecifier
 is a set of triples separated by colon (":"):
-:Ar [fieldname][:[label][:int]
+.Ar [fieldname][:[label][:int]
 where
 .Ar fieldname
 is an output fieldname from the selected group of statistics;
@@ -178,6 +179,11 @@ special case, if
 .Ar :int
 is printed in this case, no separator is printed between this label
 and the next printed field.
+
+As with the
+.Fl -oexcl
+option, the specifiers can be separated from each other by a space or
+by a comma.
 
 (Note that whereas
 .Fl -oexcl
@@ -301,43 +307,54 @@ trace was the value 0.
 What about packet size distribution in the trace file?  First, to see
 how many different packet sizes are in the file:
 .Bd -literal -offset indent
-% flstats --c --t len file.tcpd
-bin 0 class 0 created 415 deleted 0 added 0 removed 0 active 415
-pkts 32546 bytes 11296427 sipg 0.018453 fragpkts 0 fragbytes 0
-toosmallpkts 0 toosmallbytes 0 runtpkts 0 runtbytes 0
-noportpkts 0 noportbytes 0 lastrecv 821828470.105442
+% flstats -HI -c --ospec class active --flowtypes len --timebase tr file.tcpd
+binno ri_start ri_end ri_firstpkt ri_lastpkt ri_pkts ri_bytes ri_tsipg ri_isipg ignorepkts ignorebytes unclpkts unclbytes
+    active
+0 0.000000 15.762258 0.002680 15.559384 507 355444 0.105973 0.105973 24 1132 0 0
+    67
 .Ed
 .Pp
-So, there are 415 distinct lengths in the file.  To see the actual
+So, there are 67 distinct lengths in the file.  To see the actual
 lengths:
 .Bd -literal -offset indent
-% flstats --f --t len file.tcpd | sort -n -r +9
-bin 0 type 0 class 0 type len id 64 pkts 14976 bytes 958464
-sipg 0.019997 created 821828172.546355 last 821828470.105442
-bin 0 type 0 class 0 type len id 1500 pkts 4994 bytes 7491000
-sipg 0.225622 created 821828202.217309 last 821828465.207235
-bin 0 type 0 class 0 type len id 40 pkts 967 bytes 42916
-sipg 0.539485 created 82182 8172.750563 last 821828468.663906
-bin 0 type 0 class 0 type len id 140 pkts 961 bytes 134540
-sipg 0.958669 created 821828198.845845 last 821828468.256604
-bin 0 type 0 class 0 type len id 92 pkts 953 bytes 87676
-sipg 0.172420 created 821828215.097236 last 821828469.393897
-bin 0 type 0 class 0 type len id 60 pkts 941 bytes 56460
-sipg 0.135764 created 821828176.017872 last 821828469.722588
-bin 0 type 0 class 0 type len id 61 pkts 899 bytes 54839
-sipg 0.121343 created 821828201.908231 last 821828469.561497
-bin 0 type 0 class 0 type len id 124 pkts 773 bytes 95852
-sipg 0.378213 created 821828201.926018 last 821828468.389406
-bin 0 type 0 class 0 type len id 552 pkts 690 bytes 380880
-sipg 0.021721 created 821828197.018013 last 821828468.813834
+% flstats -HI -f --flowtypes len --timebase tr file.tcpd
+binno ri_start ri_end ri_firstpkt ri_lastpkt ri_pkts ri_bytes ri_tsipg ri_isipg ignorepkts ignorebytes unclpkts unclbytes
+    class type id pkts bytes sipg created last
+0 0.000000 15.762258 0.002680 15.559384 507 355444 0.105973 0.105973 24 1132 0 0
+    1 len 64 11 704 1.059213 0.002680 15.245128
+    1 len 407 4 1628 1.066227 2.730328 12.478685
+    1 len 460 4 1840 1.066230 2.981189 12.729570
+    1 len 44 4 176 0.776602 3.038121 10.138474
+    1 len 56 4 224 0.767211 3.043029 10.159276
+    1 len 410 4 1640 1.066216 3.232132 12.980405
+    1 len 208 4 832 1.066237 3.482898 13.231335
+    1 len 186 4 744 1.066270 3.483570 13.232308
+    1 len 1005 1 1005 0.000000 5.719181 5.719181
+    1 len 52 178 9256 0.017057 5.883181 13.398893
+    1 len 1381 12 16572 0.293116 6.013681 12.711069
+    1 len 1492 188 280496 0.002739 6.016352 13.286427
+    1 len 947 1 947 0.000000 6.019279 6.019279
+    1 len 620 1 620 0.000000 6.030878 6.030878
+    1 len 1403 2 2806 0.833673 6.038051 12.707436
+    1 len 676 1 676 0.000000 6.040259 6.040259
+    1 len 296 4 1184 0.933236 6.163833 14.632869
+    1 len 774 1 774 0.000000 6.196387 6.196387
+    1 len 1281 1 1281 0.000000 6.207290 6.207290
+    1 len 233 1 233 0.000000 6.261779 6.261779
+    1 len 182 1 182 0.000000 6.464751 6.464751
+    1 len 593 1 593 0.000000 6.481737 6.481737
+    1 len 60 1 60 0.000000 6.629571 6.629571
+    1 len 276 1 276 0.000000 6.629852 6.629852
+    1 len 242 1 242 0.000000 6.656202 6.656202
  ...
 .Ed
 .Pp
+
 This also shows the interpacket arrival time (smoothed) between
-packets of the same time.  To see only the lengths, packet counts
-and byte counts, we could pipe the above through
-.Bd -literal -offset indent
-awk '{print $10, $12, $14}'
+packets of the same length.  To see only the lengths, packet counts
+and byte counts, we could specify
+.Fl -ospec flow id,pkts,bytes
+.
 .Ed
 .Sh BUGS
 .Nm flstats
