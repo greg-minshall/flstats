@@ -131,6 +131,12 @@ and
 .Ar ri ,
 say).  The fieldnames can be separated by a space (" ") or, to keep
 from having to type quotation marks, by commas (",")
+
+There is a default list of fields that are excluded (currently just
+from the reporting interval --
+.Ar ri
+-- set of statistics).  To see *all* values, '--oexcl class "" --oexcl
+flow "" --oexcl ri ""' can be specified
 .It Fl -ospec Ar {class|flow|ri}
 This allows finer control of what is printed out than does the
 .Fl -oexcl
@@ -233,10 +239,11 @@ flowing between them:
 binno 0 ri_start 0.000000 ri_end 15.762258 ri_firstpkt 0.002680 ri_lastpkt 15.559384 ri_pkts 507 ri_bytes 355444 ri_tsipg 0.105973 ri_isipg 0.105973 ignorepkts 24 ignorebytes 1132 unclpkts 0 unclbytes 0 type src/dst created 18 deleted 0 added 0 removed 0 active 18 pkts 507 bytes 355444 sipg 0.105973 lastrecv 15.559384
 .Ed
 .Pp
-The above says that in bin number 0 (the only bin)
-there were 18 unique source/destination pairs
-which together exchanged 507 packets totalling 355,444 bytes.
-The smoothed interpacket arrival time was 105,973 microseconds.
+The above says that in bin number 0 (the only bin) there were 18
+unique source/destination pairs which together exchanged 507 packets
+totalling 355,444 bytes.  The smoothed interpacket arrival time was
+105,973 microseconds.  The "ignored" packets were non-IP packets
+(often, but not always, ARP packets).
 .Pp
 To actually list out the source/destination pairs in the trace:
 .Bd -literal -offset indent
