@@ -563,17 +563,15 @@ proc fl_setup { {filename {}} {binsecs {}} {classifier {}} { flowtypes {} } } {
 
 proc usage {cmdname} {
     format {usage: %s\
-                [-HIST]\
+                [-cdfHIiLsT]\
                 [--binsecs num]\
-                [--{classes|flows|interactive}]\
-                [--debug]\
                 [--evaluate tclcommands]\
-                [--output {cl|fl|ri} outputspecifier]\
+                [--flowtypes flowspecifier[s]]\
                 [--kind tracefilekind]\
-                [--label]\
+                [--ospec {cl|fl|ri} outputspecifier]\
+                [--oexcl {cl|fl|ri} tagstoexclude] \
                 [--scriptfile filename]\
-                [--timebase timebasespec] \
-                [--types flowspecifier[s]]\
+                [--timebase {T|t|r}{T|t}] \
                 [filename]} cmdname
 }
 
@@ -608,10 +606,10 @@ proc fl_set_parameters {argc argv} {
             set flstats(binsecs) [lindex $argv 1]
             incr argc -2
             set argv [lrange $argv 2 end]
-        } elseif {[string equal $arg --types]} { ; # flow types
+        } elseif {[string equal $arg --flowtypes]} { ; # flow types
             if {$argc < 2} {
-                error "not enough arguments for --types in $argv\nlooking \
-                for '--types flowtypes'"
+                error "not enough arguments for --flowtypes in $argv\nlooking \
+                for '--flowtypes flowtypes'"
             }
             set flstats(flowtypes) [lindex $argv 1]
             incr argc -2
@@ -661,14 +659,14 @@ proc fl_set_parameters {argc argv} {
             }
             incr argc -2
             set argv [lrange $argv 2 end]
-        } elseif {[string equal $arg --output]} { # what to output
+        } elseif {[string equal $arg --ospec]} { # what to output
             if {$argc < 3} {
-                error "not enough arguments for --output in $argv\nlooking \
-                     for '--output {class|flow|ri} outputspec"
+                error "not enough arguments for --ospec in $argv\nlooking \
+                     for '--ospec {class|flow|ri} outputspec"
             }
             set which [lindex $argv 1]
             if {![info exists ofmt($which)]} {
-                error "invalid stats identifier for --output in $which\n \
+                error "invalid stats identifier for --ospec in $which\n \
                    looking for one of: class, flow, ri"
             }
             set flstats(${which}_output_arg) [lindex $argv 2]
@@ -687,35 +685,6 @@ proc fl_set_parameters {argc argv} {
             set flstats(${which}_oexcl_arg) [lindex $argv 2]
             incr argc -3
             set argv [lrange $argv 3 end]
-        } elseif {[string equal $arg --interactive]} { # interactive
-            if {$classes || $flows} {
-                error "can only specify *one* of {classes|flows|interactive}"
-            }
-            set interactive 1
-            incr argc -1
-            set argv [lrange $argv 1 end]
-        } elseif {[string equal $arg --flows]} { ; # flow details
-            if {$classes || $interactive} {
-                error "can only specify *one* of {classes|flows|interactive}"
-            }
-            set flows 1
-            incr argc -1
-            set argv [lrange $argv 1 end]
-        } elseif {[string equal $arg --classes]} { ; # class details
-            if {$flows || $interactive} {
-                error "can only specify *one* of {classes|flows|interactive}"
-            }
-            set classes 1
-            incr argc -1
-            set argv [lrange $argv 1 end]
-        } elseif {[string equal $arg --debug]} { ; # flow details
-            incr flstats(debug)
-            incr argc -1
-            set argv [lrange $argv 1 end]
-        } elseif {[string equal $arg --label]} { ; # label output
-            set flstats(label) 1
-            incr argc -1
-            set argv [lrange $argv 1 end]
         } elseif {[string equal $arg "--"]} {
             puts stderr [format "unknown argument %s in '%s'" [lindex $argv 0] $argv]
             error [usage $argv0]
@@ -723,14 +692,24 @@ proc fl_set_parameters {argc argv} {
             set opts [string range [lindex $argv 0] 1 end]
             while {[string length $opts] > 0} {
                 set optchar [string range $opts 0 0]
-                if {[string equal $optchar H]} {
+                if {[string equal $optchar "c"]} {
+                    set classes 1
+                } elseif {[string equal $optchar "d"]} {
+                    incr flstats(debug)
+                } elseif {[string equal $optchar "f"]} {
+                    set flows 1
+                } elseif {[string equal $optchar H]} {
                     set flstats(header) 1; # print out column header with labels
                 } elseif {[string equal $optchar I]} {
                     set flstats(indent) 1; # print reporting interval separate
+                } elseif {[string equal $optchar i]} {
+                    set interactive 1
+                } elseif {[string equal $optchar L]} {
+                    set flstats(label) 1
+                } elseif {[string equal $optchar s]} { ; # respond to SIGUSR1
+                    fl_catch_signal
                 } elseif {[string equal $optchar T]} {
                     set flstats(tags) 1; # print labels of values inline
-                } elseif {[string equal $optchar S]} { ; # respond to SIGUSR1
-                    fl_catch_signal
                 } else {
                     puts stderr [format "unknown argument '%s' in '%s'" \
                                      $optchar [lindex $argv 0]]
@@ -742,6 +721,10 @@ proc fl_set_parameters {argc argv} {
             set argv [lrange $argv 1 end]
         }
         set arg [lindex $argv 0]
+    }
+
+    if {[expr $classes + $flows + $interactive] > 1} {
+        error "can only specify *one* of {-c|-f|-i}"
     }
 
     # get trace file name
@@ -842,7 +825,7 @@ set tfmt(T) absolute
 set tfmt(t) within_tr
 set tfmt(r) within_ri
 
-#decoding help for --output
+#decoding help for --ospec
 set ofmt(class) 1
 set ofmt(flow) 1
 set ofmt(ri) 1
