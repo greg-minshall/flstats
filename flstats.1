@@ -6,17 +6,16 @@
 .Nd extract flow statistics from a tcpdump -w file
 .Sh SYNOPSIS
 .Nm flstats
+.Op Fl cdfis
+.Op Fl HILT
 .Op Fl -binsecs Ar num
-.Op Fl -catch_signal
-.Op Fl -classes
-.Op Fl -debug
-.Op Fl -flows
 .Op Fl -evaluate Ar tclcommands
-.Op Fl -interactive
-.Op Fl -kind Ar {tcpd|fix24|fix44}
-.Op Fl -label
+.Op Fl -flowtypes Ar flowspecifier[s]
+.Op Fl -oexcl {class|flow|ri} fieldnames
+.Op Fl -ospec {class|flow|ri} outputspecifier
 .Op Fl -scriptfile Ar filename
-.Op Fl -types Ar flowspecifier[s]
+.Op Fl -sep separator
+.Op Fl -timebase {T|t}{T|t|r}
 .Op Ar filename
 .Sh DESCRIPTION
 .Nm Flstats
@@ -30,56 +29,152 @@ and reports statistics on "flows" (for various definitions
 of flows) contained in the file.
 .Pp
 .Bl -tag -width Ic
-.It Fl -binsecs
-How many seconds (in the time sequence of the input file) should elapse
-between reporting statistics.  The default is zero (0), which causes the
-statistics to be reported only once, at the end of the input file.
-.It Fl -catch_signal
-.Nm Flstats
-will respond to a USR1 signal by (at the next reception of packets
-from the input) printing out the current statistics, as if
-.Ar binsecs
-had expired.
-.It Fl -classes
-Report statistics of flow "classes", rather than about individual flows
-themselves.
-.It Fl -flows
-Report statistics about individual flows, rather than "classes".
-.It Fl -interactive
-Run in "interactive" mode, in which the user is prompted for Tcl
-commands to execute.
-.It Fl -debug
+.It Fl c
+Report statistics of flow "classes", rather than about individual
+flows themselves.
+
+Only *one* of
+.Fl c ,
+.Fl f ,
+and
+.Fl i
+can be specified in any given run.
+.It Fl d
 Run in a mode for debugging flstats itself (normally not interesting
 for users of
-.Nm flstats ).
-.It Fl -evaluate
-.Ar Tclcommands
-is a list of Tcl commands to be executed while starting
-.Nm flstats .
-.It Fl -kind
-The format of the input file.  The default is "tcpd", corresponding to
-a binary tcpdump file.  One other format is "fix24", for 24-byte/packet
-records from FIX-WEST.  A final format is "fix44", for 44-byte/packet
-records from FIX-WEST.
-.It Fl -label
+.Nm flstats
+).
+.It Fl f
+Report statistics about individual flows, rather than "classes".
+.It Fl i
+Run in "interactive" mode, in which the user is prompted for Tcl
+commands to execute.
+.It Fl s
+Set the process to react to USR1 signals.  After the reception of a USR1
+signal the current reporting interval will be terminated and a report
+for that interval printed out.  The process will then resume counting
+in a new reporting interval.
+.It Fl H
+Print out a header with the names of the fields that will be printed
+in each "column".
+.It Fl I
+Print reporting interval statistics on a line by themselves before
+printing out the class or flow statistics (selected by the
+.FL c
+or
+.FL f
+flags).  The class or flow statistics will be prefixed by some number
+of blank spaces.
+.It Fl L
 Causes
 .Nm flstats
 to print out lines containing information about the input file and the
 environment of the execution (for repeatability).  these lines are
 prefixed with a '#' (hash mark).
+.Fl H
+flag) that describe the environment in which the trace is being run.
+(This is done to help with repeatability.)
+.It Fl T
+.It Fl -binsecs
+How many seconds (in the time sequence of the input file) should each
+reporting interval last.  The default is zero (0), which causes the
+statistics to be reported only once, at the end of the input file
+(unless USR1 signals are caught by use of the
+.Fl s
+flag).
+.It Fl -evaluate
+.Ar Tclcommands
+is a list of Tcl commands to be executed while starting
+.Nm flstats .
+.It Fl -flowtypes
+A list of one or more flow specifiers.  While the format of a flow
+specifier can, in general, be fairly complicated (see the
+.Nm flstats
+user's manual which, sadly, does not exist), for the purpose of this
+man page a flow specifier is a list of one or more IP header field
+names (plus the port fields from TCP and/or UDP headers) separated by
+slashes ("/").  The header fields supported are named: ihv, ihl, tos,
+len, id, df, mf, foff, ttl, prot, sum, src, dst, sport, dport.
+.It Fl -oexcl {class|flow|ri} fieldnames
+This allows the deletion of fields from the summary statistics reported
+at the end of each reporting interval.  This is not as general a
+mechanism as is
+.Fl -ospec .
+.Ar class ,
+.Ar flow ,
+and
+.Ar ri
+specify which of the sets of statistics the
+.Ar fieldnames
+parameters apply.
+.Ar Ri
+applies to those statistics related to the specific reporting
+interval.  This option can be repeated multiple times (for each of
+.Ar class ,
+.Ar flow ,
+and
+.Ar ri ,
+say).
+.It Fl -ospec {class|flow|ri}
+This allows finer control of what is printed out than does the
+.Fl -oexcl
+option.  For a given set of statistics (specified, as in the
+.Fl -oexcl
+option, by
+.Ar class ,
+.Ar flow ,
+and
+.Ar ri )
+the
+.Ar outputspecifier
+is a set of triples separated by colon (":"):
+:Ar [fieldname][:[label][:int]
+where
+.Ar fieldname
+is an output fieldname from the selected group of statistics;
+.Ar label
+is the label to be printed instead of
+.Ar fieldname
+(if missing, the default is
+.Ar fieldname );
+and
+.Ar int
+is the literal string "int".  The action of the
+.Fl -ospec
+is to cause only the listed fields of the specific group of statistics
+(again, specified by the
+.Ar class ,
+.Ar flow ,
+and
+.Ar ri
+parameter) to be printed.  Each such field is printed; if
+.Ar int
+for a field, it means the field (presumably a floating point number)
+should be rounded (to the nearest integer) before being printed.
+
+A special case is when no
+.Ar fieldname
+is specified (so, the spec looks like
+.Ar :label[:int] ),
+in which case the literal string of the
+.Ar label
+parameter is printed out at that point on the output line.  In this
+special case, if
+.Ar :int
+is printed in this case, no separator is printed between this label
+and the next printed field.
+
+(Note that whereas
+.Fl -oexcl
+does *not* change the *order* of fields printed, only excludes some of
+those fields, the
+.Fl -ospec
+parameter *does* change to order of fields printed to the order in
+.Ar outputspecifier .)
 .It Fl -scriptfile
 The name of a file to be passed to
 .Nm flstats'
 internal Tcl interpreter during startup.
-.It Fl -types
-A list of one or more flow specifiers.  While the format of a flow
-specifier can, in general, be fairly complicated (see the
-.Nm flstats
-user's manual), for the purpose of this man page a flow specifier is a
-list of one or more IP header field names (plus the port fields from
-TCP and/or UDP headers) separated by slashes ("/").  The header
-fields supported are named: ihv, ihl, tos, len, id, df, mf, foff, ttl,
-prot, sum, src, dst, sport, dport.
 .Sh EXAMPLES
 To see how many source/destination pairs there were in a trace, along
 with the number of packets, bytes, and other information about the data
