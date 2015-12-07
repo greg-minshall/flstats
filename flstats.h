@@ -133,22 +133,28 @@ struct flowentry {
  * would represent policies specifically here.)
  */
 
-typedef struct clstats {
+typedef struct cls_ri_stats {
+    u_long
+	    cls_ri_created,         /* num flows created in this class */
+	    cls_ri_deleted,         /* num flows created in this class */
+	    cls_ri_added,			/* num flows added to this class */
+	    cls_ri_removed,        /* num flows removed from this class */
+	    cls_ri_active,         /* flows active this interval */
+	    cls_ri_pkts,           /* packets read */
+	    cls_ri_bytes;          /* bytes read */
+} cls_ri_stats_t, *cls_ri_stats_p;
+
+typedef struct class {
     u_char cls_type_indices[MAX_FLOW_ID_BYTES];
     int cls_type_indices_len;
-    u_long
-        cls_last_bin_active,	/* last bin this class saw activity */
-	    cls_created,		/* num flows created in this class */
-	    cls_deleted,		/* num flows created in this class */
-	    cls_added,			/* num flows added to this class */
-	    cls_removed,		/* num flows removed from this class */
-	    cls_active,			/* flows active this interval */
-	    cls_pkts,			/* packets read */
-	    cls_bytes,			/* bytes read */
-	    cls_sipg;			/* smoothed ipg (in 8 usec units) */
+    u_long cls_sipg,
+        cls_last_bin_active; /* last bin this class saw activity */
     struct timeval
         cls_last_pkt_rcvd;		/* time last packet received in class */
-} clstats_t, *clstats_p;
+    cls_ri_stats_t cls_ri;
+} class_t, *class_p;
+
+
 
 
 /*

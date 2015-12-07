@@ -90,12 +90,12 @@ ftinfo_t ftinfo[10];		/* number of distinct flow types in use */
 llcl_t llclasses[NUM(ftinfo)];
 
 /*
- * application defined "classes".  Clstats[0] is special, in that
+ * application defined "classes".  Class[0] is special, in that
  * it gets any counts not tied to any other flow type or flow.
  */
 /* XXX any bounds checking from upper level (Tcl) calls? */
-clstats_t clstats[NUM(ftinfo)];
-clstats_p class_enum_state;
+class_t classes[NUM(ftinfo)];
+class_p class_enum_state;
 
 int flow_types = 0;
 
@@ -335,7 +335,7 @@ static int
 newfile(Tcl_Interp *interp, int maxpktlen)
 {
     flowentry_p fe, nfe;
-    clstats_p cl;
+    class_p cl;
     extern int errno;
     char *asret;
 
@@ -362,8 +362,8 @@ newfile(Tcl_Interp *interp, int maxpktlen)
 
     filetype = TYPE_UNKNOWN;		/* go into neutral... */
 
-    memset(&clstats[0], 0, sizeof clstats);
-    for (cl = &clstats[0]; cl < &clstats[NUM(clstats)]; cl++) {
+    memset(&classes[0], 0, sizeof classes);
+    for (cl = &classes[0]; cl < &classes[NUM(classes)]; cl++) {
         cl->cls_last_bin_active = 0xffffffff;
     }
     curtime = ZERO;
@@ -454,7 +454,7 @@ cksum(u_char *p, int len)
 
 
 static char *
-flow_type_to_string(ftinfo_p ft)
+flow_type_to_string(u_char *type_indices, int len)
 {
     static char result[MAX_FLOW_ID_BYTES*10];
     char *sep = "";
@@ -462,8 +462,8 @@ flow_type_to_string(ftinfo_p ft)
     int i;
 
     result[0] = 0;
-    for (i = 0; i < ft->fti_type_indices_len; i++) {
-        xp = &atoft[ft->fti_type_indices[i]];
+    for (i = 0; i < len; i++) {
+        xp = &atoft[type_indices[i]];
         sprintf(result+strlen(result), "%s%s", sep, xp->name);
         sep = "/";
     }
@@ -558,11 +558,12 @@ static char *
 flow_statistics(flowentry_p fe)
 {
     static char summary[2000];
+    ftinfo_p ft = &ftinfo[fe->fe_flow_type];
 
     sprintf(summary, flow_stats_format,
             fe->fe_class,
-            flow_type_to_string(&ftinfo[fe->fe_flow_type]),
-            flow_id_to_string(&ftinfo[fe->fe_flow_type], fe->fe_id),
+            flow_type_to_string(ft->fti_type_indices, ft->fti_type_indices_len),
+            flow_id_to_string(ft, fe->fe_id),
             fe->fe_pkts-fe->fe_pkts_last_enum, fe->fe_bytes-fe->fe_bytes_last_enum,
             SIPG_TO_SECS(fe->fe_sipg), SIPG_TO_USECS(fe->fe_sipg),
             dtsecs_ri(&fe->fe_created), dtusecs_ri(&fe->fe_created),
@@ -573,20 +574,21 @@ flow_statistics(flowentry_p fe)
 
 
 static char *class_stats_template =
-    "class %ld created %lu deleted %lu added %lu removed %lu "
+    "type %s created %lu deleted %lu added %lu removed %lu "
     "active %lu pkts %lu bytes %lu sipg %lu.%06lu "
     "lastrecv %ld.%06ld",
     *class_stats_format;
 
 static char *
-class_statistics(clstats_p clsp)
+class_statistics(class_p clsp)
 {
     static char summary[10000];
 
     sprintf(summary, class_stats_format,
-            clsp-clstats, clsp->cls_created, clsp->cls_deleted,
-            clsp->cls_added, clsp->cls_removed, clsp->cls_active,
-            clsp->cls_pkts, clsp->cls_bytes,
+            flow_type_to_string(clsp->cls_type_indices, clsp->cls_type_indices_len),
+            clsp->cls_ri.cls_ri_created, clsp->cls_ri.cls_ri_deleted,
+            clsp->cls_ri.cls_ri_added, clsp->cls_ri.cls_ri_removed, clsp->cls_ri.cls_ri_active,
+            clsp->cls_ri.cls_ri_pkts, clsp->cls_ri.cls_ri_bytes,
             SIPG_TO_SECS(clsp->cls_sipg), SIPG_TO_USECS(clsp->cls_sipg),
             dtsecs_ri(&clsp->cls_last_pkt_rcvd),
             dtusecs_ri(&clsp->cls_last_pkt_rcvd));
@@ -908,8 +910,8 @@ tbl_delete(flowentry_p fe)
 static void
 delete_flow(flowentry_p fe)
 {
-    clstats[fe->fe_class].cls_deleted++;
-    clstats[fe->fe_class].cls_last_bin_active = ri.ri_binno;
+    classes[fe->fe_class].cls_ri.cls_ri_deleted++;
+    classes[fe->fe_class].cls_last_bin_active = ri.ri_binno;
     tbl_delete(fe);
 }
 
@@ -918,13 +920,13 @@ delete_flow(flowentry_p fe)
 static void
 new_flow_in_class(u_short class, flowentry_p fe, ftinfo_p ft)
 {
-    clstats_p cls;
+    class_p cls;
 
-    if (fe->fe_class >= NUM(clstats)) {
+    if (fe->fe_class >= NUM(classes)) {
         fprintf(stderr, "%s:%d: assertion failure\n", __FILE__, __LINE__);
         exit(2);
     }
-    cls = &clstats[fe->fe_class];
+    cls = &classes[fe->fe_class];
     if (ft->fti_type_indices_len > sizeof(cls->cls_type_indices)) {
         fprintf(stderr, "%s:%d: assertion failure\n", __FILE__, __LINE__);
         exit(2);
@@ -979,7 +981,8 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int class)
 
         sprintf(buf, " %d %ld ", fe->fe_class, ft-ftinfo);
         if (Tcl_VarEval(interp, ft->fti_new_flow_upcall,
-                        buf, flow_type_to_string(ft),
+                        buf, flow_type_to_string(ft->fti_type_indices,
+                                                 ft->fti_type_indices_len),
                         " ", flow_id_to_string(ft, fe->fe_id), 0) != TCL_OK) {
             packet_error = TCL_ERROR;
             return 0;
@@ -1022,8 +1025,8 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int class)
             }
         }
     }
-    clstats[fe->fe_class].cls_created++;
-    clstats[fe->fe_class].cls_last_bin_active = ri.ri_binno;
+    classes[fe->fe_class].cls_ri.cls_ri_created++;
+    classes[fe->fe_class].cls_last_bin_active = ri.ri_binno;
     return fe;
 }
 
@@ -1061,15 +1064,15 @@ sipg_update(u_long cur_sipg, struct timeval *last_pkt)
 static void
 packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
 {
-    clstats_p cl;
+    class_p cl;
 
-    cl = &clstats[fe->fe_class];
+    cl = &classes[fe->fe_class];
     cl->cls_last_bin_active = ri.ri_binno;
 
     /* update statistics */
 
-    cl->cls_pkts++;
-    cl->cls_bytes += len;
+    cl->cls_ri.cls_ri_pkts++;
+    cl->cls_ri.cls_ri_bytes += len;
     if (cl->cls_last_pkt_rcvd.tv_sec) {		/* sipg */
         cl->cls_sipg = sipg_update(cl->cls_sipg, &cl->cls_last_pkt_rcvd);
     }
@@ -1085,7 +1088,7 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
     /* count activity in this bin */
     if (fe->fe_last_bin_active != ri.ri_binno) {
         fe->fe_last_bin_active = ri.ri_binno;
-        cl->cls_active++;
+        cl->cls_ri.cls_ri_active++;
     }
 
 
@@ -1134,10 +1137,10 @@ packetinflow(Tcl_Interp *interp, flowentry_p fe, int len)
 
         if (outcls != fe->fe_class) {
             /* class is changing --- update statistics */
-            clstats[fe->fe_class].cls_removed++;
+            classes[fe->fe_class].cls_ri.cls_ri_removed++;
             fe->fe_class = outcls;
-            clstats[fe->fe_class].cls_added++;
-            clstats[fe->fe_class].cls_last_bin_active = ri.ri_binno;
+            classes[fe->fe_class].cls_ri.cls_ri_added++;
+            classes[fe->fe_class].cls_last_bin_active = ri.ri_binno;
         }
         if (n >= 2) {
             if (!TIME_EQ(&fe->fe_upcall_when_secs_ge, &ZERO)) {
@@ -1339,11 +1342,11 @@ packetin(Tcl_Interp *interp, const u_char *packet, int caplen, int pktlen)
 
         if (llfe->fe_parent_class > ulfe->fe_class) {
             /* class is changing --- update statistics */
-            clstats[ulfe->fe_class].cls_removed++;
-            clstats[ulfe->fe_class].cls_last_bin_active = ri.ri_binno;
+            classes[ulfe->fe_class].cls_ri.cls_ri_removed++;
+            classes[ulfe->fe_class].cls_last_bin_active = ri.ri_binno;
             ulfe->fe_class = llfe->fe_parent_class;
-            clstats[ulfe->fe_class].cls_added++;
-            clstats[ulfe->fe_class].cls_last_bin_active = ri.ri_binno;
+            classes[ulfe->fe_class].cls_ri.cls_ri_added++;
+            classes[ulfe->fe_class].cls_last_bin_active = ri.ri_binno;
         }
 
         /* track packet stats */
@@ -1810,19 +1813,19 @@ static int
 fl_class_stats(ClientData clientData, Tcl_Interp *interp,
 		int argc, const char *argv[])
 {
-    clstats_p clsp;
+    class_p clsp;
 
     if (argc != 2) {
         Tcl_SetResult(interp, "Usage: fl_class_stats class", TCL_STATIC);
         return TCL_ERROR;
     }
 
-    if (atoi(argv[1]) >= NUM(clstats)) {
+    if (atoi(argv[1]) >= NUM(classes)) {
         Tcl_SetResult(interp, "class too high", TCL_STATIC);
         return TCL_ERROR;
     }
 
-    clsp = &clstats[atoi(argv[1])];
+    clsp = &classes[atoi(argv[1])];
 
     Tcl_SetResult(interp, class_statistics(clsp), TCL_VOLATILE);
     return TCL_OK;
@@ -1837,7 +1840,7 @@ static int
 fl_start_class_enumeration(ClientData clientData, Tcl_Interp *interp,
 		int argc, const char *argv[])
 {
-    class_enum_state = clstats;
+    class_enum_state = classes;
     return TCL_OK;
 }
 
@@ -1845,26 +1848,20 @@ static int
 fl_continue_class_enumeration(ClientData clientData, Tcl_Interp *interp,
 		int argc, const char *argv[])
 {
-    u_long sipg;
-    struct timeval last_rcvd;
-    clstats_p cl;
+    class_p cl;
 
     while (class_enum_state) {
         cl = class_enum_state;
         class_enum_state++;
-        if (class_enum_state >= &clstats[NUM(clstats)]) {
+        if (class_enum_state >= &classes[NUM(classes)]) {
             class_enum_state = 0;
         }
         if (cl->cls_last_bin_active == ri.ri_binno) {
             Tcl_SetResult(interp, class_statistics(cl), TCL_VOLATILE);
             /* now, clear stats for next go round... */
             /* but, preserve sipg and last rcvd... */
-            sipg = cl->cls_sipg;
-            last_rcvd = cl->cls_last_pkt_rcvd;
-            memset(cl, 0, sizeof *cl);
+            memset(&cl->cls_ri, 0, sizeof cl->cls_ri);
             cl->cls_last_bin_active = ri.ri_binno;
-            cl->cls_sipg = sipg;
-            cl->cls_last_pkt_rcvd = last_rcvd;
             return TCL_OK;
         }
     }
