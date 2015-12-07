@@ -276,22 +276,20 @@ proc sill { line desired {justtags 0} } {
             }
         } elseif {($dindex >= $plen) && !$justtags} {
             error "index value $dindex too high"
+        } elseif {$justtags} {
+            append output $xsep $dlabel
         } else {
             set pval [lindex $pelts $dindex]
             if {$dinteger} {
                 set pval [expr round($pval)]
             }
             if {$wanttags} {
-                if {$justtags} {
-                    append output $xsep $dlabel
-                } else {
-                    append output $xsep $dlabel $sep $pval
-                }
+                append output $xsep $dlabel $sep $pval
             } else {
                 append output $xsep $pval
             }
-            set xsep $sep
         }
+        set xsep $sep
     }
     return $output
 }
@@ -804,11 +802,12 @@ proc fl_set_parameters {argc argv} {
     # *AFTER* setting flstats(star_output_arg)
 
     foreach which { class flow ri } {
-        if {[info exists flstats(${which}_output_arg)]} {
+        if {[info exists flstats(${which}_omodify_arg)]} {
+            puts stderr "got foreach ${which}"
             set flstats(${which}_output_spec) \
                             [crack_modify \
                                  $flstats(${which}_output_spec) \
-                                 $flstats(${which}_output_arg) \
+                                 $flstats(${which}_omodify_arg) \
                                  [fl_stats_format ${which} template]]
         }
     }
