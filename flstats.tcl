@@ -145,7 +145,7 @@ proc crack_output { spec stats_format } {
 }
 
 
-proc sill { line desired } {
+proc sill { line desired {justtags 0} } {
     global flstats
 
     # LINE is a string of value elements (i.e., printed w/OUT tags)
@@ -160,6 +160,9 @@ proc sill { line desired } {
     # (surrounded by separator characters, as normal, unless INTEGER
     # is true, in which case leave out the separator characters in
     # this special case).
+
+    # the optional parameter JUSTTAGS is for printing out header lines
+    # (without any actual values)
 
     if {$flstats(debug)} {
         puts stderr "silling: $line"
@@ -194,7 +197,7 @@ proc sill { line desired } {
                 append output $dlabel
                 set xsep "";    # no separator bewteen this and next
             }
-        } elseif {$dindex >= $plen} {
+        } elseif {($dindex >= $plen) && !$justtags} {
             error "index value $dindex too high"
         } else {
             set pval [lindex $pelts $dindex]
@@ -202,7 +205,11 @@ proc sill { line desired } {
                 set pval [expr round($pval)]
             }
             if {$wanttags} {
-                append output $xsep $dlabel $sep $pval
+                if {$justtags} {
+                    append output $xsep $dlabel
+                } else {
+                    append output $xsep $dlabel $sep $pval
+                }
             } else {
                 append output $xsep $pval
             }
@@ -228,14 +235,17 @@ proc fl_star_details { star {filename {}} {binsecs {}} \
         if {$ristats == ""} {
             break;  # eof
         }
+        set silld_ristats [sill $ristats $flstats(ri_output_spec)]
         if {$flstats(indent)} {
             set prefix $flstats(indentation); # fold into [putsill]?
         } else {
-            set prefix [sill $ristats $flstats(ri_output_spec)]
+            set prefix "$silld_ristats "
         }
         fl_start_${star}_enumeration
         while { [set x [fl_continue_${star}_enumeration]] != ""} {
-            puts [sill $ristats $flstats(ri_output_spec)]
+            if {$flstats(indent)} {
+                puts $silld_ristats
+            }
             puts "$prefix[sill $x $flstats(${star}_output_spec)]"
         }
     }
@@ -524,6 +534,7 @@ proc fl_set_parameters {argc argv} {
     global argv0
     global flstats
     global tfmt
+    global ofmt
     set classes 0
     set flows 0
     set interactive 0
@@ -593,7 +604,7 @@ proc fl_set_parameters {argc argv} {
             if {[string length $spec] == 2} { ; # shorthand
                 if {![string match {[Ttr][Tt]} $spec]} {
                     error "invalid shorthand for --timebase in $spec\nlooking \
-                           a string that matches \[Ttr\]\[Tt\].\n"
+                           for a string that matches \[Ttr\]\[Tt\].\n"
                 }
                 fl_time_base $tfmt([string index $spec 0]) \
                                $tfmt([string index $spec 1])
@@ -605,13 +616,16 @@ proc fl_set_parameters {argc argv} {
         } elseif {[string equal $arg --output]} { # what to output
             if {$argc < 3} {
                 error "not enough arguments for --output in $argv\nlooking \
-                     for '--output {cl|fl|ri} outputspec"
+                     for '--output {class|flow|ri} outputspec"
             }
             set which [lindex $argv 1]
             if {![info exists ofmt($which)]} {
-                error "first argument for --output should be one of: cl, fl, ri"
+                error "invalid stats identifier for --output in $which\n \
+                   looking for one of: class, flow, ri"
             }
-            set flstats(${{which}_output_arg}) [lindex $argv 2]
+            set flstats(${which}_output_arg) [lindex $argv 2]
+            incr argc -3
+            set argv [lrange $argv 3 end]
         } elseif {[string equal $arg --interactive]} { # interactive
             if {$classes || $flows} {
                 error "can only specify *one* of {classes|flows|interactive}"
@@ -680,22 +694,6 @@ proc fl_set_parameters {argc argv} {
         error "extra parameters at end of command line: $argv"
     }
     
-    if {$flstats(header)} {
-        # XXX needs, also, to go through [sill]
-        puts -nonewline [evenelts [fl_stats_format ri template]]
-        if {$flstats(indent)} {
-            puts ""
-            puts -nonewline $flstats(indentation)
-        } else {
-            puts -nonewline " "
-        }
-        if {$classes} {
-            puts [evenelts [fl_stats_format class template]]
-        } elseif {$flows} {
-            puts [evenelts [fl_stats_format flow template]]
-        }
-    }
-
     # now, tagging isn't really done in .c file any more, so
     # eliminate it
 
@@ -717,6 +715,22 @@ proc fl_set_parameters {argc argv} {
             set flstats(${which}_output_spec) \
                 [crack_output "$flstats(default_${which}_output_arg)" \
                      "[fl_stats_format ${which} template ]" ]
+        }
+    }
+
+    if {$flstats(header)} {
+        # XXX needs, also, to go through [sill]
+        puts -nonewline [sill {} $flstats(ri_output_spec) 1]
+        if {$flstats(indent)} {
+            puts ""
+            puts -nonewline $flstats(indentation)
+        } else {
+            puts -nonewline " "
+        }
+        if {$classes} {
+            puts [sill {} $flstats(class_output_spec) 1]
+        } elseif {$flows} {
+            puts [sill {} $flstats(flow_output_spec) 1]
         }
     }
 
@@ -770,8 +784,8 @@ set tfmt(t) within_tr
 set tfmt(r) within_ri
 
 #decoding help for --output
-set ofmt(cl) 1
-set ofmt(fl) 1
+set ofmt(class) 1
+set ofmt(flow) 1
 set ofmt(ri) 1
 
 # set some defaults...
