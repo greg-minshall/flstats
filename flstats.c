@@ -1530,10 +1530,8 @@ fl_read_one_bin(ClientData clientData, Tcl_Interp *interp,
         ri.ri_starttime = ZERO;
         ri.ri_tsipg = savesipg;
         ri.ri_starttime = savestart; /* one ends, next starts */
+        ri.ri_binno = -1;
     }
-    
-
-    ri.ri_binno = -1;
 
     if (!fileeof) {
         if (filetype == TYPE_UNKNOWN) {
@@ -1555,7 +1553,7 @@ fl_read_one_bin(ClientData clientData, Tcl_Interp *interp,
         }
     }
 
-    if (TIME_EQ(&ri.ri_starttime, &ZERO)) {
+    if (TIME_EQ(&ri.ri_first_pkt_rcvd, &ZERO)) {
         char *asret;
 
         asprintf(&asret, "");
@@ -2111,7 +2109,7 @@ fl_time_base(ClientData clientData, Tcl_Interp *interp,
               int argc, const char *argv[])
 {
     static char usage[] =
-        "Usage: fl_time_base {absolute|within_tr_within_ri} {absolute|within_tr}";
+        "Usage: fl_time_base {absolute|within_tr|within_ri} {absolute|within_tr}";
     char *asret;
     delta_t l_delta_wi, l_delta_ri;
     
