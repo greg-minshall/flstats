@@ -462,8 +462,8 @@ flow_type_to_string(ftinfo_p ft)
     int i;
 
     result[0] = 0;
-    for (i = 0; i < ft->fti_type_indicies_len; i++) {
-        xp = &atoft[ft->fti_type_indicies[i]];
+    for (i = 0; i < ft->fti_type_indices_len; i++) {
+        xp = &atoft[ft->fti_type_indices[i]];
         sprintf(result+strlen(result), "%s%s", sep, xp->name);
         sep = "/";
     }
@@ -483,8 +483,8 @@ flow_id_to_string(ftinfo_p ft, u_char *id)
     u_long byte;
 
     result[0] = 0;
-    for (i = 0; i < ft->fti_type_indicies_len; i++) {
-        xp = &atoft[ft->fti_type_indicies[i]];
+    for (i = 0; i < ft->fti_type_indices_len; i++) {
+        xp = &atoft[ft->fti_type_indices[i]];
         fidp = fidstring;
         dot = "";			/* for dotted decimal */
         decimal = 0;			/* for decimal */
@@ -542,25 +542,6 @@ flow_id_to_string(ftinfo_p ft, u_char *id)
     }
     return result;
 }
-
-
-#if	0	/* not used */
-static char *
-flow_type_to_string(int ftype)
-{
-    static char result[MAX_FLOW_ID_BYTES*10];
-    char *sep = "";
-    int i;
-
-    result[0] = 0;
-    for (i = 0; i < ftinfo[ftype].fti_type_indicies_len; i++) {
-        sprintf(result+strlen(result), "%s%s",
-                sep, atoft[ftinfo[ftype].fti_type_indicies[i]].name);
-        sep = "/";
-    }
-    return result;
-}
-#endif
 
 
 /* 
@@ -933,6 +914,35 @@ delete_flow(flowentry_p fe)
 }
 
 
+/* main thing: name this class */
+static void
+new_flow_in_class(u_short class, flowentry_p fe, ftinfo_p ft)
+{
+    clstats_p cls;
+
+    if (fe->fe_class >= NUM(clstats)) {
+        fprintf(stderr, "%s:%d: assertion failure\n", __FILE__, __LINE__);
+        exit(2);
+    }
+    cls = &clstats[fe->fe_class];
+    if (ft->fti_type_indices_len > sizeof(cls->cls_type_indices)) {
+        fprintf(stderr, "%s:%d: assertion failure\n", __FILE__, __LINE__);
+        exit(2);
+    }
+    if (cls->cls_type_indices_len == 0) { /* never initialized */
+        memcpy(cls->cls_type_indices, ft->fti_type_indices,
+               ft->fti_type_indices_len);
+        cls->cls_type_indices_len = ft->fti_type_indices_len;
+    } else if ((ft->fti_type_indices_len != cls->cls_type_indices_len) ||
+        (memcmp(ft->fti_type_indices, cls->cls_type_indices,
+                cls->cls_type_indices_len))) { /* our previous value doesn't match */
+        /* now what? */
+        fprintf(stderr, "%s:%d: new_flow_in_class got a *different* value\n",
+                __FILE__, __LINE__);
+    }
+}
+
+
 static flowentry_p
 new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int class)
 {
@@ -946,6 +956,7 @@ new_flow(Tcl_Interp *interp, ftinfo_p ft, u_char *flowid, int class)
     fe->fe_parent_ftype = ft->fti_parent_ftype;			 /* default */
     fe->fe_parent_class = ftinfo[ft->fti_parent_ftype].fti_class;/* default */
     fe->fe_class = class;
+    new_flow_in_class(class, fe, ft);
     fe->fe_last_bin_active = 0xffffffff;
     fe->fe_created = curtime;
     fe->fe_last_pkt_rcvd = ZERO;
@@ -1593,7 +1604,7 @@ set_flow_type(Tcl_Interp *interp, int ftype, int Ftype, int class,
     char initial[MAX_FLOW_ID_BYTES*5], after[MAX_FLOW_ID_BYTES*5]; /* 5 rndm */
     const char *curdesc;
     int bandm = 0;	/* number of bytes in fti_bytes_and_mask used */
-    int indicies = 0;	/* index (in atoft) of each field in flow id */
+    int indices = 0;	/* index (in atoft) of each field in flow id */
     atoft_p xp;
     ftinfo_p fti = &ftinfo[ftype];
 
@@ -1649,12 +1660,12 @@ set_flow_type(Tcl_Interp *interp, int ftype, int Ftype, int class,
                     fti->fti_bytes_and_mask[bandm++] = off++;
                     fti->fti_bytes_and_mask[bandm++] = mask;
                 }
-                if (indicies >= NUM(fti->fti_type_indicies)) {
+                if (indices >= NUM(fti->fti_type_indices)) {
                     Tcl_SetResult(interp, "too many fields in flow type specifier",
                                   TCL_STATIC);
                     return TCL_ERROR;
                 }
-                fti->fti_type_indicies[indicies++] = j;
+                fti->fti_type_indices[indices++] = j;
                 break;
             }
         }
@@ -1670,7 +1681,7 @@ set_flow_type(Tcl_Interp *interp, int ftype, int Ftype, int class,
 
     fti->fti_bytes_and_mask_len = bandm;
     fti->fti_id_len = bandm/2;
-    fti->fti_type_indicies_len = indicies;
+    fti->fti_type_indices_len = indices;
 
     fti->fti_class = class;
     fti->fti_parent_ftype = Ftype;

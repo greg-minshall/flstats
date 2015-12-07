@@ -88,16 +88,16 @@ struct flowentry {
     /* fields for application use */
     u_short
         fe_flow_type,		/* which flow type is this? */
-        fe_class,		/* class of this flow */
+        fe_class,           /* class of this flow */
         fe_parent_ftype,	/* parent's flow type */
         fe_parent_class;	/* parent's class */
     u_long
-        fe_pkts,		/* number of packets received */
-        fe_pkts_last_enum,	/* number of packets *last* time enum done */
-        fe_bytes,		/* number of bytes received */
-        fe_bytes_last_enum,		/* number of bytes *last* time enum done */
+        fe_pkts,           /* number of packets received */
+        fe_pkts_last_enum, /* number of packets *last* time enum done */
+        fe_bytes,          /* number of bytes received */
+        fe_bytes_last_enum, /* number of bytes *last* time enum done */
         fe_sipg,		/* smoothed interpacket gap (units of 8 usec) */
-        fe_last_bin_active,	/* last bin this saw activity */
+        fe_last_bin_active,     /* last bin this saw activity */
         fe_upcall_when_pkts_ge,	/* num pkts needs to be >= m */
         fe_upcall_when_sipg_lt;	/* sipg needs to be < p */
     /* (0xffffffff ==> ignore sipg) */
@@ -108,8 +108,9 @@ struct flowentry {
         fe_upcall_when_secs_ge,	/* recv_upcall won't run till this time */
         fe_timer_time;	    	/* time to run timer routine */
     /* fields for hashing */
-    u_short fe_sum;             /* hash of id, speeds up searching */
-    u_char  fe_id_len;          /* length of id */
+    u_short fe_sum,             /* hash of id, speeds up searching */
+        fe_id_len;              /* length of id */
+    u_char *fe_id;              /* id of this flow entry */
     flowentry_p
         fe_next_in_bucket,
 	    fe_prev_in_bucket,
@@ -117,7 +118,6 @@ struct flowentry {
 	    fe_prev_in_table,
 	    fe_next_in_timer,
 	    fe_prev_in_timer;
-    u_char  fe_id[1];           /* variable sized (KEEP AT END!) */
 };
 
 /*
@@ -134,6 +134,8 @@ struct flowentry {
  */
 
 typedef struct clstats {
+    u_char cls_type_indices[MAX_FLOW_ID_BYTES];
+    int cls_type_indices_len;
     u_long
         cls_last_bin_active,	/* last bin this class saw activity */
 	    cls_created,		/* num flows created in this class */
@@ -231,10 +233,10 @@ typedef struct ri {
 typedef struct ftinfo ftinfo_t, *ftinfo_p;
 
 struct ftinfo {
-    u_char  fti_type_indicies[MAX_FLOW_ID_BYTES],
+    u_char  fti_type_indices[MAX_FLOW_ID_BYTES],
         fti_bytes_and_mask[2*MAX_FLOW_ID_BYTES];
     int	    fti_bytes_and_mask_len,
-	    fti_type_indicies_len,
+	    fti_type_indices_len,
 	    fti_id_len,		/* length of a flow id for this type */
 	    fti_id_covers,	/* how far into pkt hdr the flow id reaches */
 	    fti_class,		/* default class (overridable by upcall) */
