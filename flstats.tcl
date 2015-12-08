@@ -328,7 +328,7 @@ proc fl_details { {filename {}} {binsecs {}} {classifier {}} {flowtypes {} }} {
             puts $silld_ristats
             set prefix $flglobals(indentation); # fold into [putsill]?
         } else {
-            set prefix [string cat $silld_ristats $flglobals(separator)]
+            set prefix $silld_ristats$flglobals(separator)
         }
         if {$flglobals(classes)} {
             fl_start_class_enumeration
@@ -337,11 +337,9 @@ proc fl_details { {filename {}} {binsecs {}} {classifier {}} {flowtypes {} }} {
                 if {$flglobals(flows)} {
                     if {$flglobals(indent)} {
                         puts $prefix$silld_clstats
-                        set prefix2 [string cat $flglobals(indentation) \
-                                        $flglobals(indentation)]
+                        set prefix2 $flglobals(indentation)$flglobals(indentation)]
                     } else {
-                        set prefix2 [string cat $prefix \
-                                        $silld_ristats $flglobals(separator)]
+                        set prefix2 $prefix$silld_ristats$flglobals(separator)
                     }
                     fl_start_flow_enumeration
                     while {[set flstats \
