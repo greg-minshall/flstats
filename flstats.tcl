@@ -332,11 +332,11 @@ proc fl_details { {filename {}} {binsecs {}} {classifier {}} {flowtypes {} }} {
         }
         if {$flglobals(classes)} {
             fl_start_class_enumeration
-            while {[set classstats [fl_continue_class_enumeration]] != ""} {
-                set silld_classstats [sill $classstats $flglobals(class_output_spec)]
+            while {[set clstats [fl_continue_class_enumeration]] != ""} {
+                set silld_clstats [sill $clstats $flglobals(class_output_spec)]
                 if {$flglobals(flows)} {
                     if {$flglobals(indent)} {
-                        puts $prefix$silld_classstats
+                        puts $prefix$silld_clstats
                         set prefix2 [string cat $flglobals(indentation) \
                                         $flglobals(indentation)]
                     } else {
@@ -344,21 +344,21 @@ proc fl_details { {filename {}} {binsecs {}} {classifier {}} {flowtypes {} }} {
                                         $silld_ristats $flglobals(separator)]
                     }
                     fl_start_flow_enumeration
-                    while {[set flowstats \
+                    while {[set flstats \
                                 [fl_continue_flow_enumeration --curclass]] != ""} {
-                        set silld_flowstats \
-                            [sill $flowstats $flglobals(flow_output_spec)]
-                        puts $prefix2$silld_flowstats
+                        set silld_flstats \
+                            [sill $flstats $flglobals(flow_output_spec)]
+                        puts $prefix2$silld_flstats
                     }
                 } else {
-                    puts $prefix$silld_classstats
+                    puts $prefix$silld_clstats
                 }
             }
         } elseif {$flglobals(flows)} {
             fl_start_flow_enumeration
-            while {[set flowstats [fl_continue_flow_enumeration]] != ""} {
-                set silld_flowstats [sill $flowstats $flglobals(flow_output_spec)]
-                puts $prefix$silld_flowstats
+            while {[set flstats [fl_continue_flow_enumeration]] != ""} {
+                set silld_flstats [sill $flstats $flglobals(flow_output_spec)]
+                puts $prefix$silld_flstats
             }
         }
     flush stdout;               # make sure user sees output quickly
