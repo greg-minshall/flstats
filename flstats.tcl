@@ -313,8 +313,7 @@ proc sill { line desired {justtags 0} } {
 }
 
 
-proc fl_star_details { star {filename {}} {binsecs {}} \
-                           {classifier {}} { flowtypes {} }} {
+proc fl_details { {filename {}} {binsecs {}} {classifier {}} {flowtypes {} }} {
     global flstats
 
     set didrisats 0
@@ -323,34 +322,49 @@ proc fl_star_details { star {filename {}} {binsecs {}} \
 
     set binsecs $flstats(binsecs)   ; # make sure we have correct value
 
-    while {1} {
-        set ristats [fl_read_one_bin $binsecs]
-        if {$ristats == ""} {
-            break;  # eof
-        }
+    while {[set ristats [fl_read_one_bin $binsecs]] != ""} {
         set silld_ristats [sill $ristats $flstats(ri_output_spec)]
         if {$flstats(indent)} {
             puts $silld_ristats
             set prefix $flstats(indentation); # fold into [putsill]?
         } else {
-            set prefix "$silld_ristats "
+            set prefix [string cat $silld_ristats $flstats(separator)]
         }
-        fl_start_${star}_enumeration
-        while { [set x [fl_continue_${star}_enumeration]] != ""} {
-            puts "$prefix[sill $x $flstats(${star}_output_spec)]"
+        if {$flstats(classes)} {
+            fl_start_class_enumeration
+            while {[set classstats [fl_continue_class_enumeration]] != ""} {
+                set silld_classstats [sill $classstats $flstats(class_output_spec)]
+                if {$flstats(flows)} {
+                    if {$flstats(indent)} {
+                        puts $prefix$silld_classstats
+                        set prefix2 [string cat $flstats(indentation) \
+                                        $flstats(indentation)]
+                    } else {
+                        set prefix2 [string cat $prefix \
+                                        $silld_ristats $flstats(separator)]
+                    }
+                    fl_start_flow_enumeration
+                    while {[set flowstats \
+                                [fl_continue_flow_enumeration --curclass]] != ""} {
+                        set silld_flowstats \
+                            [sill $flowstats $flstats(flow_output_spec)]
+                        puts $prefix2$silld_flowstats
+                    }
+                } else {
+                    puts $prefix$silld_classstats
+                }
+            }
+        } elseif {$flstats(flows)} {
+            fl_start_flow_enumeration
+            while {[set flowstats [fl_continue_flow_enumeration]] != ""} {
+                set silld_flowstats [sill $flowstats $flstats(flow_output_spec)]
+                puts $prefix$silld_flowstats
+            }
         }
+    flush stdout;               # make sure user sees output quickly
     }
 }
 
-
-proc fl_flow_details { {filename {}} {binsecs {}} {classifier {}} { flowtypes {} }} {
-    fl_star_details flow $filename $binsecs $classifier $flowtypes
-}
-
-
-proc fl_class_details { {filename {}} {binsecs {}} {classifier {}} { flowtypes {} }} {
-    fl_star_details class $filename $binsecs $classifier $flowtypes
-}
 
 ######################
 ### START FLOWSIM ####
@@ -624,9 +638,7 @@ proc fl_set_parameters {argc argv} {
     global flstats
     global tfmt
     global ofmt
-    set classes 0
-    set flows 0
-    set interactive 0
+
     set scriptfile 0
     set eval 0
 
@@ -749,17 +761,17 @@ proc fl_set_parameters {argc argv} {
             while {[string length $opts] > 0} {
                 set optchar [string range $opts 0 0]
                 if {[string equal $optchar "c"]} {
-                    set classes 1
+                    set flstats(classes) 1
                 } elseif {[string equal $optchar "d"]} {
                     incr flstats(debug)
                 } elseif {[string equal $optchar "f"]} {
-                    set flows 1
+                    set flstats(flows) 1
                 } elseif {[string equal $optchar H]} {
                     set flstats(header) 1; # print out column header with labels
                 } elseif {[string equal $optchar I]} {
                     set flstats(indent) 1; # print reporting interval separate
                 } elseif {[string equal $optchar i]} {
-                    set interactive 1
+                    set flstats(interactive) 1
                 } elseif {[string equal $optchar L]} {
                     set flstats(label) 1
                 } elseif {[string equal $optchar s]} { ; # respond to SIGUSR1
@@ -779,8 +791,8 @@ proc fl_set_parameters {argc argv} {
         set arg [lindex $argv 0]
     }
 
-    if {[expr $classes + $flows + $interactive] > 1} {
-        error "can only specify *one* of {-c|-f|-i}"
+    if {${flstats(interactive)} && ( $flstats(classes) || $flstats(flows) ) } {
+        error "cannot specify -i with -c and/or -f"
     }
 
     # get trace file name
@@ -797,11 +809,8 @@ proc fl_set_parameters {argc argv} {
     # now, tagging isn't really done in .c file any more, so
     # eliminate it
 
-    if {$classes} {
-        fl_stats_format class current [oddelts [fl_stats_format class template]]
-    } elseif {$flows} {
-        fl_stats_format flow current [oddelts [fl_stats_format flow template]]
-    }
+    fl_stats_format class current [oddelts [fl_stats_format class template]]
+    fl_stats_format flow current [oddelts [fl_stats_format flow template]]
     fl_stats_format ri current [oddelts [fl_stats_format ri template]]
 
     # *AFTER* deciding on tags...
@@ -836,11 +845,22 @@ proc fl_set_parameters {argc argv} {
             puts ""
             puts -nonewline $flstats(indentation)
         } else {
-            puts -nonewline " "
+            puts -nonewline $flstats(separator)
         }
-        if {$classes} {
-            puts [sill {} $flstats(class_output_spec) 1]
-        } elseif {$flows} {
+        if {$flstats(classes)} {
+            puts -nonewline [sill {} $flstats(class_output_spec) 1]
+            if {$flstats(flows)} {
+                if {$flstats(indent)} {
+                    puts ""
+                    puts -nonewline $flstats(indentation)
+                    puts -nonewline $flstats(indentation)
+                } else {
+                    puts -nonewline $flstats(separator)
+                }
+                puts -nonewline [sill {} $flstats(flow_output_spec) 1]
+            }
+            puts ""
+        } elseif {$flstats(flows)} {
             puts [sill {} $flstats(flow_output_spec) 1]
         }
     }
@@ -853,20 +873,17 @@ proc fl_set_parameters {argc argv} {
     }
 
     # default action
-    if {!$flows && !$classes && !$interactive} {
-        set classes 1
+    if {!$flstats(flows) && !$flstats(classes) && !$flstats(interactive)} {
+        set flstats(classes) 1
     }
 
-    if {$flows} {
-        fl_flow_details
+    if {!$flstats(interactive)} {
+        fl_details
         exit
-    } elseif {$classes} {
-        fl_class_details
-        exit
+    } else {
+        # must be interactive...
+        return [list $argc $argv]
     }
-
-    # must be interactive...
-    return [list $argc $argv]
 }
 
 proc fl_startup { argc argv } {
@@ -900,16 +917,19 @@ set ofmt(flow) 1
 set ofmt(ri) 1
 
 # set some defaults...
-set flstats(debug) 0
-set flstats(classifier) {}
 set flstats(binsecs) 0
+set flstats(classifier) {}
+set flstats(classes) 0
+set flstats(debug) 0
+set flstats(flows) 0
 set flstats(header) 0
 set flstats(indent) 0
+set flstats(indentation) "    ";          # XXX make configurable?
+set flstats(interactive) 0
 set flstats(label) 0
+set flstats(separator) " "
 set flstats(tags) 0
 set flstats(tracefile.filename) "-"     ; # from standard in...
-set flstats(indentation) "    ";          # XXX make configurable?
-set flstats(separator) " "
 # default flowtypes...
 set flstats(flowtypes) { \
     ihv/ihl/tos/ttl/prot/src/dst ihv/ihl/tos/ttl/prot/src/dst/sport/dport \

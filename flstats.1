@@ -13,8 +13,9 @@
 .Op Fl -binsecs Ar num
 .Op Fl -evaluate Ar tclcommands
 .Op Fl -flowtypes Ar flowspecifier[s]
-.Op Fl -oexcl {class|flow|ri} Ar fieldnames
-.Op Fl -ospec {class|flow|ri} Ar outputspecifier
+.Op Fl -oexcl Ar {class|flow|ri} fieldnames
+.Op Fl -omodify Ar {class|flow|ri} outputspecifier
+.Op Fl -ospec Ar {class|flow|ri} outputspecifier
 .Op Fl -scriptfile Ar filename
 .Op Fl -sep Ar separator
 .Op Fl -timebase Ar {T|t}{T|t|r}
@@ -33,15 +34,25 @@ of flows) contained in the file.
 .Bl -tag -width Ic
 .It Fl c
 Report statistics of flow "classes" (aggregates of flows), rather than
-about individual flows themselves.  The difference might be that
-different individual flows have different source and destination IP
-addresses, whereas the class for all these flows is the class of flows
-which looks at (only) source and destination IP addresses.  (This
-would be the case if
+about (or, in addition to) individual flows themselves.  The
+difference might be that different individual flows have different
+source and destination IP addresses, whereas the class for all these
+flows is the class of flows which looks at (only) source and
+destination IP addresses.  (This would be the case if
 .Fl -flowtypes Ar dst/src
 were specified on the command line -- there would be one class that
 held its own statistics for all packets with source and destination
 [IP] addresses in them.)
+.It Fl d
+Run in a mode for debugging flstats itself (normally not interesting
+for users of
+.Nm flstats
+).
+.It Fl f
+Report statistics about individual flows.
+.It Fl i
+Run in "interactive" mode, in which the user is prompted for Tcl
+commands to execute.  See usage note under
 
 Usage note: only *one* of
 .Fl c ,
@@ -49,18 +60,6 @@ Usage note: only *one* of
 and
 .Fl i
 can be specified in any given run.
-.It Fl d
-Run in a mode for debugging flstats itself (normally not interesting
-for users of
-.Nm flstats
-).
-.It Fl f
-Report statistics about individual flows, rather than "classes".  See
-usage note under
-.Fl c .
-.It Fl i
-Run in "interactive" mode, in which the user is prompted for Tcl
-commands to execute.  See usage note under
 .Fl c .
 .It Fl s
 Set the process to react to USR1 signals.  After the reception of a USR1
@@ -137,10 +136,32 @@ from the reporting interval --
 .Ar ri
 -- set of statistics).  To see *all* values, '--oexcl class "" --oexcl
 flow "" --oexcl ri ""' can be specified
-.It Fl -ospec Ar {class|flow|ri}
-This allows finer control of what is printed out than does the
+.It Fl -omodify Ar {class|flow|ri} outputspecifier
+This output format option doesn't change the order in which data is
+presented, nor does it allow any of the data to be deleted (you need
+to specify the
 .Fl -oexcl
-option.  For a given set of statistics (specified, as in the
+option for these).  However, the
+.Fl -omodify
+*does* allow one to change the label printed for a given statistic, as
+well as allowing "::int" (see the .Fl -oexcl option) to be added to
+the print directive for one or more statistics that are to be printed.
+See the
+.Fl -oexcl
+for more details on the contents of
+.Ar outputspecifier .
+In the case of
+.Fl -omodify
+only the elements of
+.Ar outputspecifier
+that match a tag of the statistics of the specified type to be printed
+make a change in the printed output.
+.It Fl -ospec Ar {class|flow|ri} outputspecifier
+This allows finer control of what is printed out than do the
+.Fl -oexcl
+and
+.Fl -omodify
+options.  For a given set of statistics (specified, as in the
 .Fl -oexcl
 option, by
 .Ar class ,
@@ -362,7 +383,6 @@ packets of the same length.  To see only the lengths, packet counts
 and byte counts, we could specify
 .Fl -ospec flow id,pkts,bytes
 .
-.Ed
 .Sh BUGS
 .Nm flstats
 does not support IPv6.

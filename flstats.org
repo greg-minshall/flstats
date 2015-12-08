@@ -82,6 +82,20 @@ runt, et al.)
 *** TODO 46. a flag to print out the list of available flow specifiers
     i.e., the "atoft" table
 
+*** TODO 47. with --binsecs 1, seconds aren't consistently
+    counted in one second intervals.
+*** DONE 48. could have -c *and* -f
+    just prepend class stats to flow stats (or, indent flows twice as
+    much)
+*** TODO 49. -indentation-string
+*** TODO 50. -USR1 reports flows, -USR2 classes?
+    or, maybe, USR1 does reporting; USR2 iterates among the
+    alternatives. (could have USR2 report current setting to stderr?)
+*** TODO 51. readme file for github
+    github as a [[https://github.com/github/markup][repository]] listing the approved formats.  man(1)
+    isn't 1.
+*** TODO 52. some switches for common output requests
+    such as, -timebase tr, print lastrevd times, et al., as seconds, etc.
 ** reporting times, bin numbers, etc.
 
 *** reporting intervals

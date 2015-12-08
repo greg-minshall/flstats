@@ -574,7 +574,7 @@ flow_statistics(flowentry_p fe)
 
 
 static char *class_stats_template =
-    "type %s created %lu deleted %lu added %lu removed %lu "
+    "class %d type %s created %lu deleted %lu added %lu removed %lu "
     "active %lu pkts %lu bytes %lu sipg %lu.%06lu "
     "lastrecv %ld.%06ld",
     *class_stats_format;
@@ -585,6 +585,7 @@ class_statistics(class_p clsp)
     static char summary[10000];
 
     sprintf(summary, class_stats_format,
+            clsp-classes,
             flow_type_to_string(clsp->cls_type_indices, clsp->cls_type_indices_len),
             clsp->cls_ri.cls_ri_created, clsp->cls_ri.cls_ri_deleted,
             clsp->cls_ri.cls_ri_added, clsp->cls_ri.cls_ri_removed, clsp->cls_ri.cls_ri_active,
@@ -1840,19 +1841,29 @@ static int
 fl_start_class_enumeration(ClientData clientData, Tcl_Interp *interp,
 		int argc, const char *argv[])
 {
-    class_enum_state = classes;
+    class_enum_state = NULL;
     return TCL_OK;
 }
 
+/*
+ * in order for flow-within-class enumeration to work, it's important
+ * that class_enum_state, at *exit* from
+ * fl_continue_class_enumeration, point at the most recently accessed
+ * class structure.
+ */
 static int
 fl_continue_class_enumeration(ClientData clientData, Tcl_Interp *interp,
 		int argc, const char *argv[])
 {
     class_p cl;
 
-    while (class_enum_state) {
+    while (class_enum_state != LAST(classes)) {
+        if (class_enum_state == NULL) {
+            class_enum_state = &classes[0];
+        } else {
+            class_enum_state++;
+        }
         cl = class_enum_state;
-        class_enum_state++;
         if (class_enum_state >= &classes[NUM(classes)]) {
             class_enum_state = 0;
         }
@@ -1887,8 +1898,19 @@ static int
 fl_continue_flow_enumeration(ClientData clientData, Tcl_Interp *interp,
 		int argc, const char *argv[])
 {
+    int class;
+
+    if (argc == 2) {            /* for a specific class */
+        /* XXX do some argument testing */
+        class = class_enum_state-classes; /* find id of currently
+                                           * enumerated class */
+    } else {
+        class = -1;
+    }
+
     while (flow_enum_state) {
-        if (flow_enum_state->fe_last_bin_active == ri.ri_binno) {
+        if ((flow_enum_state->fe_last_bin_active == ri.ri_binno) &&
+            ((class == -1) || (class == flow_enum_state->fe_class))) {
             Tcl_SetResult(interp,
                           flow_statistics(flow_enum_state), TCL_VOLATILE);
             flow_enum_state->fe_pkts_last_enum = flow_enum_state->fe_pkts;

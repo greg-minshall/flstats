@@ -19,7 +19,13 @@ static char *flstats_h_rcsid = "$Id$";
 
 #define	MAX_FLOW_ID_BYTES	30	/* maximum number of bytes in flow id */
 
+/* number of elements in an array */
 #define	NUM(a)	(sizeof (a)/sizeof ((a)[0]))
+/* maximum index for an array */
+#define MAXINDEX(a)  (NUM((a))-1)
+/* last element of an array */
+#define LAST(a) (&(a)[MAXINDEX(a)])
+
 #define	MIN(a,b)	((a) < (b) ? (a):(b))
 
 #define PICKUP_NETSHORT(p)       ((((u_char *)p)[0]<<8)|((u_char *)p)[1])
