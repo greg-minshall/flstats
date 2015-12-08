@@ -107,9 +107,9 @@ proc flll_delete {time FLOW args} {
 
 
 proc crack_exclude { spec excludes } {
-    global flstats
+    global flglobals
 
-    if {$flstats(debug)} {
+    if {$flglobals(debug)} {
         puts "\[crack_exclude spec \"$spec\" excludes \"$excludes\"\]"
     }
     set elist [split $excludes]
@@ -123,7 +123,7 @@ proc crack_exclude { spec excludes } {
         foreach pre $repre {
             foreach post $repost {
                 set re $pre$excl$post
-                if {$flstats(debug) > 1} {
+                if {$flglobals(debug) > 1} {
                     puts stderr "regsub -all \"$re\" \"$spec\" \"\\1\" spec"
                 }
                 regsub -all $re $spec {\1} spec
@@ -160,9 +160,9 @@ proc crack_exclude { spec excludes } {
 # it contains tags
 
 proc crack_output { spec stats_format } {
-    global flstats
+    global flglobals
 
-    if {$flstats(debug)} {
+    if {$flglobals(debug)} {
         puts stderr "\[crack_output spec \"$spec\" stats_format \"$stats_format\""
     }
     set tags [split $stats_format]
@@ -197,7 +197,7 @@ proc crack_output { spec stats_format } {
         set index $indices($stag)
         lappend desired [list $stag $formats($stag) $indices($stag) $slabel $sint]
     }
-    if {$flstats(debug)} {
+    if {$flglobals(debug)} {
         puts stderr \"$desired\"
     }
     return $desired;
@@ -206,9 +206,9 @@ proc crack_output { spec stats_format } {
 
 # find mods in spec and, well, modify them
 proc crack_modify { spec mods stats_format } {
-    global flstats
+    global flglobals
 
-    if {$flstats(debug) > 1} {
+    if {$flglobals(debug) > 1} {
         puts stderr "\[crack_modify \"$spec\" \"$mods\" \"$stats_format\"\]"
     }
     set mspec [crack_output $mods $stats_format]
@@ -236,7 +236,7 @@ proc crack_modify { spec mods stats_format } {
         error "attempt to modify tag(s) \"[nth $mspec 0]\"; \
                             valid tags are \"[nth $spec 0]\""
     }
-    if {$flstats(debug) > 1} {
+    if {$flglobals(debug) > 1} {
         puts stderr "\[crack_modify\] returning \"$desired\""
     }
     return $desired
@@ -245,7 +245,7 @@ proc crack_modify { spec mods stats_format } {
 
 
 proc sill { line desired {justtags 0} } {
-    global flstats
+    global flglobals
 
     # LINE is a string of value elements (i.e., printed w/OUT tags)
     # DESIRED is a list of elements, each of the form:
@@ -263,14 +263,14 @@ proc sill { line desired {justtags 0} } {
     # the optional parameter JUSTTAGS is for printing out header lines
     # (without any actual values)
 
-    if {$flstats(debug)} {
+    if {$flglobals(debug)} {
         puts stderr "silling: $line"
         puts stderr "jussttags $justtags, with: $desired"
     }
-    set sep $flstats(separator)
+    set sep $flglobals(separator)
     set xsep "";                # not before *first* pair
     set output ""
-    set wanttags [expr $flstats(tags) || $justtags]; # does user want tags
+    set wanttags [expr $flglobals(tags) || $justtags]; # does user want tags
     set pelts [split $line]
     set plen [llength $pelts]
     set dlen [llength $desired]
@@ -314,50 +314,50 @@ proc sill { line desired {justtags 0} } {
 
 
 proc fl_details { {filename {}} {binsecs {}} {classifier {}} {flowtypes {} }} {
-    global flstats
+    global flglobals
 
     set didrisats 0
 
     fl_setup $filename $binsecs $classifier $flowtypes
 
-    set binsecs $flstats(binsecs)   ; # make sure we have correct value
+    set binsecs $flglobals(binsecs)   ; # make sure we have correct value
 
     while {[set ristats [fl_read_one_bin $binsecs]] != ""} {
-        set silld_ristats [sill $ristats $flstats(ri_output_spec)]
-        if {$flstats(indent)} {
+        set silld_ristats [sill $ristats $flglobals(ri_output_spec)]
+        if {$flglobals(indent)} {
             puts $silld_ristats
-            set prefix $flstats(indentation); # fold into [putsill]?
+            set prefix $flglobals(indentation); # fold into [putsill]?
         } else {
-            set prefix [string cat $silld_ristats $flstats(separator)]
+            set prefix [string cat $silld_ristats $flglobals(separator)]
         }
-        if {$flstats(classes)} {
+        if {$flglobals(classes)} {
             fl_start_class_enumeration
             while {[set classstats [fl_continue_class_enumeration]] != ""} {
-                set silld_classstats [sill $classstats $flstats(class_output_spec)]
-                if {$flstats(flows)} {
-                    if {$flstats(indent)} {
+                set silld_classstats [sill $classstats $flglobals(class_output_spec)]
+                if {$flglobals(flows)} {
+                    if {$flglobals(indent)} {
                         puts $prefix$silld_classstats
-                        set prefix2 [string cat $flstats(indentation) \
-                                        $flstats(indentation)]
+                        set prefix2 [string cat $flglobals(indentation) \
+                                        $flglobals(indentation)]
                     } else {
                         set prefix2 [string cat $prefix \
-                                        $silld_ristats $flstats(separator)]
+                                        $silld_ristats $flglobals(separator)]
                     }
                     fl_start_flow_enumeration
                     while {[set flowstats \
                                 [fl_continue_flow_enumeration --curclass]] != ""} {
                         set silld_flowstats \
-                            [sill $flowstats $flstats(flow_output_spec)]
+                            [sill $flowstats $flglobals(flow_output_spec)]
                         puts $prefix2$silld_flowstats
                     }
                 } else {
                     puts $prefix$silld_classstats
                 }
             }
-        } elseif {$flstats(flows)} {
+        } elseif {$flglobals(flows)} {
             fl_start_flow_enumeration
             while {[set flowstats [fl_continue_flow_enumeration]] != ""} {
-                set silld_flowstats [sill $flowstats $flstats(flow_output_spec)]
+                set silld_flowstats [sill $flowstats $flglobals(flow_output_spec)]
                 puts $prefix$silld_flowstats
             }
         }
@@ -408,24 +408,24 @@ proc fl_details { {filename {}} {binsecs {}} {classifier {}} {flowtypes {} }} {
 #
 
 proc fl_setft { {classifier {}} {flowtypes {}} } {
-    global flstats
+    global flglobals
 
     # the following is like atoft in the .c file:
     set alltags {}
 
     if {$flowtypes == {}} {
-        set flowtypes $flstats(flowtypes)
+        set flowtypes $flglobals(flowtypes)
     } else {
-        set flstats(flowtypes) $flowtypes
+        set flglobals(flowtypes) $flowtypes
     }
 
     if {$classifier == {}} {
-        set classifier $flstats(classifier)
+        set classifier $flglobals(classifier)
         if {$classifier == {}} {
             set classifier "-"
         }
     } else {
-        set flstats(classifier) $classifier
+        set flglobals(classifier) $classifier
     }
 
     set user_flow_type_len [llength $flowtypes]
@@ -498,7 +498,7 @@ proc fl_setft { {classifier {}} {flowtypes {}} } {
         fl_set_ll_classifier 0 [llength $flowtypes]
     }
 
-    set flstats(lastllclassifier) 0
+    set flglobals(lastllclassifier) 0
 
     # now, do same for merge_no_ports, if we saw ports...
     if {$portsseen} {
@@ -534,20 +534,20 @@ proc fl_setft { {classifier {}} {flowtypes {}} } {
             # tell ll classifier which flow types to use.
             fl_set_ll_classifier 1 [llength $flowtypes]
         }
-        set flstats(lastllclassifier) 1
+        set flglobals(lastllclassifier) 1
     }
 
     # last flow in use
-    set flstats(lastflow) [llength $flowtypes]
+    set flglobals(lastflow) [llength $flowtypes]
     # last class in use
-    set flstats(lastclass) [llength $flowtypes]
+    set flglobals(lastclass) [llength $flowtypes]
 
     # now, scan thru the input list again, setting upper level flows...
 
     for {set whichflow 0; set ftindex 1} {$whichflow < [llength $flowtypes]} \
         { incr whichflow; incr ftindex } {
             set flow [lindex $flowtypes $whichflow]
-            if {$flstats(label)} {
+            if {$flglobals(label)} {
                 puts "# flowtype $ftindex $flow"
             }
             set len [llength $flow]
@@ -576,27 +576,27 @@ proc fl_setft { {classifier {}} {flowtypes {}} } {
 }
 
 proc fl_setup { {filename {}} {binsecs {}} {classifier {}} { flowtypes {} } } {
-    global flstats
+    global flglobals
 
     if {$filename == {}} {
-        if {![info exists flstats(tracefile.filename)]} {
+        if {![info exists flglobals(tracefile.filename)]} {
             error "tracefile not specified"
         }
-        set filename $flstats(tracefile.filename)
+        set filename $flglobals(tracefile.filename)
     } else {
-        set flstats(tracefile.filename) $filename
+        set flglobals(tracefile.filename) $filename
     }
 
     if {$binsecs == {}} {
-        set binsecs $flstats(binsecs)
+        set binsecs $flglobals(binsecs)
     } else {
-        set flstats(binsecs) $binsecs
+        set flglobals(binsecs) $binsecs
     }
 
     if {$filename != "-"} {
         set fname [glob $filename]
         file stat $fname filestats
-        if {$flstats(label)} {
+        if {$flglobals(label)} {
             puts [format "# file %s size %d last written %d" \
                       $fname $filestats(size) $filestats(mtime)]
         }
@@ -606,12 +606,12 @@ proc fl_setup { {filename {}} {binsecs {}} {classifier {}} { flowtypes {} } } {
     # "eval" to get the filename in argv[1] and (optional) type in argv[2]...
     eval "fl_set_file $fname"
 
-    if {$flstats(label)} {
+    if {$flglobals(label)} {
         puts "#"
     }
     fl_setft $classifier $flowtypes
 
-    if {$flstats(label)} {
+    if {$flglobals(label)} {
         puts "#"
         puts "# binsecs $binsecs"
         puts "#"
@@ -635,7 +635,7 @@ proc usage {cmdname} {
 # parse command line arguments.
 proc fl_set_parameters {argc argv} {
     global argv0
-    global flstats
+    global flglobals
     global tfmt
     global ofmt
 
@@ -650,7 +650,7 @@ proc fl_set_parameters {argc argv} {
                 error "not enough arguments for --binsecs in $argv\nlooking for\
                 '--binsecs number'"
             }
-            set flstats(binsecs) [lindex $argv 1]
+            set flglobals(binsecs) [lindex $argv 1]
             incr argc -2
             set argv [lrange $argv 2 end]
         } elseif {[string equal $arg --flowtypes]} { ; # flow types
@@ -658,7 +658,7 @@ proc fl_set_parameters {argc argv} {
                 error "not enough arguments for --flowtypes in $argv\nlooking \
                 for '--flowtypes flowtypes'"
             }
-            set flstats(flowtypes) [lindex $argv 1]
+            set flglobals(flowtypes) [lindex $argv 1]
             incr argc -2
             set argv [lrange $argv 2 end]
         } elseif {[string equal $arg --evaluate]} { ; # execute tcl script
@@ -682,7 +682,7 @@ proc fl_set_parameters {argc argv} {
                 error "not enough arguments for --sep in $argv\nlooking \
                        for '--sep separator'"
             }
-            set flstats(separator) [lindex $argv 1]
+            set flglobals(separator) [lindex $argv 1]
             incr argc -2
             set argv [lrange $argv 2 end]
         } elseif {[string equal $arg --timebase]} {
@@ -724,7 +724,7 @@ proc fl_set_parameters {argc argv} {
                 error "invalid stats identifier for --ospec in $which\n \
                    looking for one of: class, flow, ri"
             }
-            set flstats(${which}_output_arg) [lindex $argv 2]
+            set flglobals(${which}_output_arg) [lindex $argv 2]
             incr argc -3
             set argv [lrange $argv 3 end]
         } elseif {[string equal $arg --omodify]} { # what to output
@@ -737,7 +737,7 @@ proc fl_set_parameters {argc argv} {
                 error "invalid stats identifier for --ospec in $which\n \
                    looking for one of: class, flow, ri"
             }
-            set flstats(${which}_omodify_arg) [lindex $argv 2]
+            set flglobals(${which}_omodify_arg) [lindex $argv 2]
             incr argc -3
             set argv [lrange $argv 3 end]
         } elseif {[string equal $arg --oexcl]} { # output tags to exclude
@@ -750,7 +750,7 @@ proc fl_set_parameters {argc argv} {
                 error "invalid stats identifier for --oexcl in $which\n \
                    looking for one of: class, flow, ri"
             }
-            set flstats(${which}_oexcl_arg) [lindex $argv 2]
+            set flglobals(${which}_oexcl_arg) [lindex $argv 2]
             incr argc -3
             set argv [lrange $argv 3 end]
         } elseif {[string equal $arg "--"]} {
@@ -761,23 +761,23 @@ proc fl_set_parameters {argc argv} {
             while {[string length $opts] > 0} {
                 set optchar [string range $opts 0 0]
                 if {[string equal $optchar "c"]} {
-                    set flstats(classes) 1
+                    set flglobals(classes) 1
                 } elseif {[string equal $optchar "d"]} {
-                    incr flstats(debug)
+                    incr flglobals(debug)
                 } elseif {[string equal $optchar "f"]} {
-                    set flstats(flows) 1
+                    set flglobals(flows) 1
                 } elseif {[string equal $optchar H]} {
-                    set flstats(header) 1; # print out column header with labels
+                    set flglobals(header) 1; # print out column header with labels
                 } elseif {[string equal $optchar I]} {
-                    set flstats(indent) 1; # print reporting interval separate
+                    set flglobals(indent) 1; # print reporting interval separate
                 } elseif {[string equal $optchar i]} {
-                    set flstats(interactive) 1
+                    set flglobals(interactive) 1
                 } elseif {[string equal $optchar L]} {
-                    set flstats(label) 1
+                    set flglobals(label) 1
                 } elseif {[string equal $optchar s]} { ; # respond to SIGUSR1
                     fl_catch_signal
                 } elseif {[string equal $optchar T]} {
-                    set flstats(tags) 1; # print labels of values inline
+                    set flglobals(tags) 1; # print labels of values inline
                 } else {
                     puts stderr [format "unknown argument '%s' in '%s'" \
                                      $optchar [lindex $argv 0]]
@@ -791,13 +791,13 @@ proc fl_set_parameters {argc argv} {
         set arg [lindex $argv 0]
     }
 
-    if {${flstats(interactive)} && ( $flstats(classes) || $flstats(flows) ) } {
+    if {${flglobals(interactive)} && ( $flglobals(classes) || $flglobals(flows) ) } {
         error "cannot specify -i with -c and/or -f"
     }
 
     # get trace file name
     if {$argc > 0} {
-        set flstats(tracefile.filename) [lindex $argv 0]
+        set flglobals(tracefile.filename) [lindex $argv 0]
         incr argc -1
         set argv [lrange $argv 1 end]
     }
@@ -816,52 +816,52 @@ proc fl_set_parameters {argc argv} {
     # *AFTER* deciding on tags...
 
     foreach which { class flow ri } {
-        set woa [eitheror "flstats(${which}_output_arg)" \
-                     "flstats(default_${which}_output_arg)"]
-        set wox [eitheror "flstats(${which}_oexcl_arg)" \
-                     "flstats(default_${which}_oexcl_arg)"]
+        set woa [eitheror "flglobals(${which}_output_arg)" \
+                     "flglobals(default_${which}_output_arg)"]
+        set wox [eitheror "flglobals(${which}_oexcl_arg)" \
+                     "flglobals(default_${which}_oexcl_arg)"]
 
         set woa [crack_exclude $woa $wox]
-        set flstats(${which}_output_spec) \
+        set flglobals(${which}_output_spec) \
                 [crack_output $woa "[fl_stats_format ${which} template ]" ]
     }
 
-    # *AFTER* setting flstats(star_output_arg)
+    # *AFTER* setting flglobals(star_output_arg)
 
     foreach which { class flow ri } {
-        if {[info exists flstats(${which}_omodify_arg)]} {
+        if {[info exists flglobals(${which}_omodify_arg)]} {
             puts stderr "got foreach ${which}"
-            set flstats(${which}_output_spec) \
+            set flglobals(${which}_output_spec) \
                             [crack_modify \
-                                 $flstats(${which}_output_spec) \
-                                 $flstats(${which}_omodify_arg) \
+                                 $flglobals(${which}_output_spec) \
+                                 $flglobals(${which}_omodify_arg) \
                                  [fl_stats_format ${which} template]]
         }
     }
 
-    if {$flstats(header)} {
-        puts -nonewline [sill {} $flstats(ri_output_spec) 1]
-        if {$flstats(indent)} {
+    if {$flglobals(header)} {
+        puts -nonewline [sill {} $flglobals(ri_output_spec) 1]
+        if {$flglobals(indent)} {
             puts ""
-            puts -nonewline $flstats(indentation)
+            puts -nonewline $flglobals(indentation)
         } else {
-            puts -nonewline $flstats(separator)
+            puts -nonewline $flglobals(separator)
         }
-        if {$flstats(classes)} {
-            puts -nonewline [sill {} $flstats(class_output_spec) 1]
-            if {$flstats(flows)} {
-                if {$flstats(indent)} {
+        if {$flglobals(classes)} {
+            puts -nonewline [sill {} $flglobals(class_output_spec) 1]
+            if {$flglobals(flows)} {
+                if {$flglobals(indent)} {
                     puts ""
-                    puts -nonewline $flstats(indentation)
-                    puts -nonewline $flstats(indentation)
+                    puts -nonewline $flglobals(indentation)
+                    puts -nonewline $flglobals(indentation)
                 } else {
-                    puts -nonewline $flstats(separator)
+                    puts -nonewline $flglobals(separator)
                 }
-                puts -nonewline [sill {} $flstats(flow_output_spec) 1]
+                puts -nonewline [sill {} $flglobals(flow_output_spec) 1]
             }
             puts ""
-        } elseif {$flstats(flows)} {
-            puts [sill {} $flstats(flow_output_spec) 1]
+        } elseif {$flglobals(flows)} {
+            puts [sill {} $flglobals(flow_output_spec) 1]
         }
     }
 
@@ -873,11 +873,11 @@ proc fl_set_parameters {argc argv} {
     }
 
     # default action
-    if {!$flstats(flows) && !$flstats(classes) && !$flstats(interactive)} {
-        set flstats(classes) 1
+    if {!$flglobals(flows) && !$flglobals(classes) && !$flglobals(interactive)} {
+        set flglobals(classes) 1
     }
 
-    if {!$flstats(interactive)} {
+    if {!$flglobals(interactive)} {
         fl_details
         exit
     } else {
@@ -887,7 +887,7 @@ proc fl_set_parameters {argc argv} {
 }
 
 proc fl_startup { argc argv } {
-    global flstats
+    global flglobals
     global tcl_RcFileName
 
     set argv [string trim $argv]
@@ -899,7 +899,7 @@ proc fl_startup { argc argv } {
     } result ] {
         global errorInfo
         puts stderr $result
-        if {$flstats(debug)} {
+        if {$flglobals(debug)} {
             puts stderr $errorInfo
         }
         exit 1
@@ -917,28 +917,28 @@ set ofmt(flow) 1
 set ofmt(ri) 1
 
 # set some defaults...
-set flstats(binsecs) 0
-set flstats(classifier) {}
-set flstats(classes) 0
-set flstats(debug) 0
-set flstats(flows) 0
-set flstats(header) 0
-set flstats(indent) 0
-set flstats(indentation) "    ";          # XXX make configurable?
-set flstats(interactive) 0
-set flstats(label) 0
-set flstats(separator) " "
-set flstats(tags) 0
-set flstats(tracefile.filename) "-"     ; # from standard in...
+set flglobals(binsecs) 0
+set flglobals(classifier) {}
+set flglobals(classes) 0
+set flglobals(debug) 0
+set flglobals(flows) 0
+set flglobals(header) 0
+set flglobals(indent) 0
+set flglobals(indentation) "    ";          # XXX make configurable?
+set flglobals(interactive) 0
+set flglobals(label) 0
+set flglobals(separator) " "
+set flglobals(tags) 0
+set flglobals(tracefile.filename) "-"     ; # from standard in...
 # default flowtypes...
-set flstats(flowtypes) { \
+set flglobals(flowtypes) { \
     ihv/ihl/tos/ttl/prot/src/dst ihv/ihl/tos/ttl/prot/src/dst/sport/dport \
 }
 
-set flstats(default_class_output_arg) [evenelts [fl_stats_format class template]]
-set flstats(default_flow_output_arg) [evenelts [fl_stats_format flow template]]
-set flstats(default_ri_output_arg) [evenelts [fl_stats_format ri template]]
+set flglobals(default_class_output_arg) [evenelts [fl_stats_format class template]]
+set flglobals(default_flow_output_arg) [evenelts [fl_stats_format flow template]]
+set flglobals(default_ri_output_arg) [evenelts [fl_stats_format ri template]]
 
-set flstats(default_class_oexcl_arg) ""
-set flstats(default_flow_oexcl_arg) ""
-set flstats(default_ri_oexcl_arg) "fragpkts fragbytes toosmallpkts toosmallbytes runtpkts runtbytes noportpkts noportbytes"
+set flglobals(default_class_oexcl_arg) ""
+set flglobals(default_flow_oexcl_arg) ""
+set flglobals(default_ri_oexcl_arg) "fragpkts fragbytes toosmallpkts toosmallbytes runtpkts runtbytes noportpkts noportbytes"
