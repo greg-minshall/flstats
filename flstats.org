@@ -16,50 +16,50 @@
 	(flstats(maxclass), flstats(maxflow), ...) set by .c.
 *** TODO 18. "df len" should be a flow type "df" 
     it should have as its parent, a flow type "len".
-*** DONE 19. Allow a "name" to be given to a class [fl_set_class_name].
+*** 19. Allow a "name" to be given to a class [fl_set_class_name].
     (maybe default to underlying flows' type, if only one type in the
     class?)
-*** DONE 20. catch a signal (SIGINFO, C-t) as a way of terminating a bin, printing out a line.
-*** DONE 21. option for timestamp (rather than binno) time of printing lines?  
+*** 20. catch a signal (SIGINFO, C-t) as a way of terminating a bin, printing out a line.
+*** 21. option for timestamp (rather than binno) time of printing lines?  
     also, number of seconds spanned by this report line
 *** TODO 22. hosta/hostb type (sort numerically/lexicographically)
-*** DONE 23. flag to disable printing "name val" pairs; 
-*** DONE 24. flag to have separate "reporting interval" line; indent class/flow lines after
-*** DONE 25. require *entire* long_option names
-*** DONE 26. allow specification of column separator for reports
+*** 23. flag to disable printing "name val" pairs; 
+*** 24. flag to have separate "reporting interval" line; indent class/flow lines after
+*** 25. require *entire* long_option names
+*** 26. allow specification of column separator for reports
     "|", ";", "<TAB>", etc.
-*** DONE 27. flag to print a header line
-*** DONE 28. get rid of --kind, fix28/44, etc.
-*** DONE 29. make parameterless options *short*
+*** 27. flag to print a header line
+*** 28. get rid of --kind, fix28/44, etc.
+*** 29. make parameterless options *short*
 *** TODO 30. if app init code (loading flstats.tcl, that is) fails
     we end up at a tclsh prompt -- program should rather exit
     ([catch]?)
 *** TODO 31. [fl_time_base] return current state
 
-*** DONE 32. make fe_id a char*
+*** 32. make fe_id a char*
 *** TODO 33. set_time() does a while loop of do_timers()
     probably only need this for simulation?
-*** DONE 34. in flstats.c, move binno into struct ri.
+*** 34. in flstats.c, move binno into struct ri.
 *** TODO 35. make ce_created, etc., struct timeval
     probably need for general scheme for time format (so can make
     these integers, if we want; etc.)
 *** TODO 36. get rid of [fl_set_tcpd_file]?
     maybe leave it?  in case some future file type (so will remember
     how to deal with it).
-*** DONE 37. sipg for ri not working?
+*** 37. sipg for ri not working?
     they are current binno
-*** DONE 38. count runt, and other bad packets, in ri structure
+*** 38. count runt, and other bad packets, in ri structure
     currently they are counted in class 0.
-*** DONE 39. new output format scheme
+*** 39. new output format scheme
     table of: [printed name; fe->fe_foo; {int,time,sipg}].  can do in
     .c, but can also easily (if a bit slower) do in .tcl.
 *** TODO 40. IPv6
-*** DONE 41. runt packets, etc., should maybe be counted earlier
+*** 41. runt packets, etc., should maybe be counted earlier
     in, e.g., receive_tcpd...
-*** DONE 42. "errpkts" includes perfectly good, but ignored packets
+*** 42. "errpkts" includes perfectly good, but ignored packets
      ARP, say
-*** DONE 43. there are *two* labels "type" on output line
-*** DONE 44. allow --dontoutput {cl|fl|ri} taglist
+*** 43. there are *two* labels "type" on output line
+*** 44. allow --dontoutput {cl|fl|ri} taglist
     probably more useful than --output
 
 then, run it twice, once to get "format" array, once to get code to to
@@ -76,7 +76,7 @@ advantage: o(1) on output (setup takes the expense)
 then, can produce some derived statistics (such as "errpkts", to hold
 runt, et al.)
 
-*** DONE 45. allow --omodify
+*** 45. allow --omodify
     one would just list the fields whose output representation one
     wanted to change, like "ri first_recv::int".  --omodify ??
 *** TODO 46. a flag to print out the list of available flow specifiers
@@ -84,7 +84,7 @@ runt, et al.)
 
 *** TODO 47. with --binsecs 1, seconds aren't consistently
     counted in one second intervals.
-*** DONE 48. could have -c *and* -f
+*** 48. could have -c *and* -f
     just prepend class stats to flow stats (or, indent flows twice as
     much)
 *** TODO 49. -indentation-string
@@ -95,7 +95,10 @@ runt, et al.)
     github as a [[https://github.com/github/markup][repository]] listing the approved formats.  man(1)
     isn't 1.
 *** TODO 52. some switches for common output requests
-    such as, -timebase tr, print lastrevd times, et al., as seconds, etc.
+    such as, -timebase tr, print lastrevd times, et al., as seconds,
+    etc.
+*** TODO 53. add search for libpcap to configure.in
+    tcpdump/aclocal.m4 has AC_LBL_LIBPCAP defined.
 
 ** reporting times, bin numbers, etc.
 
