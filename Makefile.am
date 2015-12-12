@@ -4,9 +4,6 @@
 VERS=`cat VERSION`
 
 
-# Tcl location.
-LIBPCAP = -lpcap
-
 #have-gcc#CC = gcc
 #have-gcc#WARNINGS	= -Wall
 #have-gcc#LDFLAGS = -Xlinker
@@ -32,7 +29,7 @@ flstats:		flstats.o
 	${CC} ${CFLAGS} -o flstats ${LDFLAGS} \
 			flstats.o ${LIBPATH} ${LIBS} ${LIBPCAP} -lm
 
-flstats.o:	flstats.char flstats.c
+flstats.o:	flstats.char flstats.c flstats.h config.h
 
 flstats.char:	flstats.tcl
 

@@ -113,15 +113,19 @@ if test X${have_tcl} != Xyes ; then
 fi
 
 if test "${have_tcl}" = "0" ; then
-   echo "cannot find tcl!"
-   exit 1
+   AC_MSG_ERROR([could not find Tcl/tk installation directory])
 fi
    
 CPPFLAGS="${CPPFLAGS} ${TCL_CFLAGS}"
 LIBS="${LIBS} ${TCL_LIBS}"
 AC_SUBST(have_tcl)
 
+# now, find pcap.h
+AC_CHECK_HEADERS([pcap.h])
+
 # now, find libpcap
+AC_SEARCH_LIBS([pcap_open_offline], [pcap], [],
+                                    [AC_MSG_ERROR([could not find libpcap])])
 
 # now, check for asprintf
 AC_CHECK_FUNCS([asprintf])
