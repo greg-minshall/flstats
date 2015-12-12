@@ -337,7 +337,7 @@ proc fl_details { {filename {}} {binsecs {}} {classifier {}} {flowtypes {} }} {
                 if {$flglobals(flows)} {
                     if {$flglobals(indent)} {
                         puts $prefix$silld_clstats
-                        set prefix2 $flglobals(indentation)$flglobals(indentation)]
+                        set prefix2 $flglobals(indentation)$flglobals(indentation)
                     } else {
                         set prefix2 $prefix$silld_ristats$flglobals(separator)
                     }
