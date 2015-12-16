@@ -170,13 +170,15 @@ typedef struct class {
  */
 
 typedef struct ri {
-    u_long ri_binno,         /* current ri bin number */
-        ri_pkts,             /* number of packets received this ri */
-        ri_bytes,            /* number of bytes seen this ri */
-        ri_isipg,            /* smoothed ipg (w/in this ri) */
-        ri_tsipg,            /* smoothed ipg (w/in trace) */
-        ri_ignorepkts,       /* not an IPv4 packet (so, didn't even classify) */
-        ri_ignorebytes,      /* bytes of same */
+    u_long ri_binno,          /* current ri bin number */
+        ri_pkts,              /* number of packets received this ri */
+        ri_bytes,             /* number of bytes seen this ri */
+        ri_isipg,             /* smoothed ipg (w/in this ri) */
+        ri_tsipg,             /* smoothed ipg (w/in trace) */
+        ri_ipv6pkts,          /* IPv6 packets */
+        ri_ipv6bytes,         /* IPv6 bytes */
+        ri_nonippkts, /* not an IP packet (so, didn't even classify) */
+        ri_nonipbytes,       /* bytes of same */
         ri_unclpkts,         /* packets that didn't match any class */
         ri_unclbytes,        /* bytes that didn't match any class */
     /* the following are all included in above "uncl" */

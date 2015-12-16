@@ -92,14 +92,15 @@ runt, et al.)
     or, maybe, USR1 does reporting; USR2 iterates among the
     alternatives. (could have USR2 report current setting to stderr?)
 *** TODO 51. readme file for github
-    github as a [[https://github.com/github/markup][repository]] listing the approved formats.  man(1)
+    github has a [[https://github.com/github/markup][repository]] listing the approved formats.  man(1)
     isn't 1.
 *** TODO 52. some switches for common output requests
     such as, -timebase tr, print lastrevd times, et al., as seconds,
     etc.
-*** TODO 53. add search for libpcap to configure.in
+*** 53. add search for libpcap to configure.in
     tcpdump/aclocal.m4 has AC_LBL_LIBPCAP defined.
 
+*** 54. add counter for IPv6 packets
 ** reporting times, bin numbers, etc.
 
 *** reporting intervals

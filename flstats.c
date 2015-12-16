@@ -45,7 +45,8 @@ static char *flstats_c_rcsid = "$Id$";
 
 u_char protohasports[256];
 
-u_short IPtype = 0x800;
+u_short Ipv4type = 0x800;
+u_short IPv6type = 0x86dd;
 
 int fileeof = 0;
 int filetype = 0;
@@ -602,7 +603,8 @@ static char *ri_stats_template =
     "ri_firstpkt %ld.%06ld ri_lastpkt %ld.%06ld "
     "ri_pkts %lu ri_bytes %lu "
     "ri_tsipg %lu.%06lu ri_isipg %lu.%06lu "
-    "ignorepkts %lu ignorebytes %lu "
+    "ipv6pkts %lu ipv6bytes %lu "
+    "nonippkts %lu nonipbytes %lu "
     "unclpkts %lu unclbytes %lu "
     "fragpkts %lu fragbytes %lu toosmallpkts %lu toosmallbytes %lu "
     "runtpkts %lu runtbytes %lu noportpkts %lu noportbytes %lu",
@@ -626,7 +628,8 @@ ri_statistics() {
              ri.ri_pkts, ri.ri_bytes,
              SIPG_TO_SECS(ri.ri_isipg), SIPG_TO_USECS(ri.ri_isipg),
              SIPG_TO_SECS(ri.ri_tsipg), SIPG_TO_USECS(ri.ri_tsipg),
-             ri.ri_ignorepkts, ri.ri_ignorebytes,
+             ri.ri_ipv6pkts, ri.ri_ipv6bytes,
+             ri.ri_nonippkts, ri.ri_nonipbytes,
              ri.ri_unclpkts, ri.ri_unclbytes,
              ri.ri_fragpkts, ri.ri_fragbytes,
              ri.ri_toosmallpkts, ri.ri_toosmallbytes,
@@ -1379,10 +1382,15 @@ receive_tcpd_en10mb(u_char *user, const struct pcap_pkthdr *h,
 
     type = buffer[12]<<8|buffer[13];
 
-    if (type != IPtype) {
-        ri.ri_ignorepkts++;
-        ri.ri_ignorebytes += h->caplen-14; /* not that 14 is a magic number... */
-        return;         /* only IP packets */
+    if (type != Ipv4type) {
+        if (type == IPv6type) {
+            ri.ri_ipv6pkts++;
+            ri.ri_ipv6bytes += h->caplen-14; /* not that 14 is a magic number... */
+        } else {
+            ri.ri_nonippkts++;
+            ri.ri_nonipbytes += h->caplen-14; /* not that 14 is a magic number... */
+        }
+        return;         /* only IPv4 packets */
     }
 
     packetin(interp, buffer+14, h->caplen-14, h->len-14);
