@@ -75,7 +75,7 @@ AC_DEFUN([_GGM_TCL_CONFIG_SH], [
       # http://autogen.sourceforge.net/acquoting.html explains the [[...]]
       # do we have tcl::pkgconfig?  (apparently showed up in Tcl 8.5)
       AC_CHECK_PROG(have_tclsh, "tclsh", [yes], [])
-      if test ${have_tclsh} = "yes" ; then
+      if test X${have_tclsh} = Xyes ; then
          __ggm_where=""
          if echo "puts [[tcl::pkgconfig list]]" | \
                                           tclsh | grep -q "includedir,install" ; then
