@@ -112,7 +112,7 @@ if test X${have_tcl} != Xyes ; then
    fi
 fi
 
-if test "${have_tcl}" = "0" ; then
+if test X${have_tcl} != Xyes ; then
    AC_MSG_ERROR([could not find Tcl/tk installation directory])
 fi
    
