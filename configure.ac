@@ -136,7 +136,7 @@ dnl http://core.tcl.tk/sampleextension/artifact/d88ec8fbb6adb474
    TEA_LOAD_TCLCONFIG
    TEA_PREFIX
    TEA_SETUP_COMPILER
-   TEA_PUBLIC_TCL_HEADERS
+dnl   TEA_PUBLIC_TCL_HEADERS
    TEA_CONFIG_CFLAGS
    echo "bin ${TCL_BIN_DIR}; src ${TCL_SRC_DIR}; lib ${TCL_LIB_FILE}"
    AC_MSG_ERROR([could not find Tcl/tk installation directory])
