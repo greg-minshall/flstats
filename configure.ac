@@ -35,9 +35,6 @@ LT_INIT
 # now, find -ltcl
 AC_SEARCH_LIBS([Tcl_SetResult], [tcl], [have_tcl=yes])
 
-echo "LIBS: ${LIBS}"
-
-
 #  find tcl.  easiest is if pkg-config knows where it is
 #  a good reference to PKG_CHECK_MODULES:
 #  https://www.flameeyes.eu/autotools-mythbuster/pkgconfig/pkg_check_modules.html
@@ -132,6 +129,10 @@ if test X${have_tcl} != Xyes ; then
 fi
 
 if test X${have_tcl} != Xyes ; then
+   TEA_INIT(3.9)
+   TEA_PATH_TCLCONFIG
+   TEA_LOAD_TCLCONFIG
+   echo "bin ${TCL_BIN_DIR}; src ${TCL_SRC_DIR}; lib ${TCL_LIB_FILE}"
    AC_MSG_ERROR([could not find Tcl/tk installation directory])
 fi
    
