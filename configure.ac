@@ -129,9 +129,15 @@ if test X${have_tcl} != Xyes ; then
 fi
 
 if test X${have_tcl} != Xyes ; then
+dnl from http://wiki.tcl.tk/5464 and
+dnl http://core.tcl.tk/sampleextension/artifact/d88ec8fbb6adb474
    TEA_INIT([3.9])
    TEA_PATH_TCLCONFIG
    TEA_LOAD_TCLCONFIG
+   TEA_PREFIX
+   TEA_SETUP_COMPILER
+   TEA_PUBLIC_TCL_HEADERS
+   TEA_CONFIG_CFLAGS
    echo "bin ${TCL_BIN_DIR}; src ${TCL_SRC_DIR}; lib ${TCL_LIB_FILE}"
    AC_MSG_ERROR([could not find Tcl/tk installation directory])
 fi
