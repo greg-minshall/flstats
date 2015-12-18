@@ -65,8 +65,8 @@ AC_DEFUN([_GGM_SEARCH], [
       fi
    done
    if test X${__ggm_search_found} != Xyes ; then
-      # not found
-      # if..then..fi complains if $4 is empty
+      dnl not found
+      dnl if..then..fi complains if $4 is empty
       echo -n
       [$4]
    fi
