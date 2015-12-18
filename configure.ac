@@ -20,6 +20,18 @@ LT_INIT
 # fink doesn't provide zlib, since macosx has it.  but, apparently,
 # pkg-config doesn't know where to find it on macosx.
 
+# something w.r.t. finding Tcl:
+#    http://computer-programming-forum.com/57-tcl/8bd748f9302c4cdc.htm
+
+# tclconfig is a directory containing tcl.m4:
+# http://wiki.tcl.tk/5464
+# which suggests
+# ----
+# wget -qO- http://core.tcl.tk/tclconfig/tarball/tclconfig.tar.gz | tar xzv
+# ----
+# to get tcl.m4 in directory tclconfig
+
+
 # now, find -ltcl
 AC_SEARCH_LIBS([Tcl_SetResult], [tcl], [have_tcl=yes])
 
