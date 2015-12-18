@@ -20,17 +20,23 @@ LT_INIT
 # fink doesn't provide zlib, since macosx has it.  but, apparently,
 # pkg-config doesn't know where to find it on macosx.
 
+# now, find -ltcl
+AC_SEARCH_LIBS([Tcl_SetResult], [tcl], [have_tcl=yes])
+
+echo "LIBS: ${LIBS}"
+
+
 #  find tcl.  easiest is if pkg-config knows where it is
 #  a good reference to PKG_CHECK_MODULES:
 #  https://www.flameeyes.eu/autotools-mythbuster/pkgconfig/pkg_check_modules.html
 
-PKG_CHECK_MODULES([TCL],
-                  [tcl],
-                  [AC_DEFINE([HAVE_TCL], [yes], [Have Tcl])],
-                  [have_tcl=no])
+if test X${have_tcl} != Xyes ; then
+   PKG_CHECK_MODULES([TCL], [tcl],
+                            [AC_DEFINE([HAVE_TCL], [have_tcl=yes], [Have Tcl])],
+                            [have_tcl=no])
+fi
 AC_SUBST(TCL_CFLAGS)
 AC_SUBST(TCL_LIBS)
-
 
 
 # _GGM_SEARCH(FILENAME, DIRECTORY-LIST, IF-SUCCESS, IF-FAIL)
