@@ -64,9 +64,9 @@ AC_DEFUN([_GGM_SEARCH], [
          break;
       fi
    done
+   # not found
+   # if..then..fi complains if [$4] is empty
    if test X${__ggm_search_found} != Xyes ; then
-      dnl not found
-      dnl if..then..fi complains if $4 is empty
       echo -n
       [$4]
    fi
@@ -129,7 +129,8 @@ if test X${have_tcl} != Xyes ; then
 fi
 
 if test X${have_tcl} != Xyes ; then
-   TEA_INIT(3.9)
+   TEA_VERSION="3.9"
+   TEA_INIT
    TEA_PATH_TCLCONFIG
    TEA_LOAD_TCLCONFIG
    echo "bin ${TCL_BIN_DIR}; src ${TCL_SRC_DIR}; lib ${TCL_LIB_FILE}"
