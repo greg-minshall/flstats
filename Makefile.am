@@ -27,7 +27,7 @@ SUFFIXES =	.c .h .o .tcl .char
 all:	flstats
 flstats:		flstats.o
 	${CC} ${CFLAGS} -o flstats ${LDFLAGS} flstats.o \
-			${LIBPATH} ${TCL_LIBS} ${LIBS} ${TCL_LIB_SPEC} ${LIBPCAP} -lm
+			${LIBPATH} @TCL_LIBS@ ${LIBS} @TCL_LIB_SPEC@ ${LIBPCAP} -lm
 
 flstats.o:	flstats.char flstats.c flstats.h config.h
 
