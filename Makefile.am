@@ -9,7 +9,7 @@ VERS=`cat VERSION`
 #have-gcc#LDFLAGS = -Xlinker
 #have-SVR4#SVR4 = -DSVR4
 
-CFLAGS	= -g ${INCLUDES} ${WARNINGS}
+CFLAGS = -g ${CPPFLAGS} ${INCLUDES} ${WARNINGS}
 
 SOURCES = Makefile.in flstats.1 flstats.c flstats.tcl flstats.html \
 							configure INSTALL
@@ -26,8 +26,8 @@ SUFFIXES =	.c .h .o .tcl .char
 
 all:	flstats
 flstats:		flstats.o
-	${CC} ${CFLAGS} -o flstats ${LDFLAGS} \
-			flstats.o ${LIBPATH} ${LIBS} ${LIBPCAP} -lm
+	${CC} ${CFLAGS} -o flstats ${LDFLAGS} flstats.o \
+			${LIBPATH} ${TCL_LIBS} ${LIBS} ${TCL_LIB_SPEC} ${LIBPCAP} -lm
 
 flstats.o:	flstats.char flstats.c flstats.h config.h
 
