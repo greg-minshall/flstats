@@ -9,7 +9,7 @@ VERS=`cat VERSION`
 #have-gcc#LDFLAGS = -Xlinker
 #have-SVR4#SVR4 = -DSVR4
 
-CFLAGS = -g ${CPPFLAGS} ${INCLUDES} ${WARNINGS}
+CFLAGS = -g ${CPPFLAGS} ${INCLUDES} @TCL_INCLUDES@ ${WARNINGS}
 
 SOURCES = Makefile.in flstats.1 flstats.c flstats.tcl flstats.html \
 							configure INSTALL
