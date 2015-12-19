@@ -1598,10 +1598,7 @@ fl_read_one_bin(ClientData clientData, Tcl_Interp *interp,
     }
 
     if (TIME_EQ(&ri.ri_first_pkt_rcvd, &ZERO)) {
-        char *asret;
-
-        asprintf(&asret, "");
-        Tcl_SetResult(interp, asret, tclasfree);
+        Tcl_SetResult(interp, "", TCL_STATIC);
     } else {
         Tcl_SetResult(interp, ri_statistics(), tclasfree);
     }
